@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
-  MiniMap,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -271,7 +270,6 @@ export default function App() {
               >
                 <Background />
                 <Controls />
-                <MiniMap pannable zoomable />
               </ReactFlow>
             </RunStateContext.Provider>
           </div>
