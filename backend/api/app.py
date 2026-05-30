@@ -14,6 +14,8 @@ from fastapi.staticfiles import StaticFiles
 import app_paths
 from api.settings_api import router as settings_router
 from api.device_api import router as device_router
+from api.run_api import router as run_router
+from api.graphs_api import router as graphs_router
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,8 @@ def create_app() -> FastAPI:
 
     app.include_router(settings_router)
     app.include_router(device_router)
+    app.include_router(run_router)
+    app.include_router(graphs_router)
 
     @app.get("/api/health")
     def health():

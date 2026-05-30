@@ -23,7 +23,7 @@ from core.humanize import Humanize
 from core.ui_manager import UIManager
 from core.vision import vision
 from core.bootstrap import bootstrap_device
-from core.ocr import warmup_ocr
+from core.ocr import warmup_ocr, read_number_with_confidence
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,7 @@ class DeviceManager:
         self.ui_manager = None
         self.humanize = None
         self._assets_loaded = False
+        self._ocr_warm = False
         self.last_reason = "not_connected"
 
     # -- lifecycle ---------------------------------------------------------
@@ -57,6 +58,17 @@ class DeviceManager:
             vision.load_assets(app_paths.ASSETS_DIR)
             self._assets_loaded = True
             logger.info("Assets preloaded from %s", app_paths.ASSETS_DIR)
+
+    def ensure_ocr(self):
+        """Warm up the easyocr reader once. Heavy (~seconds) — only on run path.
+
+        M1 connect() deliberately skips this; OCR is only needed when a graph
+        actually reads loot numbers.
+        """
+        if not self._ocr_warm:
+            warmup_ocr()
+            self._ocr_warm = True
+            logger.info("OCR reader warmed up")
 
     def connect(self, non_interactive=True):
         """Bootstrap the device. Returns (ok: bool, reason: str).

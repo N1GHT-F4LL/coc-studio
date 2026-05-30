@@ -82,6 +82,23 @@ class AttackScreen(BaseScreen):
         Called from the main loop when on the home screen. Returns when back on the
         home screen (or after a bail-out recovery). A missing template is treated as
         "not ready" and the cycle exits cleanly without crashing the bot.
+
+        Thin orchestrator over find_match/deploy/return_home — each of which is also
+        exposed as a standalone block in coc-studio. Behaviour is identical to the
+        original monolithic cycle: a falsy step short-circuits the rest (the old
+        ``return`` after ``self._bail()``).
+        """
+        if not self.find_match():
+            return
+        if not self.deploy():
+            return
+        self.return_home()
+
+    def find_match(self):
+        """Steps 1–5: tap Attack -> Find a Match -> start match -> scout -> OCR/skip.
+
+        Returns True once a base meeting the loot threshold is held (ready to
+        deploy), or False after a bail-out recovery / when not ready.
         """
         farm = self.settings.get("farm", {})
         attack_cfg = self.settings.get("attack", {})
@@ -96,7 +113,7 @@ class AttackScreen(BaseScreen):
         )
         if not loc:
             logger.debug("Attack button not found; skipping attack cycle.")
-            return
+            return False
         self.ui_manager.click(*loc)
         logger.info("Tapped Attack! button.")
 
@@ -111,7 +128,7 @@ class AttackScreen(BaseScreen):
         if not loc:
             logger.warning("Find a Match button not found - bailing out of attack cycle.")
             self._bail()
-            return
+            return False
 
         if self.settings.get("actions", {}).get("request_clan_troops", False):
             self._request_clan_troops()
@@ -123,7 +140,7 @@ class AttackScreen(BaseScreen):
         if not self._tap_start_match_attack():
             logger.warning("Start-match Attack button not found after Find a Match - bailing.")
             self._bail()
-            return
+            return False
 
         # Wait until matchmaking lands on a real opponent scout screen.
         scout_loc = self._wait_until_any_appears(
@@ -134,7 +151,7 @@ class AttackScreen(BaseScreen):
         if not scout_loc:
             logger.warning("Scout screen not detected after Find a Match - bailing.")
             self._bail()
-            return
+            return False
         skips = 0
         while skips <= MAX_SKIP:
             # Ensure scout UI has settled before OCR.
@@ -144,7 +161,7 @@ class AttackScreen(BaseScreen):
             if screen is None:
                 logger.warning("No screen after match load - bailing.")
                 self._bail()
-                return
+                return False
 
             # --- step 4: OCR the loot numbers ---
             loot, conf = self._read_loot(screen, attack_cfg)
@@ -169,7 +186,7 @@ class AttackScreen(BaseScreen):
             if not loc:
                 logger.warning("Next button not found - bailing.")
                 self._bail()
-                return
+                return False
             self.ui_manager.click(*loc)
             logger.debug("Tapped Next Enemy.")
             ready = self._wait_until_any_appears(
@@ -181,19 +198,28 @@ class AttackScreen(BaseScreen):
             if not ready:
                 logger.warning("Scout screen not ready after Next Enemy - bailing.")
                 self._bail()
-                return
+                return False
             skips += 1
         else:
             logger.warning(f"Reached max skips ({MAX_SKIP}) - bailing.")
             self._bail()
-            return
+            return False
 
+        return True
+
+    def deploy(self):
+        """Step 6: enter the battle, pick a scenario variant, deploy troops.
+
+        Returns True after troops are deployed, or False after a bail-out when
+        the battle screen never appears.
+        """
+        attack_cfg = self.settings.get("attack", {})
         # --- step 5: wait for battle screen, deploy troops, wait for end ---
         battle = BattleScreen(self.ui_manager)
         if not battle.wait_until_entered(timeout=15):
             logger.warning("Battle screen not detected after loot threshold — bailing.")
             self._bail()
-            return
+            return False
 
         deploy_cfg = dict(attack_cfg.get("deploy", {}))
         active = deploy_cfg.get("active_scenario")
@@ -212,16 +238,25 @@ class AttackScreen(BaseScreen):
             except FileNotFoundError:
                 logger.warning(f"[SCENARIO] '{active}.json' not found — using settings slots")
         battle.deploy_troops(deploy_cfg)
+        return True
 
+    def return_home(self):
+        """Step 7: wait for battle end, tap Return Home, settle, close popups.
+
+        Returns True on a clean return, or False after a bail-out when the
+        battle-end button times out.
+        """
+        battle = BattleScreen(self.ui_manager)
         loc = battle.wait_for_end()
         if not loc:
             logger.warning("Battle end timeout.")
             battle.bail()
-            return
+            return False
 
         battle.tap_return_home(loc)
         self.ui_manager._poll_sleep(3)
         self.close_popups()
+        return True
 
     # ------------------------------------------------------------------
     # Helpers
