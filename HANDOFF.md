@@ -143,14 +143,25 @@ Asset studio + scenario migrator. Verify END-TO-END trong browser với device t
 - Chạy graph qua REST: start `main.py`, `POST /api/device/connect`, rồi `POST /api/run`
   body `{"graph": <farm_cycle.json>}` (test bằng urllib/curl, KHÔNG có httpx).
 
-## Còn lại / chưa verify được trong session
-- **Deploy-bar parity chạy thật** cần đang Ở TRONG trận (battle screen) để
-  `_slot_deploy` deploy quân — phụ thuộc trạng thái game, chưa demo trong session.
-  Code path `deploy(scenario=Thrower)` → `BattleScreen.deploy_troops` (KHÔNG sửa) đã
-  có; parity của `_slot_deploy` đã chốt ở M2. Khi vào trận thật, chạy `Thrower_farm`
-  qua `/ws/run` rồi đối chiếu `coc_bot/logs/debug/bar_deploy_*.png` như plan.
-- Post-v1 (plan §Open): subroutine block (graph-as-block) đầy đủ — hiện loop dùng
-  graph_ref; minitouch/scrcpy HID; đóng gói desktop app.
+## Fix sau M6 (commit `651d3d5`) — farm chạy được END-TO-END
+Triệu chứng user: "bot chạy nhưng không farm". Gốc rễ: farm graph thiếu khung
+startup/recovery của `run_bot` → bot thao tác trên màn sai (BlueStacks store), tap
+nhầm "Attack!" rồi bail "Find a Match not found". `device_manager.connect()` chỉ
+bootstrap ADB+assets, KHÔNG đưa CoC ra trước.
+- Thêm block **`ensure_home`** (wrap `device.ensure_coc_ready` + detect home + đóng
+  popup + pinch zoom-out + restart-game recovery như `coc_bot/main.py`).
+- `farm_cycle.json`: prepend `ensure_home`; deploy `scenario="Thrower"` (scenario rỗng
+  → settings path hỏng → "No troop slots matched"). `farm_loop.json` = `loop_n(farm_cycle,50)`
+  farm liên tục (stop từ run console). Migrator cũng sinh graph có `ensure_home`.
+- `main.py`: ép stdout/stderr UTF-8 (deploy log có `→`,`×` lỗi cp1252 trên console Win).
+- **Verify device thật:** full cycle chạy hết — ensure_home về home, collect 3 mỏ, tap
+  Attack→Find a Match, OCR loot (conf 1.00), đạt threshold, **deploy 22 node Thrower qua
+  `_slot_deploy` (deploy parity ✓)**, return home. → Cách dùng: build FE, `main.py`,
+  `POST /api/device/connect`, rồi Run `farm_cycle` (1 vòng) hoặc `farm_loop` (liên tục).
+
+## Post-v1 (plan §Open, chưa làm)
+- Subroutine block (graph-as-block) đầy đủ — hiện loop dùng `graph_ref`.
+- minitouch/scrcpy HID cho swipe mượt; đóng gói desktop app.
 
 ## Ràng buộc PHẢI giữ (từ coc-tools REQUIREMENT.md/CLAUDE.md)
 - `core/` + `screens/` copy verbatim — KHÔNG "đơn giản hóa": BlueStacks failover trong
