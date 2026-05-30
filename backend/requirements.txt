@@ -1,0 +1,10 @@
+# Reused vision/device/ocr stack (from coc-tools)
+pure-python-adb==0.3.0.dev0
+opencv-python>=4.5.0
+numpy>=1.20.0
+easyocr>=1.6.0
+
+# Web backend (replaces PyQt5)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+websockets>=12.0

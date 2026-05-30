@@ -1,0 +1,90 @@
+{
+  "device": {
+    "profile": "bluestacks",
+    "adb_path": "",
+    "endpoint": "",
+    "serial": "127.0.0.1:5555",
+    "strict_serial": true,
+    "auto_select_single": true,
+    "auto_launch_profile": true,
+    "enforce_resolution": true,
+    "target_resolution": "1600x900",
+    "target_density": 240
+  },
+  "farm": {
+    "min_gold": 100000,
+    "min_elixir": 100000,
+    "min_dark_elixir": 500
+  },
+  "delays": {
+    "short_min": 0.5,
+    "short_max": 1.5,
+    "long_min": 2.0,
+    "long_max": 4.0
+  },
+  "jitter": {
+    "radius": 5.0
+  },
+  "actions": {
+    "collect_resources": true,
+    "farm_attack": true,
+    "request_clan_troops": false,
+    "clan_games": false
+  },
+  "attack": {
+    "loot_by_icon": {
+      "_note": "Auto-locate resource icons then OCR numbers by relative offsets.",
+      "threshold": 0.62,
+      "x_start_offset": -8,
+      "x_end_offset": 236,
+      "y_half_height": 19,
+      "search_roi": [
+        0,
+        70,
+        420,
+        360
+      ],
+      "per_resource": {
+        "dark_elixir": {
+          "threshold": 0.7,
+          "y_half_height": 16
+        }
+      }
+    },
+    "loot_regions": {
+      "_note": "Fallback OCR regions if icon detect misses.",
+      "gold": [
+        0,
+        120,
+        250,
+        160
+      ],
+      "elixir": [
+        0,
+        160,
+        250,
+        210
+      ],
+      "dark_elixir": [
+        0,
+        220,
+        250,
+        260
+      ]
+    },
+    "deploy": {
+      "mode": "slot",
+      "active_scenario": "Thrower_",
+      "troop_bar_region": [
+        0,
+        730,
+        1600,
+        910
+      ],
+      "battlefield_y": 750,
+      "battlefield_x_start": 300,
+      "battlefield_x_end": 1300,
+      "tap_interval": 0.15
+    }
+  }
+}
