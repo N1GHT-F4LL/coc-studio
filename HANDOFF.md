@@ -43,8 +43,24 @@ Engine block-graph tổng quát + registry + executor, đã verify END-TO-END v�
 - **Parity device thật:** `POST /api/run farm_cycle` → status ok, 4 node topo-order đúng;
   log khớp run_attack_cycle (tap Attack → bail khi Find-a-Match vắng → var-gate no-op).
 
+## Đã xong: Milestone 3 (branch `m2-engine-registry-executor`)
+Frontend React Flow — canvas low-code editor, đã verify END-TO-END trong browser thật:
+- `frontend/` Vite + React 18 + TS + `reactflow@11`. Build → `backend/static/`
+  (main.py serve SPA tại `/`). Dev: `npm run dev` :5173 (proxy `/api`+`/ws`→:8000).
+- `src/api/client.ts` (fetch `/api/blocks`, `/api/graphs` CRUD), `src/blocks/types.ts`
+  (mirror backend spec), `src/canvas/` (BlockNode typed-handle, kindColors, handleId
+  encode Kind, validation = kind-match + Kahn cycle như `engine/graph.py`), `src/graph/
+  serialize.ts` (RF↔GraphDoc: control edge↔`after`, data edge↔`data_in`), `src/panels/`
+  (Palette group-by-category, ParamPanel auto-form từ spec.inputs theo Kind).
+- **Verify browser (Playwright):** palette load 15 block/5 category · add (cascade) ·
+  **connect** control-edge drag → `after` serialize đúng · ParamPanel sửa literal
+  (`coord:[300,400]`) persist · Save→`PUT /api/graphs` ghi JSON · Load `farm_cycle`
+  round-trip 4 node+3 edge · backend `validate()` sạch. favicon 404 là noise vô hại.
+- **Build:** `cd frontend && npm install && npm run build` (tsc --noEmit + vite, pass).
+
 ## Setup môi trường (QUAN TRỌNG)
 - Python **3.14.5**, venv riêng tại `d:\coc-studio\.venv`
+- Node **v20.10**, npm **10.2.3**. Frontend deps trong `frontend/node_modules` (gitignored).
 - Deps đã cài trong venv: fastapi, uvicorn[standard], websockets, opencv-python,
   numpy, pure-python-adb, **easyocr 1.7.2** (M2 đã cài). `httpx` CHƯA cài (nên test
   qua urllib/curl, không dùng starlette TestClient).
@@ -57,17 +73,19 @@ Engine block-graph tổng quát + registry + executor, đã verify END-TO-END v�
 - Chạy graph qua REST: start `main.py`, `POST /api/device/connect`, rồi `POST /api/run`
   body `{"graph": <farm_cycle.json>}` (test bằng urllib/curl, KHÔNG có httpx).
 
-## Tiếp theo: Milestone 3 — frontend React Flow
-- `frontend/` Vite + React + TS. Palette dựng từ `GET /api/blocks` (15 spec sẵn, mỗi
-  spec có inputs/outputs typed theo `Kind`). Canvas React Flow: node = handle typed
-  (màu theo Kind), `isValidConnection` mirror `engine/graph.py:validate`. ParamPanel
-  auto-form từ spec `inputs`. Lưu/đọc graph qua `/api/graphs` (đã có CRUD).
-- CORS đã mở sẵn cho Vite `:5173` trong `api/app.py`.
+## Tiếp theo: Milestone 4 — run + debug (WebSocket realtime)
+- Thêm WS `/ws/run` trong backend: client gửi `{cmd:"start", graph}` / `{cmd:"stop"}`;
+  chạy `run_graph` trong worker thread, `emit` = WS sink (thay vì gom list như
+  `/api/run`). **Tái dùng nguyên `run_graph` + RuntimeContext + RunController** đã có ở
+  M2 (`api/run_api.py`) — chỉ đổi sink + đẩy realtime.
+- Frontend: RunConsole panel (Start/Stop), nghe `/ws/run`, highlight node đang chạy
+  trên canvas (set class theo event `{type:"node",id,state}`), hiển thị `vars` live +
+  log stream. Executor đã emit sẵn các event này (running/done/error + done status).
+- DeviceView panel: vẽ frame JPEG từ `/ws/device` (đã có ở M1) lên `<canvas>`.
 
-Milestone sau: M4 run+debug WS (`/ws/run` realtime + node-highlight — tái dùng
-`run_graph` + RuntimeContext, đổi `emit` từ list→WS sink) · M5 typed data edges +
-if/loop/on_error branching (resolver `data_in` đã wired sẵn trong executor) ·
-M6 asset studio + migrator scenario cũ (`Thrower.json`).
+Milestone sau: M5 typed data edges + if/loop/on_error branching (resolver `data_in` đã
+wired sẵn trong executor; frontend đã render+validate+serialize data-edge) · M6 asset
+studio + migrator scenario cũ (`Thrower.json`).
 
 ## Ràng buộc PHẢI giữ (từ coc-tools REQUIREMENT.md/CLAUDE.md)
 - `core/` + `screens/` copy verbatim — KHÔNG "đơn giản hóa": BlueStacks failover trong

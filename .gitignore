@@ -27,3 +27,6 @@ Thumbs.db
 # Claude
 .claude/settings.local.json
 .claude/worktrees/
+
+# Playwright MCP verification artifacts
+.playwright-mcp/
