@@ -18,6 +18,15 @@ BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
+# The reused screens/ log unicode (→, ×) in deploy messages. The Windows console
+# defaults to cp1252 and the StreamHandler would raise UnicodeEncodeError, so
+# force UTF-8 on stdout/stderr (no change to core/logging_utils).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import uvicorn  # noqa: E402
 
 from core.logging_utils import setup_logging  # noqa: E402

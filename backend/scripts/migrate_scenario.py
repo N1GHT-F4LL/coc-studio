@@ -45,19 +45,22 @@ def normalize(doc, name):
 
 
 def farm_graph(name):
-    """collect_resources -> find_match -> deploy(scenario=name) -> return_home."""
+    """ensure_home -> collect -> find_match -> deploy(scenario=name) -> return_home."""
     return {
         "name": f"{name}_farm",
         "nodes": [
+            {"id": "home0", "type": "ensure_home", "label": "Ensure Home",
+             "x": 100, "y": 40, "params": {"zoom_out": True, "timeout": 10},
+             "after": [], "data_in": {}, "on_error": None},
             {"id": "collect", "type": "collect_resources", "label": "Collect Resources",
-             "x": 100, "y": 80, "params": {}, "after": [], "data_in": {}, "on_error": None},
+             "x": 100, "y": 180, "params": {}, "after": ["home0"], "data_in": {}, "on_error": None},
             {"id": "find", "type": "find_match", "label": "Find Match",
-             "x": 100, "y": 220, "params": {}, "after": ["collect"], "data_in": {}, "on_error": None},
+             "x": 100, "y": 320, "params": {}, "after": ["collect"], "data_in": {}, "on_error": None},
             {"id": "deploy", "type": "deploy", "label": f"Deploy ({name})",
-             "x": 100, "y": 360, "params": {"scenario": name}, "after": ["find"],
+             "x": 100, "y": 460, "params": {"scenario": name}, "after": ["find"],
              "data_in": {}, "on_error": None},
             {"id": "home", "type": "return_home", "label": "Return Home",
-             "x": 100, "y": 500, "params": {}, "after": ["deploy"], "data_in": {}, "on_error": None},
+             "x": 100, "y": 600, "params": {}, "after": ["deploy"], "data_in": {}, "on_error": None},
         ],
         "meta": {"migrated_from": name, "note": "M6 migrated scenario farm cycle"},
     }

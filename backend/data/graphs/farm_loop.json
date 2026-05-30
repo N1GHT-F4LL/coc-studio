@@ -1,0 +1,10 @@
+{
+  "name": "farm_loop",
+  "nodes": [
+    { "id": "loop", "type": "loop_n", "label": "Farm forever (50 cycles)",
+      "x": 120, "y": 140,
+      "params": { "graph_ref": "farm_cycle", "times": 50 },
+      "after": [], "data_in": {}, "on_error": null }
+  ],
+  "meta": { "note": "Runs farm_cycle (ensure_home->collect->find->deploy->return) N times — mirrors run_bot's outer loop. Stop from the run console." }
+}

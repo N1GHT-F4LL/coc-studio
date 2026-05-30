@@ -9,11 +9,74 @@ downstream ``deploy``/``return_home`` blocks no-op when it's false. This mirrors
 the early-return short-circuit of the original ``run_attack_cycle`` and is the
 bridge to real if-edges in M5.
 """
+import time
+
 from engine.registry import BlockSpec, Param, Port, Kind, register
 from screens.home_screen import HomeScreen
 from screens.attack_screen import AttackScreen
 from screens.battle_screen import BattleScreen
+from device_manager import save_settings, COC_PACKAGE
 import scenario_store
+
+
+@register("ensure_home")
+class EnsureHome(BlockSpec):
+    """Make CoC ready and land on the village home screen (run_bot startup).
+
+    Wraps device.ensure_coc_ready (launch/foreground CoC) + the home-detection,
+    popup-dismiss, zoom-out and game-restart recovery from coc_bot/main.py. Put
+    this at the start of a farm graph so the cycle doesn't act on the wrong app
+    (e.g. the BlueStacks store) or a popped-up screen.
+    """
+    label = "Ensure Home"
+    category = "CoC"
+    inputs = [Param("zoom_out", Kind.Bool, default=True),
+              Param("timeout", Kind.Number, default=10)]
+    outputs = [Port("home", Kind.Bool)]
+
+    def run(self, ctx, inputs):
+        dev = ctx.device
+        ui = ctx.ui_manager
+        if not dev.ensure_coc_ready(COC_PACKAGE, ctx.settings, save_settings, ctx.logger):
+            ctx.logger.warning("[ensure_home] CoC not ready (install/launch failed).")
+            ctx.vars["home"] = False
+            return {"home": False}
+
+        home = HomeScreen(ui)
+        zoom = bool(inputs.get("zoom_out", True))
+
+        def settle():
+            for _ in range(4):
+                home.close_popups()
+                ui._poll_sleep(0.6)
+            if zoom:
+                dev.pinch("out", span_pixels=600, repeats=1)
+                ui._poll_sleep(1.0)
+
+        deadline = time.time() + float(inputs.get("timeout", 10))
+        while time.time() < deadline:
+            if ctx.stopped():
+                ctx.vars["home"] = False
+                return {"home": False}
+            if home.is_current_screen():
+                ctx.logger.info("[ensure_home] home screen detected.")
+                settle()
+                ctx.vars["home"] = True
+                return {"home": True}
+            ui._poll_sleep(1)
+
+        # Recovery: close popups then restart the game (run_bot HOME_DETECT path).
+        ctx.logger.warning("[ensure_home] not home — restarting game.")
+        home.close_popups()
+        if dev.restart_game(COC_PACKAGE):
+            ui._poll_sleep(15)
+            if home.is_current_screen():
+                settle()
+                ctx.vars["home"] = True
+                return {"home": True}
+        ctx.logger.error("[ensure_home] could not reach home screen.")
+        ctx.vars["home"] = False
+        return {"home": False}
 
 
 @register("collect_resources")
