@@ -48,9 +48,10 @@ def main():
     logger.info("Starting coc-studio backend on http://%s:%d", HOST, PORT)
 
     # Open the browser shortly after the server is up (only when a built SPA
-    # exists; during dev the user uses the Vite server on :5173).
+    # exists; during dev the user uses the Vite server on :5173). Set
+    # COC_OPEN_BROWSER=0 to suppress (start.ps1 -Dev does this).
     static_dir = os.path.join(BACKEND_DIR, "static")
-    if os.path.isdir(static_dir):
+    if os.path.isdir(static_dir) and os.environ.get("COC_OPEN_BROWSER", "1") != "0":
         threading.Timer(1.0, _open_browser).start()
 
     uvicorn.run(app, host=HOST, port=PORT, log_level="info")

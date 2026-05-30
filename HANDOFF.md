@@ -127,9 +127,12 @@ Asset studio + scenario migrator. Verify END-TO-END trong browser với device t
 ## Setup môi trường (QUAN TRỌNG)
 - Python **3.14.5**, venv riêng tại `d:\coc-studio\.venv`
 - Node **v20.10**, npm **10.2.3**. Frontend deps trong `frontend/node_modules` (gitignored).
-- **Chạy full app:** `cd frontend && npm run build` (ra `backend/static/`), rồi
-  `cd backend && ..\.venv\Scripts\python.exe main.py` → mở http://127.0.0.1:8000/.
-  Dev nóng: `npm run dev` (:5173, proxy `/api`+`/ws`→:8000) song song backend.
+- **Chạy 1 phát cả 2 (khuyên dùng):** `.\start.ps1` ở gốc repo → build frontend +
+  start backend serve SPA tại http://127.0.0.1:8000 (tự mở browser). Hot-reload:
+  `.\start.ps1 -Dev` → backend :8000 + Vite :5173 song song (Ctrl+C dừng, backend tự tắt).
+  (start.ps1 KHÔNG đặt ErrorActionPreference=Stop — uvicorn log ra stderr, sẽ bị PS coi
+  là lỗi terminating và giết server.)
+- Thủ công: `cd frontend && npm run build`, rồi `cd backend && ..\.venv\Scripts\python.exe main.py`.
 - **Engine tests (no device):** `cd backend && ..\.venv\Scripts\python.exe tests\test_engine.py` (38 pass).
 - Deps đã cài trong venv: fastapi, uvicorn[standard], websockets, opencv-python,
   numpy, pure-python-adb, **easyocr 1.7.2** (M2 đã cài). `httpx` CHƯA cài (nên test
