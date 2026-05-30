@@ -267,6 +267,7 @@ export default function App() {
                 onInit={(inst) => (rfRef.current = inst)}
                 fitView
                 deleteKeyCode={["Backspace", "Delete"]}
+                proOptions={{ hideAttribution: true }}
               >
                 <Background />
                 <Controls />
