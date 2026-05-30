@@ -1,0 +1,23 @@
+{
+  "name": "if_demo",
+  "nodes": [
+    { "id": "find", "type": "find_template", "label": "Find Attack btn",
+      "x": 200, "y": 80,
+      "params": { "template": "buttons/home/btn_attack", "threshold": 0.7 },
+      "after": [], "data_in": {}, "on_error": null },
+    { "id": "ifn", "type": "if", "label": "If found",
+      "x": 200, "y": 240,
+      "params": {}, "after": [],
+      "data_in": { "cond": { "from": "find", "port": "found" } },
+      "on_error": null },
+    { "id": "thenN", "type": "collect_resources", "label": "then: Collect",
+      "x": 60, "y": 420,
+      "params": {}, "after": [{ "from": "ifn", "branch": "then" }],
+      "data_in": {}, "on_error": null },
+    { "id": "elseN", "type": "delay", "label": "else: Delay",
+      "x": 360, "y": 420,
+      "params": { "seconds": 1 }, "after": [{ "from": "ifn", "branch": "else" }],
+      "data_in": {}, "on_error": null }
+  ],
+  "meta": { "note": "M5 if-branch: on home screen found=true -> then runs, else skipped" }
+}

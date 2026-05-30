@@ -57,6 +57,26 @@ class _Boom(BlockSpec):
         raise RuntimeError("boom")
 
 
+@register("_test_emit")
+class _Emit(BlockSpec):
+    """Outputs {"val": params['val']} so a downstream block can read it via a data edge."""
+    label = "emit"; category = "Test"; inputs = []; outputs = []
+
+    def run(self, ctx, inputs):
+        return {"val": inputs.get("val")}
+
+
+@register("_test_record")
+class _Record(BlockSpec):
+    """Records its resolved 'x' input into ctx.vars['rec'] (proves data-edge wiring)."""
+    label = "record"; category = "Test"; inputs = []; outputs = []
+
+    def run(self, ctx, inputs):
+        ctx.vars.setdefault("rec", []).append(inputs.get("x"))
+        ctx.vars.setdefault("order", []).append(inputs.get("_id"))
+        return {}
+
+
 def make_ctx(events):
     return RuntimeContext(
         device=None, ui_manager=None, vision=None, ocr_read=None,
@@ -165,6 +185,73 @@ def test_stop_event():
     check(ctx.vars.get("order", []) == [], "no nodes ran when pre-stopped")
 
 
+def test_data_edge():
+    print("\n[executor] data edge resolves value + orders consumer after producer")
+    g = Graph.from_dict({"name": "data", "nodes": [
+        {"id": "p", "type": "_test_emit", "params": {"val": 42}},
+        {"id": "c", "type": "_test_record", "params": {"_id": "c"},
+         "data_in": {"x": {"from": "p", "port": "val"}}},
+    ]})
+    ctx = make_ctx([])
+    status = run_graph(g, ctx)
+    check(status == "ok", f"status ok (got {status})")
+    check(ctx.vars.get("rec") == [42], f"consumer read producer output (rec={ctx.vars.get('rec')})")
+
+
+def test_data_edge_orders():
+    print("\n[executor] data edge implies ordering even with no control edge")
+    # 'c' is declared BEFORE 'p' but depends on p's data -> must still run after p.
+    g = Graph.from_dict({"name": "ord", "nodes": [
+        {"id": "c", "type": "_test_record", "params": {"_id": "c"},
+         "data_in": {"x": {"from": "p", "port": "val"}}},
+        {"id": "p", "type": "_test_emit", "params": {"val": 7}},
+    ]})
+    ctx = make_ctx([])
+    run_graph(g, ctx)
+    check(ctx.vars.get("rec") == [7], "consumer ran after producer despite declaration order")
+
+
+def test_if_branch():
+    print("\n[executor] if routes then/else; untaken branch is skipped")
+    for cond, taken, untaken in (("then", "then", "else"), ("else", "else", "then")):
+        g = Graph.from_dict({"name": f"if-{cond}", "nodes": [
+            {"id": "ifn", "type": "if", "params": {"cond": cond == "then"}},
+            {"id": "thenN", "type": "_test_marker", "params": {"_id": "thenN"},
+             "after": [{"from": "ifn", "branch": "then"}]},
+            {"id": "elseN", "type": "_test_marker", "params": {"_id": "elseN"},
+             "after": [{"from": "ifn", "branch": "else"}]},
+        ]})
+        events = []
+        ctx = make_ctx(events)
+        status = run_graph(g, ctx)
+        order = ctx.vars.get("order", [])
+        ran = f"{taken}N"
+        skip = f"{untaken}N"
+        check(status == "ok", f"[{cond}] status ok")
+        check(ran in order, f"[{cond}] {ran} ran")
+        check(skip not in order, f"[{cond}] {skip} did NOT run")
+        skipped = [e for e in events if e.get("state") == "skipped"]
+        check(any(e["id"] == skip for e in skipped), f"[{cond}] {skip} emitted skipped")
+
+
+def test_skip_propagation():
+    print("\n[executor] skip propagates to downstream of the untaken branch")
+    g = Graph.from_dict({"name": "skipprop", "nodes": [
+        {"id": "ifn", "type": "if", "params": {"cond": False}},  # takes 'else'
+        {"id": "a", "type": "_test_marker", "params": {"_id": "a"},
+         "after": [{"from": "ifn", "branch": "then"}]},   # skipped
+        {"id": "b", "type": "_test_marker", "params": {"_id": "b"}, "after": ["a"]},  # downstream of skipped
+    ]})
+    events = []
+    ctx = make_ctx(events)
+    status = run_graph(g, ctx)
+    check(status == "ok", f"status ok (got {status})")
+    check("a" not in ctx.vars.get("order", []), "branch node a skipped")
+    check("b" not in ctx.vars.get("order", []), "downstream b skipped (propagated)")
+    skipped = {e["id"] for e in events if e.get("state") == "skipped"}
+    check({"a", "b"} <= skipped, "both a and b emitted skipped")
+
+
 if __name__ == "__main__":
     test_registry_specs()
     test_topo_order()
@@ -173,5 +260,9 @@ if __name__ == "__main__":
     test_fail_stop()
     test_on_error_then_abort()
     test_stop_event()
+    test_data_edge()
+    test_data_edge_orders()
+    test_if_branch()
+    test_skip_propagation()
     print(f"\n=== {_passed} passed, {_failed} failed ===")
     sys.exit(1 if _failed else 0)

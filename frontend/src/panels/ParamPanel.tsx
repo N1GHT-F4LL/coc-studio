@@ -4,6 +4,7 @@ import type { BlockNodeData } from "../canvas/BlockNode";
 
 interface Props {
   node: Node<BlockNodeData> | null;
+  connectedInputs: Set<string>; // input ports fed by a data edge (literal is overridden)
   onChangeParam: (nodeId: string, name: string, value: unknown) => void;
   onChangeLabel: (nodeId: string, label: string) => void;
   onDelete: (nodeId: string) => void;
@@ -86,7 +87,13 @@ function Field({
   );
 }
 
-export function ParamPanel({ node, onChangeParam, onChangeLabel, onDelete }: Props) {
+export function ParamPanel({
+  node,
+  connectedInputs,
+  onChangeParam,
+  onChangeLabel,
+  onDelete,
+}: Props) {
   if (!node) {
     return (
       <aside className="param-panel">
@@ -116,14 +123,21 @@ export function ParamPanel({ node, onChangeParam, onChangeLabel, onDelete }: Pro
       </label>
 
       {spec.inputs.length === 0 && <div className="muted">No parameters.</div>}
-      {spec.inputs.map((p) => (
-        <Field
-          key={p.name}
-          p={p}
-          value={params[p.name] ?? p.default}
-          onChange={(v) => onChangeParam(node.id, p.name, v)}
-        />
-      ))}
+      {spec.inputs.map((p) =>
+        connectedInputs.has(p.name) ? (
+          <label key={p.name} className="field">
+            <span>{p.label}</span>
+            <input type="text" value="← from data edge" disabled />
+          </label>
+        ) : (
+          <Field
+            key={p.name}
+            p={p}
+            value={params[p.name] ?? p.default}
+            onChange={(v) => onChangeParam(node.id, p.name, v)}
+          />
+        )
+      )}
 
       <button className="danger" onClick={() => onDelete(node.id)}>
         Delete node

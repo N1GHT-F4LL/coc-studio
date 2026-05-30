@@ -32,7 +32,8 @@ export interface GraphNode {
   x: number;
   y: number;
   params: Record<string, unknown>;
-  after: string[];
+  // Control edges: bare node id (default ordering) or a branch edge (if then/else).
+  after: (string | { from: string; branch: string })[];
   data_in: Record<string, { from: string; port: string }>;
   on_error: string | null;
 }

@@ -77,12 +77,36 @@ Run + debug realtime qua WebSocket, đã verify END-TO-END trong browser với d
   `run-done`) · log backend thật stream live ("Tapped Attack!", bail, var-gate skip) ·
   vars `match_found:false` · done `status:ok` · DeviceView stream 1600×900 frame thật.
 
+## Đã xong: Milestone 5 (branch `m2-engine-registry-executor`)
+Typed data edges + control-flow blocks (if/loop) + validation hai đầu. Verify
+END-TO-END trong browser với device thật + 38 engine unit tests.
+- `engine/graph.py`: control edge `after` giờ là `str` (ordering) HOẶC
+  `{from,branch}` (branch edge cho `if`). `Node.control_edges/data_sources/dep_ids`.
+  `validate()` bắt cycle qua **cả control + data** (Kahn).
+- `engine/executor.py`: `ready` = mọi dep (control+data) đã terminal → **data edge
+  cũng ép thứ tự**. `_is_active`: node chạy nếu ≥1 control-edge active (branch khớp
+  `_branch` của source) VÀ mọi data-producer completed; ngược lại **skipped** (lan
+  truyền). `resolve_inputs` đổ `data_in` đè `params`. Fail-stop/on_error giữ nguyên.
+- `blocks/control_blocks.py`: `if` (out then/else Trigger → trả `_branch`),
+  `loop_n`/`loop_until` (chạy 1 graph đã lưu N lần / tới khi var truthy — subroutine,
+  nuốt `done` lồng). `delay` cũ giữ nguyên.
+- Frontend: BlockNode render Trigger-output thành **branch control-out handle**
+  (then/else, có nhãn); `handleId` thêm `ctl|out|<branch>`; `serialize` branch↔`after`
+  object + data↔`data_in`; ParamPanel **disable field khi input có data-edge**
+  ("← from data edge"). Node thêm class `run-skipped` (mờ, viền đứt).
+- **Verify browser:** `if_demo` (find_template.found → data-edge → if.cond) → Run →
+  `[if] cond=False -> else`, **else(delay) run-done, then(collect) run-skipped**,
+  status ok · `find_tap` (coord data-edge → tap) → coord None → tap **run-error**
+  (fail-stop) · round-trip save/load giữ nguyên branch+data edges, validate sạch.
+- Graph demo: `data/graphs/{farm_cycle,find_tap,if_demo}.json`.
+
 ## Setup môi trường (QUAN TRỌNG)
 - Python **3.14.5**, venv riêng tại `d:\coc-studio\.venv`
 - Node **v20.10**, npm **10.2.3**. Frontend deps trong `frontend/node_modules` (gitignored).
 - **Chạy full app:** `cd frontend && npm run build` (ra `backend/static/`), rồi
   `cd backend && ..\.venv\Scripts\python.exe main.py` → mở http://127.0.0.1:8000/.
   Dev nóng: `npm run dev` (:5173, proxy `/api`+`/ws`→:8000) song song backend.
+- **Engine tests (no device):** `cd backend && ..\.venv\Scripts\python.exe tests\test_engine.py` (38 pass).
 - Deps đã cài trong venv: fastapi, uvicorn[standard], websockets, opencv-python,
   numpy, pure-python-adb, **easyocr 1.7.2** (M2 đã cài). `httpx` CHƯA cài (nên test
   qua urllib/curl, không dùng starlette TestClient).
@@ -95,19 +119,18 @@ Run + debug realtime qua WebSocket, đã verify END-TO-END trong browser với d
 - Chạy graph qua REST: start `main.py`, `POST /api/device/connect`, rồi `POST /api/run`
   body `{"graph": <farm_cycle.json>}` (test bằng urllib/curl, KHÔNG có httpx).
 
-## Tiếp theo: Milestone 5 — typed data edges + control blocks (if/loop)
-- Backend: resolver `data_in` đã wired sẵn trong `engine/executor.py:resolve_inputs`
-  (port→port từ outputs upstream). Cần: block control-flow `if(Bool)`, `loop_n`,
-  `loop_until`, `on_error` (executor đã có hook `node.on_error`). Block primitives đã
-  emit outputs typed (find_template→coord/found, loot_ge→ok, read_number→value).
-- Frontend: data-edge ĐÃ render (handle màu theo Kind)/validate (kind-match trong
-  `canvas/validation.ts`)/serialize (`graph/serialize.ts` → `data_in`) sẵn từ M3. Cần
-  UI cho branching (if/loop) + có thể disable param-field khi input đã có data-edge.
-- Verify mẫu (plan gốc): graph `find_template→tap` (tap tại toạ độ tìm được) +
-  `if loot_ge→find_match→deploy`.
+## Tiếp theo: Milestone 6 — asset studio + scenario migrator (milestone cuối)
+- Backend: REST `GET /api/assets?cat=` (list theo `_CAT_TO_FOLDER` cũ),
+  `GET /api/assets/thumb/{rel}` (serve thumbnail từ `assets/`), `POST /api/assets/crop`
+  (lưu asset từ vùng crop màn hình — port logic studio cũ ở `d:\coc-tools`).
+- Migrator: convert `d:\coc-tools\coc_bot\scenarios\Thrower.json` (variants→graph,
+  deploy slots→params block `deploy`) → graph JSON ở `data/graphs/`. Chạy lại, so deploy
+  parity với PyQt cũ (đối chiếu `coc_bot/logs/debug/bar_deploy_*.png`).
+- Frontend: Asset Studio panel (chụp từ `/ws/device`, vẽ rect crop → save asset),
+  Template-param combobox dùng thumbnail + danh mục; Coord/Region picker click/draw trên
+  DeviceView (port toán `dialogs.DeviceView._orig_coords` — map click→toạ độ gốc 1600×900).
 
-Milestone sau: M6 asset studio (capture/crop/save asset) + migrator scenario cũ
-(`d:\coc-tools\coc_bot\scenarios\Thrower.json` → graph), chạy lại so deploy parity.
+Đã xong M1–M5. M6 là milestone cuối của plan (`resilient-herding-scott.md`).
 
 ## Ràng buộc PHẢI giữ (từ coc-tools REQUIREMENT.md/CLAUDE.md)
 - `core/` + `screens/` copy verbatim — KHÔNG "đơn giản hóa": BlueStacks failover trong

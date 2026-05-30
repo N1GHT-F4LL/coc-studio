@@ -1,7 +1,7 @@
 import type { Edge, Node } from "reactflow";
 import type { BlockSpec, GraphDoc, GraphNode } from "../blocks/types";
 import type { BlockNodeData } from "../canvas/BlockNode";
-import { parseHandle, CTL_IN, CTL_OUT, dataHandleId } from "../canvas/handleId";
+import { parseHandle, CTL_IN, CTL_OUT, ctlOutBranch, dataHandleId } from "../canvas/handleId";
 
 type RFNode = Node<BlockNodeData>;
 
@@ -27,7 +27,8 @@ export function toGraphDoc(name: string, nodes: RFNode[], edges: Edge[]): GraphD
     const tgt = out[e.target];
     if (!tgt || !src || !dst) continue;
     if (src.flow === "control") {
-      if (!tgt.after.includes(e.source)) tgt.after.push(e.source);
+      // Branch edge (if then/else) -> {from, branch}; plain ordering -> bare id.
+      tgt.after.push(src.branch ? { from: e.source, branch: src.branch } : e.source);
     } else if (dst.flow === "data") {
       tgt.data_in[dst.port] = { from: e.source, port: src.port };
     }
@@ -52,11 +53,13 @@ export function fromGraphDoc(
       data: { spec, label: gn.label, params: gn.params ?? {} },
     });
     for (const dep of gn.after ?? []) {
+      const from = typeof dep === "string" ? dep : (dep as any).from;
+      const branch = typeof dep === "string" ? null : (dep as any).branch ?? null;
       edges.push({
-        id: `ctl-${dep}-${gn.id}`,
-        source: dep,
+        id: `ctl-${from}-${branch ?? ""}-${gn.id}`,
+        source: from,
         target: gn.id,
-        sourceHandle: CTL_OUT,
+        sourceHandle: branch ? ctlOutBranch(branch) : CTL_OUT,
         targetHandle: CTL_IN,
       });
     }

@@ -198,6 +198,17 @@ export default function App() {
   }, [nodes, edges, graphName, runner]);
 
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
+  // Input ports of the selected node that are driven by a data edge (literal overridden).
+  const connectedInputs = useMemo(() => {
+    const s = new Set<string>();
+    if (!selectedNode) return s;
+    for (const e of edges) {
+      if (e.target !== selectedNode.id) continue;
+      const h = parseHandle(e.targetHandle);
+      if (h?.flow === "data") s.add(h.port);
+    }
+    return s;
+  }, [edges, selectedNode]);
 
   return (
     <div className="app">
@@ -272,6 +283,7 @@ export default function App() {
         <div className="right">
           <ParamPanel
             node={selectedNode}
+            connectedInputs={connectedInputs}
             onChangeParam={changeParam}
             onChangeLabel={changeLabel}
             onDelete={deleteNode}

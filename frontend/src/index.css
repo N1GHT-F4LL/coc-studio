@@ -127,6 +127,14 @@ button.danger:hover { background: #3a2530; }
 .block-node.run-running { border-color: #2b7de0; box-shadow: 0 0 0 2px #2b7de0, 0 0 14px #2b7de0aa; }
 .block-node.run-done { border-color: #1fa37a; box-shadow: 0 0 0 1px #1fa37a; }
 .block-node.run-error { border-color: #d4356b; box-shadow: 0 0 0 2px #d4356b; }
+.block-node.run-skipped { opacity: 0.45; border-style: dashed; }
+.branch-label {
+  position: absolute;
+  bottom: -4px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--muted);
+}
 .block-title { font-weight: 600; }
 .block-type { font-size: 11px; color: var(--muted); }
 .ctl-handle { width: 10px; height: 10px; background: #444b54; border: 1px solid #6b7280; }

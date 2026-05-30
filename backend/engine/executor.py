@@ -1,58 +1,78 @@
-"""run_graph — the generic topo-order executor.
+"""run_graph — the generic executor.
 
 Generalizes the proven loop in ``screens/battle_screen.py:_slot_deploy``
-(completed/pending/ready, cycle-guarded). Differences:
-  - dispatches by block ``type`` via the REGISTRY instead of a hard-coded
-    deploy action,
-  - resolves each node's data inputs (``params`` literals + ``data_in`` ports),
-  - emits run-events (node running/done/error, done) for the run console.
+(completed/pending/ready, cycle-guarded), extended for M5 with:
 
-Error model is **fail-stop** (REQUIREMENT §5/§16): a block raising follows its
-``on_error`` node if present, otherwise aborts the whole run. Never swallows an
-error and continues with broken state.
+  - **data edges**: a node's ``data_in`` ports are resolved from upstream
+    outputs, and a data edge also implies ordering (consumer runs after producer).
+  - **branching / skip**: control (``after``) edges may carry a branch label.
+    A node is *active* only if at least one incoming control edge is active
+    (default edges are always active once their source ran; branch edges are
+    active only when the source's chosen ``_branch`` matches) and all its data
+    producers ran. Inactive nodes are *skipped*, and skips propagate downstream.
+
+Error model stays **fail-stop** (REQUIREMENT §5/§16): a block raising follows its
+``on_error`` node if present, else aborts the whole run.
 """
 from .graph import Graph
 from .registry import REGISTRY
+
+# Sentinel keys a control block may return to drive branch edges.
+BRANCH_KEY = "_branch"
 
 
 class GraphError(Exception):
     """Raised before execution when the graph is structurally invalid."""
 
 
-def resolve_inputs(node, spec, outputs: dict, ctx) -> dict:
+def resolve_inputs(node, outputs: dict) -> dict:
     """Merge literal params with values pulled from upstream data ports.
 
-    ``data_in`` wins over ``params`` for the same name. Data edges aren't used
-    by the M2 CoC blocks but the resolver is wired now for M5 (typed edges).
+    ``data_in`` wins over ``params`` for the same name.
     """
     inputs = dict(node.params)
     for port, src in node.data_in.items():
         if not isinstance(src, dict):
             continue
-        frm = src.get("from")
+        up = outputs.get(src.get("from"), {})
         out_port = src.get("port")
-        up = outputs.get(frm, {})
         if out_port in up:
             inputs[port] = up[out_port]
     return inputs
 
 
+def _is_active(node, completed: set, skipped: set, outputs: dict) -> bool:
+    """Decide whether a node should run, given all its deps are terminal.
+
+    - every data producer must have completed (not been skipped),
+    - and at least one incoming control edge must be active; a node with no
+      control edges is controlled only by its data deps (or is a root).
+    """
+    for src in node.data_sources():
+        if src in skipped:
+            return False  # a data input never arrived
+
+    control = node.control_edges()
+    if not control:
+        return True  # root, or driven purely by (satisfied) data edges
+    for frm, branch in control:
+        if frm in completed and (branch is None or outputs.get(frm, {}).get(BRANCH_KEY) == branch):
+            return True
+    return False  # all incoming control edges inactive -> skip
+
+
 def _run_node(node, outputs: dict, ctx):
-    """Execute one node: resolve inputs, call block.run, store + emit outputs."""
-    spec_cls = REGISTRY[node.type]
-    inputs = resolve_inputs(node, spec_cls, outputs, ctx)
+    inputs = resolve_inputs(node, outputs)
     ctx.emit({"type": "node", "id": node.id, "state": "running"})
-    out = spec_cls().run(ctx, inputs) or {}
+    out = REGISTRY[node.type]().run(ctx, inputs) or {}
     outputs[node.id] = out
     ctx.emit({"type": "node", "id": node.id, "state": "done", "outputs": out})
-    return out
 
 
 def run_graph(graph: Graph, ctx) -> str:
-    """Execute ``graph`` to completion. Returns final status string.
+    """Execute ``graph`` to completion. Returns "ok" | "error" | "stopped".
 
-    Status: "ok" | "error" | "stopped". Also emitted as a final
-    ``{"type":"done","status":...}`` event.
+    Also emits a final ``{"type":"done","status":...}`` event.
     """
     errors = graph.validate()
     if errors:
@@ -61,17 +81,18 @@ def run_graph(graph: Graph, ctx) -> str:
     by_id = {n.id: n for n in graph.nodes}
     outputs: dict = {}
     completed: set = set()
-    pending = list(graph.nodes)          # preserve original order for stable dispatch
+    skipped: set = set()
+    pending = list(graph.nodes)  # preserve original order for stable dispatch
 
     while pending:
         if ctx.stopped():
             ctx.emit({"type": "done", "status": "stopped"})
             return "stopped"
 
-        # Nodes whose control deps are all satisfied (mirrors _slot_deploy).
-        ready = [n for n in pending if all(dep in completed for dep in n.after)]
+        terminal = completed | skipped
+        # Nodes whose every dependency (control + data) is already terminal.
+        ready = [n for n in pending if n.dep_ids() <= terminal]
         if not ready:
-            # Shouldn't happen post-validate, but guard cleanly like _slot_deploy.
             ctx.emit({"type": "done", "status": "error",
                       "error": "no ready nodes (cycle?)"})
             return "error"
@@ -80,6 +101,13 @@ def run_graph(graph: Graph, ctx) -> str:
             if ctx.stopped():
                 ctx.emit({"type": "done", "status": "stopped"})
                 return "stopped"
+
+            if not _is_active(node, completed, skipped, outputs):
+                skipped.add(node.id)
+                pending.remove(node)
+                ctx.emit({"type": "node", "id": node.id, "state": "skipped"})
+                continue
+
             try:
                 _run_node(node, outputs, ctx)
             except Exception as e:  # fail-stop
