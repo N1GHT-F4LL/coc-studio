@@ -152,6 +152,7 @@ export function ParamPanel({
   return (
     <aside className="param-panel">
       <h2>{spec.label}</h2>
+      {spec.description ? <p className="block-desc">{spec.description}</p> : null}
       <div className="param-meta">
         <span className="muted">type</span> {spec.type}
         <br />

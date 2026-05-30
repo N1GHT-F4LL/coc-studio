@@ -64,6 +64,7 @@ class BlockSpec:
     """
     label: str = ""
     category: str = "General"
+    description: str = ""   # how to use this block (shown in the GUI)
     inputs: list = []
     outputs: list = []
 
@@ -93,6 +94,7 @@ def spec_json(type_name: str) -> dict:
         "type": type_name,
         "label": cls.label or type_name,
         "category": cls.category,
+        "description": getattr(cls, "description", "") or "",
         "inputs": [p.to_json() for p in cls.inputs],
         "outputs": [p.to_json() for p in cls.outputs],
     }

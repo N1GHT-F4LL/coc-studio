@@ -21,6 +21,7 @@ export interface BlockSpec {
   type: string;
   label: string;
   category: string;
+  description?: string;
   inputs: PortSpec[];
   outputs: PortSpec[];
 }

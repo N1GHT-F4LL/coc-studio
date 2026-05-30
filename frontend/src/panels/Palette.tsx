@@ -27,7 +27,7 @@ export function Palette({ blocks, onAdd }: Props) {
             <button
               key={s.type}
               className="palette-item"
-              title={s.type}
+              title={s.description || s.type}
               onClick={() => onAdd(s)}
             >
               {s.label}
