@@ -23,6 +23,10 @@ import { validateConnection } from "./canvas/validation";
 import { fromGraphDoc, toGraphDoc } from "./graph/serialize";
 import { Palette } from "./panels/Palette";
 import { ParamPanel } from "./panels/ParamPanel";
+import { RunConsole } from "./panels/RunConsole";
+import { DeviceView } from "./panels/DeviceView";
+import { RunStateContext } from "./run/RunStateContext";
+import { useRunner } from "./run/useRunner";
 
 const nodeTypes: NodeTypes = { block: BlockNode };
 
@@ -34,6 +38,7 @@ export default function App() {
   const [graphName, setGraphName] = useState("untitled");
   const [savedGraphs, setSavedGraphs] = useState<string[]>([]);
   const [status, setStatus] = useState("");
+  const runner = useRunner();
 
   const rfRef = useRef<ReactFlowInstance | null>(null);
   const idSeq = useRef(0);
@@ -183,6 +188,15 @@ export default function App() {
     [specByType, setNodes, setEdges]
   );
 
+  const onRun = useCallback(() => {
+    if (nodes.length === 0) {
+      setStatus("Nothing to run — add some blocks first.");
+      return;
+    }
+    setStatus("");
+    runner.start(toGraphDoc(graphName.trim() || "untitled", nodes, edges));
+  }, [nodes, edges, graphName, runner]);
+
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
 
   return (
@@ -223,31 +237,47 @@ export default function App() {
 
       <div className="body">
         <Palette blocks={blocks} onAdd={addBlock} />
-        <div className="canvas">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            isValidConnection={isValidConnection}
-            onSelectionChange={onSelectionChange}
-            onInit={(inst) => (rfRef.current = inst)}
-            fitView
-            deleteKeyCode={["Backspace", "Delete"]}
-          >
-            <Background />
-            <Controls />
-            <MiniMap pannable zoomable />
-          </ReactFlow>
+        <div className="center">
+          <div className="canvas">
+            <RunStateContext.Provider value={runner.runState}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                isValidConnection={isValidConnection}
+                onSelectionChange={onSelectionChange}
+                onInit={(inst) => (rfRef.current = inst)}
+                fitView
+                deleteKeyCode={["Backspace", "Delete"]}
+              >
+                <Background />
+                <Controls />
+                <MiniMap pannable zoomable />
+              </ReactFlow>
+            </RunStateContext.Provider>
+          </div>
+          <RunConsole
+            running={runner.running}
+            status={runner.status}
+            logs={runner.logs}
+            vars={runner.vars}
+            onStart={onRun}
+            onStop={runner.stop}
+            onClear={runner.clear}
+          />
         </div>
-        <ParamPanel
-          node={selectedNode}
-          onChangeParam={changeParam}
-          onChangeLabel={changeLabel}
-          onDelete={deleteNode}
-        />
+        <div className="right">
+          <ParamPanel
+            node={selectedNode}
+            onChangeParam={changeParam}
+            onChangeLabel={changeLabel}
+            onDelete={deleteNode}
+          />
+          <DeviceView />
+        </div>
       </div>
     </div>
   );

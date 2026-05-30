@@ -58,9 +58,31 @@ Frontend React Flow — canvas low-code editor, đã verify END-TO-END trong bro
   round-trip 4 node+3 edge · backend `validate()` sạch. favicon 404 là noise vô hại.
 - **Build:** `cd frontend && npm install && npm run build` (tsc --noEmit + vite, pass).
 
+## Đã xong: Milestone 4 (branch `m2-engine-registry-executor`)
+Run + debug realtime qua WebSocket, đã verify END-TO-END trong browser với device thật:
+- Backend `api/run_api.py`: tách `setup_and_run(graph, emit, stop_event, stream_logs)`
+  (connect+OCR+ctx+`run_graph`) dùng chung; `_EmitLogHandler` gắn root logger → forward
+  log của screens/core thành event `{type:"log"}` (KHÔNG sửa code screens). POST /api/run
+  giờ gọi `setup_and_run` với `emit=list.append`.
+- Backend `api/run_ws.py`: WS `/ws/run` — client `{cmd:"start",graph}`/`{cmd:"stop"}`.
+  Chạy `run_graph` trong worker thread; event qua `asyncio.Queue` +
+  `loop.call_soon_threadsafe` (thread→event-loop an toàn). Stop hợp tác + tự stop khi
+  client disconnect. Dùng chung `RunController` (REST/WS không chạy chồng).
+- Frontend: `run/useRunner.ts` (hook quản WS, fold event→state), `run/RunStateContext.ts`
+  (nodeId→state cho highlight), `panels/RunConsole.tsx` (Run/Stop/Clear + log stream +
+  vars live + status), `panels/DeviceView.tsx` (WS `/ws/device` JPEG→`<canvas>`, toggle).
+  `BlockNode` đọc context → class `run-running/done/error`. App: layout center(canvas+
+  RunConsole dock) | right(ParamPanel+DeviceView), bọc canvas trong RunStateContext.
+- **Verify browser:** load `farm_cycle` → Run → 4 node sáng running→done (DOM
+  `run-done`) · log backend thật stream live ("Tapped Attack!", bail, var-gate skip) ·
+  vars `match_found:false` · done `status:ok` · DeviceView stream 1600×900 frame thật.
+
 ## Setup môi trường (QUAN TRỌNG)
 - Python **3.14.5**, venv riêng tại `d:\coc-studio\.venv`
 - Node **v20.10**, npm **10.2.3**. Frontend deps trong `frontend/node_modules` (gitignored).
+- **Chạy full app:** `cd frontend && npm run build` (ra `backend/static/`), rồi
+  `cd backend && ..\.venv\Scripts\python.exe main.py` → mở http://127.0.0.1:8000/.
+  Dev nóng: `npm run dev` (:5173, proxy `/api`+`/ws`→:8000) song song backend.
 - Deps đã cài trong venv: fastapi, uvicorn[standard], websockets, opencv-python,
   numpy, pure-python-adb, **easyocr 1.7.2** (M2 đã cài). `httpx` CHƯA cài (nên test
   qua urllib/curl, không dùng starlette TestClient).
@@ -73,19 +95,19 @@ Frontend React Flow — canvas low-code editor, đã verify END-TO-END trong bro
 - Chạy graph qua REST: start `main.py`, `POST /api/device/connect`, rồi `POST /api/run`
   body `{"graph": <farm_cycle.json>}` (test bằng urllib/curl, KHÔNG có httpx).
 
-## Tiếp theo: Milestone 4 — run + debug (WebSocket realtime)
-- Thêm WS `/ws/run` trong backend: client gửi `{cmd:"start", graph}` / `{cmd:"stop"}`;
-  chạy `run_graph` trong worker thread, `emit` = WS sink (thay vì gom list như
-  `/api/run`). **Tái dùng nguyên `run_graph` + RuntimeContext + RunController** đã có ở
-  M2 (`api/run_api.py`) — chỉ đổi sink + đẩy realtime.
-- Frontend: RunConsole panel (Start/Stop), nghe `/ws/run`, highlight node đang chạy
-  trên canvas (set class theo event `{type:"node",id,state}`), hiển thị `vars` live +
-  log stream. Executor đã emit sẵn các event này (running/done/error + done status).
-- DeviceView panel: vẽ frame JPEG từ `/ws/device` (đã có ở M1) lên `<canvas>`.
+## Tiếp theo: Milestone 5 — typed data edges + control blocks (if/loop)
+- Backend: resolver `data_in` đã wired sẵn trong `engine/executor.py:resolve_inputs`
+  (port→port từ outputs upstream). Cần: block control-flow `if(Bool)`, `loop_n`,
+  `loop_until`, `on_error` (executor đã có hook `node.on_error`). Block primitives đã
+  emit outputs typed (find_template→coord/found, loot_ge→ok, read_number→value).
+- Frontend: data-edge ĐÃ render (handle màu theo Kind)/validate (kind-match trong
+  `canvas/validation.ts`)/serialize (`graph/serialize.ts` → `data_in`) sẵn từ M3. Cần
+  UI cho branching (if/loop) + có thể disable param-field khi input đã có data-edge.
+- Verify mẫu (plan gốc): graph `find_template→tap` (tap tại toạ độ tìm được) +
+  `if loot_ge→find_match→deploy`.
 
-Milestone sau: M5 typed data edges + if/loop/on_error branching (resolver `data_in` đã
-wired sẵn trong executor; frontend đã render+validate+serialize data-edge) · M6 asset
-studio + migrator scenario cũ (`Thrower.json`).
+Milestone sau: M6 asset studio (capture/crop/save asset) + migrator scenario cũ
+(`d:\coc-tools\coc_bot\scenarios\Thrower.json` → graph), chạy lại so deploy parity.
 
 ## Ràng buộc PHẢI giữ (từ coc-tools REQUIREMENT.md/CLAUDE.md)
 - `core/` + `screens/` copy verbatim — KHÔNG "đơn giản hóa": BlueStacks failover trong
