@@ -1,5 +1,41 @@
 """Vision primitives — thin wraps over core.vision / ui_manager."""
 from engine.registry import BlockSpec, Param, Port, Kind, register
+from screens.home_screen import HomeScreen
+from screens.attack_screen import AttackScreen
+from screens.battle_screen import BattleScreen
+
+
+@register("is_home")
+class IsHome(BlockSpec):
+    label = "Is Home Screen"
+    category = "Vision"
+    inputs = []
+    outputs = [Port("yes", Kind.Bool)]
+
+    def run(self, ctx, inputs):
+        return {"yes": bool(HomeScreen(ctx.ui_manager).is_current_screen())}
+
+
+@register("is_attack")
+class IsAttack(BlockSpec):
+    label = "Is Attack Screen"
+    category = "Vision"
+    inputs = []
+    outputs = [Port("yes", Kind.Bool)]
+
+    def run(self, ctx, inputs):
+        return {"yes": bool(AttackScreen(ctx.ui_manager, ctx.settings).is_current_screen())}
+
+
+@register("is_battle")
+class IsBattle(BlockSpec):
+    label = "Is Battle Screen"
+    category = "Vision"
+    inputs = []
+    outputs = [Port("yes", Kind.Bool)]
+
+    def run(self, ctx, inputs):
+        return {"yes": bool(BattleScreen(ctx.ui_manager).is_current_screen())}
 
 
 @register("wait_template")

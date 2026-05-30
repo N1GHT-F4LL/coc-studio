@@ -14,6 +14,7 @@ export interface PortSpec {
   kind: Kind;
   label: string;
   default?: unknown;
+  choices?: string[] | null;
 }
 
 export interface BlockSpec {

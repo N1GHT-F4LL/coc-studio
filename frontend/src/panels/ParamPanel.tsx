@@ -29,6 +29,20 @@ function Field({
   onPick: (port: string, kind: "Coord" | "Region") => void;
 }) {
   const id = `param-${p.name}`;
+  if (p.choices && p.choices.length) {
+    return (
+      <label className="field" htmlFor={id}>
+        <span>{p.label}</span>
+        <select id={id} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
+          {p.choices.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
   if (p.kind === "Template") {
     return (
       <label className="field" htmlFor={id}>

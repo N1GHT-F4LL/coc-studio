@@ -22,11 +22,15 @@ class Kind(str, Enum):
 
 @dataclass
 class Param:
-    """A literal/configurable input, rendered as a form field in the GUI."""
+    """A literal/configurable input, rendered as a form field in the GUI.
+
+    ``choices`` (optional) turns the field into a dropdown of allowed values.
+    """
     name: str
     kind: Kind
     default: Any = None
     label: Optional[str] = None
+    choices: Optional[list] = None
 
     def to_json(self) -> dict:
         return {
@@ -34,6 +38,7 @@ class Param:
             "kind": self.kind.value,
             "default": self.default,
             "label": self.label or self.name,
+            "choices": self.choices,
         }
 
 
