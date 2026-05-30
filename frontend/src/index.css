@@ -110,8 +110,12 @@ button.stop { border-color: #d4356b; }
 .crop-rect { position: absolute; border: 1px solid #2bd4a3; background: #2bd4a322; pointer-events: none; }
 .asset-form { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); }
 .asset-form input, .asset-form select { width: 100%; }
-.field-row { display: flex; gap: 6px; }
-.field-row input { flex: 1; }
+.field-row { display: flex; gap: 6px; align-items: center; }
+.field-row input { flex: 1 1 auto; min-width: 0; }   /* allow shrink so the Pick button fits */
+.field-row button { flex: 0 0 auto; white-space: nowrap; }
+/* keep every form control inside the panel width */
+.field > input, .field > select { width: 100%; }
+.palette, .param-panel { overflow-x: hidden; }
 .tpl-thumb {
   margin-top: 6px;
   max-width: 100%;
