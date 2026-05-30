@@ -23,27 +23,50 @@ Backend skeleton + chứng minh tái dùng core, đã verify END-TO-END với de
 File đã tạo: `backend/{app_paths,device_manager,main}.py`,
 `backend/api/{app,settings_api,device_api,__init__}.py`, `README.md`, `.gitignore`.
 
+## Đã xong: Milestone 2 (commit `0a1d0ff`, branch `m2-engine-registry-executor`)
+Engine block-graph tổng quát + registry + executor, đã verify END-TO-END với device thật:
+- `engine/`: `registry.py` (Kind/Param/Port/BlockSpec + `@register` + REGISTRY),
+  `context.py` (RuntimeContext), `graph.py` (Node/Graph + validate: dangling refs +
+  Kahn cycle), `executor.py` (`run_graph` — vòng ready/completed/pending, **fail-stop**
+  on_error→abort). Tổng quát hóa từ `_slot_deploy`.
+- `blocks/`: 15 block. CoC: collect_resources/find_match/deploy/return_home/
+  request_clan_troops (wrap `screens/`; var `match_found` gate deploy/return — cầu nối
+  M5 if-edges). Primitive: wait_template/is_screen/find_template, tap/tap_template/
+  swipe_line/pinch, read_number/loot_ge, delay.
+- `screens/attack_screen.py`: tách `run_attack_cycle` → `find_match`/`deploy`/
+  `return_home` (giữ nguyên từng câu lệnh, orchestrator mỏng). **Đây là sửa DUY NHẤT
+  trong screens/.**
+- API: `run_api.py` (`POST /api/run` sync worker+stop_event, `/api/run/stop`,
+  `GET /api/blocks`), `graphs_api.py` (CRUD `data/graphs/`). `device_manager.ensure_ocr()`.
+- `data/graphs/farm_cycle.json` mirror 1 cycle của run_bot.
+- `tests/test_engine.py`: 23 check no-device PASS (topo-order/cycle/fail-stop/on_error/stop).
+- **Parity device thật:** `POST /api/run farm_cycle` → status ok, 4 node topo-order đúng;
+  log khớp run_attack_cycle (tap Attack → bail khi Find-a-Match vắng → var-gate no-op).
+
 ## Setup môi trường (QUAN TRỌNG)
 - Python **3.14.5**, venv riêng tại `d:\coc-studio\.venv`
 - Deps đã cài trong venv: fastapi, uvicorn[standard], websockets, opencv-python,
-  numpy, pure-python-adb. **CHƯA cài `easyocr`** (nặng, ~vài phút).
+  numpy, pure-python-adb, **easyocr 1.7.2** (M2 đã cài). `httpx` CHƯA cài (nên test
+  qua urllib/curl, không dùng starlette TestClient).
 - Chạy backend (từ thư mục `backend`):
   `..\.venv\Scripts\python.exe main.py` → http://127.0.0.1:8000
 - Endpoints sống: `/api/health`, `/api/settings` (GET/PUT), `/api/device/status`,
-  `/api/device/connect` (POST), `/ws/device?fps=4`
+  `/api/device/connect` (POST), `/ws/device?fps=4`, **`/api/blocks` (GET), `/api/run`
+  (POST), `/api/run/stop` (POST), `/api/graphs[/{name}]` (CRUD)** (M2)
+- Verify engine no-device: `cd backend && ..\.venv\Scripts\python.exe tests\test_engine.py`
+- Chạy graph qua REST: start `main.py`, `POST /api/device/connect`, rồi `POST /api/run`
+  body `{"graph": <farm_cycle.json>}` (test bằng urllib/curl, KHÔNG có httpx).
 
-## Tiếp theo: Milestone 2 — engine + registry + executor
-- Tạo `backend/engine/{context,registry,graph,executor}.py` và `backend/blocks/*.py`
-- **Executor tổng quát hóa vòng topo-order** trong `backend/screens/battle_screen.py`
-  hàm `_slot_deploy` (~dòng 95–214): gom node "ready" theo `after`, guard cycle, dispatch.
-- Port 5–6 block CoC lớn wrap `screens/` (collect_resources, find_match, deploy,
-  request_clan_troops, return_home) + vài primitive (tap, wait_template).
-- Chạy 1 graph tuyến tính hardcoded qua REST, so parity với `run_bot` cũ trong
-  `d:\coc-tools\coc_bot\main.py`.
-- **M2 CẦN cài easyocr trước:** `..\.venv\Scripts\python.exe -m pip install "easyocr>=1.6.0"`
-  (block OCR/loot mới chạy được; connect ở M1 không cần vì `warmup_ocr` chưa gọi).
+## Tiếp theo: Milestone 3 — frontend React Flow
+- `frontend/` Vite + React + TS. Palette dựng từ `GET /api/blocks` (15 spec sẵn, mỗi
+  spec có inputs/outputs typed theo `Kind`). Canvas React Flow: node = handle typed
+  (màu theo Kind), `isValidConnection` mirror `engine/graph.py:validate`. ParamPanel
+  auto-form từ spec `inputs`. Lưu/đọc graph qua `/api/graphs` (đã có CRUD).
+- CORS đã mở sẵn cho Vite `:5173` trong `api/app.py`.
 
-Milestone sau: M3 frontend React Flow · M4 run+debug WS · M5 typed data edges + if/loop ·
+Milestone sau: M4 run+debug WS (`/ws/run` realtime + node-highlight — tái dùng
+`run_graph` + RuntimeContext, đổi `emit` từ list→WS sink) · M5 typed data edges +
+if/loop/on_error branching (resolver `data_in` đã wired sẵn trong executor) ·
 M6 asset studio + migrator scenario cũ (`Thrower.json`).
 
 ## Ràng buộc PHẢI giữ (từ coc-tools REQUIREMENT.md/CLAUDE.md)
