@@ -12,6 +12,7 @@ SCREENS_DIR  = os.path.join(BACKEND_DIR, "screens")
 ASSETS_DIR   = os.path.join(BACKEND_DIR, "assets")
 DATA_DIR     = os.path.join(BACKEND_DIR, "data")
 GRAPHS_DIR   = os.path.join(DATA_DIR, "graphs")
+SCENARIOS_DIR = os.path.join(DATA_DIR, "scenarios")
 STATIC_DIR   = os.path.join(BACKEND_DIR, "static")
 
 SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")

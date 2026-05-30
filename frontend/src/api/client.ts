@@ -44,3 +44,38 @@ export async function deleteGraph(name: string): Promise<void> {
     await fetch(`/api/graphs/${encodeURIComponent(name)}`, { method: "DELETE" })
   );
 }
+
+// --- assets ----------------------------------------------------------------
+export interface AssetCategory {
+  label: string;
+  folder: string;
+}
+
+export async function fetchAssets(): Promise<string[]> {
+  const data = await json<{ assets: string[] }>(await fetch("/api/assets"));
+  return data.assets;
+}
+
+export async function fetchAssetCategories(): Promise<AssetCategory[]> {
+  const data = await json<{ categories: AssetCategory[] }>(
+    await fetch("/api/assets/categories")
+  );
+  return data.categories;
+}
+
+export const thumbUrl = (key: string) =>
+  `/api/assets/thumb/${key.split("/").map(encodeURIComponent).join("/")}`;
+
+export async function saveCrop(
+  region: number[],
+  folder: string,
+  name: string
+): Promise<{ key: string; width: number; height: number }> {
+  return json(
+    await fetch("/api/assets/crop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ region, folder, name }),
+    })
+  );
+}

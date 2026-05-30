@@ -12,6 +12,8 @@ bridge to real if-edges in M5.
 from engine.registry import BlockSpec, Param, Port, Kind, register
 from screens.home_screen import HomeScreen
 from screens.attack_screen import AttackScreen
+from screens.battle_screen import BattleScreen
+import scenario_store
 
 
 @register("collect_resources")
@@ -43,15 +45,35 @@ class FindMatch(BlockSpec):
 class Deploy(BlockSpec):
     label = "Deploy Troops"
     category = "CoC"
-    inputs = []
+    # Empty scenario -> use settings active_scenario (AttackScreen.deploy path).
+    # A scenario name -> run that migrated scenario (data/scenarios/<name>.json).
+    inputs = [Param("scenario", Kind.Text, default="")]
     outputs = [Port("deployed", Kind.Bool)]
 
     def run(self, ctx, inputs):
         if not ctx.vars.get("match_found"):
             ctx.logger.info("[deploy] no match held — skipping (match_found is false).")
             return {"deployed": False}
-        deployed = AttackScreen(ctx.ui_manager, ctx.settings).deploy()
-        return {"deployed": bool(deployed)}
+
+        scenario = (inputs.get("scenario") or "").strip()
+        if not scenario:
+            deployed = AttackScreen(ctx.ui_manager, ctx.settings).deploy()
+            return {"deployed": bool(deployed)}
+
+        # Scenario path: wait for battle, pick a variant, run the same deploy bar
+        # logic (BattleScreen.deploy_troops -> _slot_deploy) for parity.
+        battle = BattleScreen(ctx.ui_manager)
+        if not battle.wait_until_entered(timeout=15):
+            ctx.logger.warning("[deploy] battle screen not detected — bailing.")
+            return {"deployed": False}
+        doc = scenario_store.load_scenario(scenario)
+        nodes, variant_name = scenario_store.chosen_variant_nodes(doc)
+        deploy_cfg = dict(ctx.settings.get("attack", {}).get("deploy", {}))
+        deploy_cfg["nodes"] = nodes
+        ctx.logger.info("[deploy] scenario=%s variant=%s nodes=%d",
+                        scenario, variant_name, len(nodes))
+        battle.deploy_troops(deploy_cfg)
+        return {"deployed": True}
 
 
 @register("return_home")

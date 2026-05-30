@@ -100,6 +100,30 @@ END-TO-END trong browser với device thật + 38 engine unit tests.
   (fail-stop) · round-trip save/load giữ nguyên branch+data edges, validate sạch.
 - Graph demo: `data/graphs/{farm_cycle,find_tap,if_demo}.json`.
 
+## Đã xong: Milestone 6 (branch `m2-engine-registry-executor`) — MILESTONE CUỐI
+Asset studio + scenario migrator. Verify END-TO-END trong browser với device thật.
+- `api/assets_api.py`: `GET /api/assets/categories` (18, port `_CAT_TO_FOLDER`),
+  `GET /api/assets?cat=` (list rel keys), `GET /api/assets/thumb/{rel}` (FileResponse),
+  `POST /api/assets/crop` (capture `manager.capture_bgr` → crop region → ghi
+  `assets/<folder>/<name>.png` → hot-load `vision.cache[name]` + `[key]`). Sanitize tên.
+- `scenario_store.py` (data/scenarios/): load/list/save + `chosen_variant_nodes`
+  (weighted pick, backward-compat slots). `app_paths.SCENARIOS_DIR`.
+- `blocks/coc_blocks.py` Deploy: thêm param `scenario` (Text). Rỗng → settings path
+  (AttackScreen.deploy cũ); có tên → load data/scenarios, pick variant, gọi
+  `BattleScreen.deploy_troops` (= `_slot_deploy` không sửa → parity).
+- `scripts/migrate_scenario.py`: scenario coc-tools cũ → `data/scenarios/<name>.json`
+  + graph `data/graphs/<name>_farm.json` (collect→find_match→deploy(scenario)→return).
+  Đã chạy cho `Thrower` (1 variant, 22 deploy nodes).
+- Frontend: ParamPanel Template→**combobox 172 asset + thumbnail** (`/api/assets/thumb`),
+  Coord/Region→nút **Pick** (click/drag trên DeviceView → toạ độ gốc). DeviceView thêm
+  **Capture asset** (drag rect → form tên+category → `POST /crop`) + picker mode.
+- **Verify browser:** migrate Thrower → load `Thrower_farm` render đúng (deploy
+  scenario=Thrower) · Template combo 173 opt → thumbnail load 180×175 · coord pick
+  click giữa canvas → `798,448`(≈1600/2,900/2) · asset studio drag→save
+  `units/troops/...` ghi PNG ra đĩa + vào list + thumb 200.
+
+**TẤT CẢ M1–M6 ĐÃ XONG.** Plan `resilient-herding-scott.md` hoàn tất.
+
 ## Setup môi trường (QUAN TRỌNG)
 - Python **3.14.5**, venv riêng tại `d:\coc-studio\.venv`
 - Node **v20.10**, npm **10.2.3**. Frontend deps trong `frontend/node_modules` (gitignored).
@@ -119,18 +143,14 @@ END-TO-END trong browser với device thật + 38 engine unit tests.
 - Chạy graph qua REST: start `main.py`, `POST /api/device/connect`, rồi `POST /api/run`
   body `{"graph": <farm_cycle.json>}` (test bằng urllib/curl, KHÔNG có httpx).
 
-## Tiếp theo: Milestone 6 — asset studio + scenario migrator (milestone cuối)
-- Backend: REST `GET /api/assets?cat=` (list theo `_CAT_TO_FOLDER` cũ),
-  `GET /api/assets/thumb/{rel}` (serve thumbnail từ `assets/`), `POST /api/assets/crop`
-  (lưu asset từ vùng crop màn hình — port logic studio cũ ở `d:\coc-tools`).
-- Migrator: convert `d:\coc-tools\coc_bot\scenarios\Thrower.json` (variants→graph,
-  deploy slots→params block `deploy`) → graph JSON ở `data/graphs/`. Chạy lại, so deploy
-  parity với PyQt cũ (đối chiếu `coc_bot/logs/debug/bar_deploy_*.png`).
-- Frontend: Asset Studio panel (chụp từ `/ws/device`, vẽ rect crop → save asset),
-  Template-param combobox dùng thumbnail + danh mục; Coord/Region picker click/draw trên
-  DeviceView (port toán `dialogs.DeviceView._orig_coords` — map click→toạ độ gốc 1600×900).
-
-Đã xong M1–M5. M6 là milestone cuối của plan (`resilient-herding-scott.md`).
+## Còn lại / chưa verify được trong session
+- **Deploy-bar parity chạy thật** cần đang Ở TRONG trận (battle screen) để
+  `_slot_deploy` deploy quân — phụ thuộc trạng thái game, chưa demo trong session.
+  Code path `deploy(scenario=Thrower)` → `BattleScreen.deploy_troops` (KHÔNG sửa) đã
+  có; parity của `_slot_deploy` đã chốt ở M2. Khi vào trận thật, chạy `Thrower_farm`
+  qua `/ws/run` rồi đối chiếu `coc_bot/logs/debug/bar_deploy_*.png` như plan.
+- Post-v1 (plan §Open): subroutine block (graph-as-block) đầy đủ — hiện loop dùng
+  graph_ref; minitouch/scrcpy HID; đóng gói desktop app.
 
 ## Ràng buộc PHẢI giữ (từ coc-tools REQUIREMENT.md/CLAUDE.md)
 - `core/` + `screens/` copy verbatim — KHÔNG "đơn giản hóa": BlueStacks failover trong

@@ -14,7 +14,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 
-import { fetchBlocks, listGraphs, loadGraph, saveGraph } from "./api/client";
+import { fetchBlocks, listGraphs, loadGraph, saveGraph, fetchAssets } from "./api/client";
 import type { BlockSpec } from "./blocks/types";
 import { BlockNode, type BlockNodeData } from "./canvas/BlockNode";
 import { parseHandle } from "./canvas/handleId";
@@ -38,6 +38,8 @@ export default function App() {
   const [graphName, setGraphName] = useState("untitled");
   const [savedGraphs, setSavedGraphs] = useState<string[]>([]);
   const [status, setStatus] = useState("");
+  const [assets, setAssets] = useState<string[]>([]);
+  const [pickReq, setPickReq] = useState<{ port: string; kind: "Coord" | "Region" } | null>(null);
   const runner = useRunner();
 
   const rfRef = useRef<ReactFlowInstance | null>(null);
@@ -56,7 +58,10 @@ export default function App() {
       .then(setBlocks)
       .catch((e) => setStatus(`Failed to load blocks: ${e.message}`));
     refreshGraphs();
+    fetchAssets().then(setAssets).catch(() => setAssets([]));
   }, []);
+
+  const refreshAssets = () => fetchAssets().then(setAssets).catch(() => setAssets([]));
 
   const refreshGraphs = () =>
     listGraphs()
@@ -284,11 +289,25 @@ export default function App() {
           <ParamPanel
             node={selectedNode}
             connectedInputs={connectedInputs}
+            assets={assets}
             onChangeParam={changeParam}
             onChangeLabel={changeLabel}
             onDelete={deleteNode}
+            onPick={(port, kind) => {
+              if (!selectedNode) return;
+              setPickReq({ port, kind });
+              setStatus(`Pick ${kind} on the device view…`);
+            }}
           />
-          <DeviceView />
+          <DeviceView
+            pickKind={pickReq?.kind ?? null}
+            onPick={(value) => {
+              if (pickReq && selectedNode) changeParam(selectedNode.id, pickReq.port, value);
+              setPickReq(null);
+              setStatus("");
+            }}
+            onAssetSaved={refreshAssets}
+          />
         </div>
       </div>
     </div>

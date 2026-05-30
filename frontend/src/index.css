@@ -104,7 +104,25 @@ button.stop { border-color: #d4356b; }
 .device-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
 .device-bar > span:first-child { text-transform: uppercase; font-size: 11px; color: var(--muted); }
 .device-info { margin-left: auto; font-size: 11px; }
-.device-canvas { width: 100%; background: #000; display: block; max-height: 240px; object-fit: contain; }
+.device-stage { position: relative; line-height: 0; }
+.device-stage.picking { cursor: crosshair; }
+.device-canvas { width: 100%; background: #000; display: block; max-height: 260px; object-fit: contain; }
+.crop-rect { position: absolute; border: 1px solid #2bd4a3; background: #2bd4a322; pointer-events: none; }
+.asset-form { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); }
+.asset-form input, .asset-form select { width: 100%; }
+.field-row { display: flex; gap: 6px; }
+.field-row input { flex: 1; }
+.tpl-thumb {
+  margin-top: 6px;
+  max-width: 100%;
+  max-height: 64px;
+  background: #0a0c0f;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  align-self: flex-start;
+  image-rendering: pixelated;
+}
+.device-bar button.active { border-color: #2bd4a3; color: #2bd4a3; }
 
 .muted { color: var(--muted); }
 .field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }

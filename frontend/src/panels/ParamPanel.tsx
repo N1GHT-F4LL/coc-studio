@@ -1,13 +1,16 @@
 import type { Node } from "reactflow";
 import type { PortSpec } from "../blocks/types";
 import type { BlockNodeData } from "../canvas/BlockNode";
+import { thumbUrl } from "../api/client";
 
 interface Props {
   node: Node<BlockNodeData> | null;
   connectedInputs: Set<string>; // input ports fed by a data edge (literal is overridden)
+  assets: string[];
   onChangeParam: (nodeId: string, name: string, value: unknown) => void;
   onChangeLabel: (nodeId: string, label: string) => void;
   onDelete: (nodeId: string) => void;
+  onPick: (port: string, kind: "Coord" | "Region") => void;
 }
 
 // One form field per spec input. Data-edge inputs (M5) override these literals
@@ -15,13 +18,35 @@ interface Props {
 function Field({
   p,
   value,
+  assets,
   onChange,
+  onPick,
 }: {
   p: PortSpec;
   value: unknown;
+  assets: string[];
   onChange: (v: unknown) => void;
+  onPick: (port: string, kind: "Coord" | "Region") => void;
 }) {
   const id = `param-${p.name}`;
+  if (p.kind === "Template") {
+    return (
+      <label className="field" htmlFor={id}>
+        <span>{p.label}</span>
+        <select id={id} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
+          <option value="">— select asset —</option>
+          {assets.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+        {value ? (
+          <img className="tpl-thumb" src={thumbUrl(String(value))} alt={String(value)} />
+        ) : null}
+      </label>
+    );
+  }
   if (p.kind === "Bool") {
     return (
       <label className="field" htmlFor={id}>
@@ -56,20 +81,25 @@ function Field({
         <span>
           {p.label} <em className="muted">({p.kind === "Coord" ? "x, y" : "x1, y1, x2, y2"})</em>
         </span>
-        <input
-          id={id}
-          type="text"
-          value={text}
-          placeholder={p.kind === "Coord" ? "100, 200" : "0, 70, 420, 360"}
-          onChange={(e) => {
-            const nums = e.target.value
-              .split(",")
-              .map((s) => s.trim())
-              .filter((s) => s !== "")
-              .map(Number);
-            onChange(nums.some(Number.isNaN) ? e.target.value : nums);
-          }}
-        />
+        <div className="field-row">
+          <input
+            id={id}
+            type="text"
+            value={text}
+            placeholder={p.kind === "Coord" ? "100, 200" : "0, 70, 420, 360"}
+            onChange={(e) => {
+              const nums = e.target.value
+                .split(",")
+                .map((s) => s.trim())
+                .filter((s) => s !== "")
+                .map(Number);
+              onChange(nums.some(Number.isNaN) ? e.target.value : nums);
+            }}
+          />
+          <button type="button" onClick={() => onPick(p.name, p.kind as "Coord" | "Region")}>
+            Pick
+          </button>
+        </div>
       </label>
     );
   }
@@ -90,9 +120,11 @@ function Field({
 export function ParamPanel({
   node,
   connectedInputs,
+  assets,
   onChangeParam,
   onChangeLabel,
   onDelete,
+  onPick,
 }: Props) {
   if (!node) {
     return (
@@ -134,7 +166,9 @@ export function ParamPanel({
             key={p.name}
             p={p}
             value={params[p.name] ?? p.default}
+            assets={assets}
             onChange={(v) => onChangeParam(node.id, p.name, v)}
+            onPick={onPick}
           />
         )
       )}
