@@ -55,8 +55,16 @@ class TrainScreen(BaseScreen):
         )) if self.ui_manager.get_screen() is not None else False
 
     def open(self, timeout=8):
-        """From the home screen, tap Train Troops to open the army screen."""
+        """From the home screen, tap Train Troops to open the army screen.
+
+        Robust to being left on the army screen from a previous section: if the
+        home Train Troops button isn't visible, close back to home and retry once.
+        """
         loc = self.ui_manager.wait_until_appears(TRAIN_TROOPS_BUTTON, timeout=timeout, silent=True)
+        if not loc:
+            self.back_home()
+            self.ui_manager._poll_sleep(0.6)
+            loc = self.ui_manager.wait_until_appears(TRAIN_TROOPS_BUTTON, timeout=timeout, silent=True)
         if not loc:
             logger.warning("[TRAIN] 'Train Troops' button not found on home screen.")
             return False

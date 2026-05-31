@@ -132,10 +132,6 @@ class EnsureTroops(BlockSpec):
             return {"ready": True}
 
         train = TrainScreen(ctx.ui_manager)
-        if not train.open():
-            ctx.vars["troops_ready"] = False
-            return {"ready": False}
-
         tap_delay = float(inputs.get("tap_delay", 0.2))
         threshold = float(inputs.get("threshold", 0.7))
         troops_only = bool(inputs.get("troops_only", False))
@@ -143,12 +139,20 @@ class EnsureTroops(BlockSpec):
         # Each section: clear it (-> bright roster) -> open its roster -> tap each
         # unit N times. Roster icons need FACE templates (units/roster/<name>),
         # NOT the badge-laden deploy assets (units/troops|spells|siege/<name>).
+        #
+        # Opening a section's roster is only reliable from a FRESH army screen
+        # (no other section's roster open), so we re-enter the army (back to home,
+        # then Train Troops) for each section.
         sections = [("troop", comp.troops)]
         if not troops_only:
             sections += [("spell", comp.spells), ("siege", comp.sieges)]
+        opened_any = False
         for kind, items in sections:
             if not items or ctx.stopped():
                 continue
+            if not train.open():        # home -> fresh army screen
+                continue
+            opened_any = True
             train.clear_section(kind)
             train.open_roster(kind)
             for template_key, count in items.items():
@@ -156,8 +160,11 @@ class EnsureTroops(BlockSpec):
                     break
                 roster_tpl = "units/roster/" + template_key.rsplit("/", 1)[-1]
                 train.train_unit(roster_tpl, count, tap_delay=tap_delay, threshold=threshold)
+            train.back_home()           # X -> home, fresh for the next section
 
-        train.back_home()
+        if not opened_any:
+            ctx.vars["troops_ready"] = False
+            return {"ready": False}
 
         ready = self._wait_ready(ctx, inputs)
         ctx.vars["troops_ready"] = ready
