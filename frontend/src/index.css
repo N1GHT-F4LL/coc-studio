@@ -69,7 +69,8 @@ button:hover { border-color: var(--accent); }
   border-left: 1px solid var(--border);
   min-height: 0;
 }
-.right .param-panel { border-left: none; flex: 1 1 auto; min-height: 0; }
+/* ParamPanel must fill the right column (its shared base width is 220px). */
+.right .param-panel { border-left: none; flex: 1 1 auto; min-height: 0; width: 100%; }
 
 /* bottom dock with Console | Device tabs */
 .dock {

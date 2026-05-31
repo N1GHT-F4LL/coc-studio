@@ -36,6 +36,15 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Always revalidate HTML (index.html) so a rebuilt SPA shows up on reload
+    # without a hard refresh; the hashed JS/CSS assets stay cacheable.
+    @app.middleware("http")
+    async def _no_cache_html(request, call_next):
+        resp = await call_next(request)
+        if resp.headers.get("content-type", "").startswith("text/html"):
+            resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return resp
+
     app.include_router(settings_router)
     app.include_router(device_router)
     app.include_router(run_router)
