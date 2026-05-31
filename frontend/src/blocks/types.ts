@@ -15,6 +15,7 @@ export interface PortSpec {
   label: string;
   default?: unknown;
   choices?: string[] | null;
+  source?: "graphs" | "scenarios" | "assets" | null;
 }
 
 export interface BlockSpec {

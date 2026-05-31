@@ -30,7 +30,8 @@ class Param:
     kind: Kind
     default: Any = None
     label: Optional[str] = None
-    choices: Optional[list] = None
+    choices: Optional[list] = None      # static dropdown values
+    source: Optional[str] = None        # dynamic dropdown: "graphs" | "scenarios" | "assets"
 
     def to_json(self) -> dict:
         return {
@@ -39,6 +40,7 @@ class Param:
             "default": self.default,
             "label": self.label or self.name,
             "choices": self.choices,
+            "source": self.source,
         }
 
 

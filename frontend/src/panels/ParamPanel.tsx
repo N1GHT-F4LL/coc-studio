@@ -7,10 +7,40 @@ interface Props {
   node: Node<BlockNodeData> | null;
   connectedInputs: Set<string>; // input ports fed by a data edge (literal is overridden)
   assets: string[];
+  graphs: string[];
+  scenarios: string[];
   onChangeParam: (nodeId: string, name: string, value: unknown) => void;
   onChangeLabel: (nodeId: string, label: string) => void;
   onDelete: (nodeId: string) => void;
   onPick: (port: string, kind: "Coord" | "Region") => void;
+}
+
+// Dropdown of dynamic values (saved graphs / scenarios) for params with a source.
+function SourceSelect({
+  id,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  value: unknown;
+  options: string[];
+  onChange: (v: unknown) => void;
+}) {
+  return (
+    <select id={id} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
+      <option value="">— chọn —</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+      {/* keep a stale saved value visible even if it's no longer in the list */}
+      {value && !options.includes(String(value)) ? (
+        <option value={String(value)}>{String(value)} (?)</option>
+      ) : null}
+    </select>
+  );
 }
 
 // One form field per spec input. Data-edge inputs (M5) override these literals
@@ -19,16 +49,30 @@ function Field({
   p,
   value,
   assets,
+  graphs,
+  scenarios,
   onChange,
   onPick,
 }: {
   p: PortSpec;
   value: unknown;
   assets: string[];
+  graphs: string[];
+  scenarios: string[];
   onChange: (v: unknown) => void;
   onPick: (port: string, kind: "Coord" | "Region") => void;
 }) {
   const id = `param-${p.name}`;
+  // Dynamic dropdown (pick a saved graph / scenario) instead of typing a name.
+  if (p.source === "graphs" || p.source === "scenarios") {
+    const opts = p.source === "graphs" ? graphs : scenarios;
+    return (
+      <label className="field" htmlFor={id}>
+        <span>{p.label}</span>
+        <SourceSelect id={id} value={value} options={opts} onChange={onChange} />
+      </label>
+    );
+  }
   if (p.choices && p.choices.length) {
     return (
       <label className="field" htmlFor={id}>
@@ -135,6 +179,8 @@ export function ParamPanel({
   node,
   connectedInputs,
   assets,
+  graphs,
+  scenarios,
   onChangeParam,
   onChangeLabel,
   onDelete,
@@ -182,6 +228,8 @@ export function ParamPanel({
             p={p}
             value={params[p.name] ?? p.default}
             assets={assets}
+            graphs={graphs}
+            scenarios={scenarios}
             onChange={(v) => onChangeParam(node.id, p.name, v)}
             onPick={onPick}
           />

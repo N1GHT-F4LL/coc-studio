@@ -78,7 +78,8 @@ class If(BlockSpec):
 class LoopN(BlockSpec):
     label = "Loop N times"
     category = "Control"
-    inputs = [Param("graph_ref", Kind.Text), Param("times", Kind.Number, default=3)]
+    inputs = [Param("graph_ref", Kind.Text, source="graphs"),
+              Param("times", Kind.Number, default=3)]
     outputs = []
 
     def run(self, ctx, inputs):
@@ -100,7 +101,7 @@ class LoopUntil(BlockSpec):
     label = "Loop Until Var"
     category = "Control"
     inputs = [
-        Param("graph_ref", Kind.Text),
+        Param("graph_ref", Kind.Text, source="graphs"),
         Param("until_var", Kind.Text),
         Param("max_iters", Kind.Number, default=10),
     ]

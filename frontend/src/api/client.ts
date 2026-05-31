@@ -25,6 +25,11 @@ export async function listGraphs(): Promise<string[]> {
   return data.graphs;
 }
 
+export async function listScenarios(): Promise<string[]> {
+  const data = await json<{ scenarios: string[] }>(await fetch("/api/scenarios"));
+  return data.scenarios;
+}
+
 export async function loadGraph(name: string): Promise<GraphDoc> {
   return json<GraphDoc>(await fetch(`/api/graphs/${encodeURIComponent(name)}`));
 }

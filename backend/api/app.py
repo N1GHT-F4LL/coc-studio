@@ -18,6 +18,7 @@ from api.run_api import router as run_router
 from api.run_ws import router as run_ws_router
 from api.graphs_api import router as graphs_router
 from api.assets_api import router as assets_router
+from api.scenarios_api import router as scenarios_router
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(run_ws_router)
     app.include_router(graphs_router)
     app.include_router(assets_router)
+    app.include_router(scenarios_router)
 
     @app.get("/api/health")
     def health():

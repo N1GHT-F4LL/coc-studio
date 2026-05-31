@@ -13,7 +13,14 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 
-import { fetchBlocks, listGraphs, loadGraph, saveGraph, fetchAssets } from "./api/client";
+import {
+  fetchBlocks,
+  listGraphs,
+  loadGraph,
+  saveGraph,
+  fetchAssets,
+  listScenarios,
+} from "./api/client";
 import type { BlockSpec } from "./blocks/types";
 import { BlockNode, type BlockNodeData } from "./canvas/BlockNode";
 import { parseHandle } from "./canvas/handleId";
@@ -38,6 +45,7 @@ export default function App() {
   const [savedGraphs, setSavedGraphs] = useState<string[]>([]);
   const [status, setStatus] = useState("");
   const [assets, setAssets] = useState<string[]>([]);
+  const [scenarios, setScenarios] = useState<string[]>([]);
   const [pickReq, setPickReq] = useState<{ port: string; kind: "Coord" | "Region" } | null>(null);
   const [dockTab, setDockTab] = useState<"console" | "device">("console");
   const runner = useRunner();
@@ -59,6 +67,7 @@ export default function App() {
       .catch((e) => setStatus(`Failed to load blocks: ${e.message}`));
     refreshGraphs();
     fetchAssets().then(setAssets).catch(() => setAssets([]));
+    listScenarios().then(setScenarios).catch(() => setScenarios([]));
   }, []);
 
   const refreshAssets = () => fetchAssets().then(setAssets).catch(() => setAssets([]));
@@ -77,6 +86,11 @@ export default function App() {
         ? inst.screenToFlowPosition({ x: window.innerWidth / 3, y: 140 })
         : { x: 160, y: 140 };
       const id = newId(spec.type);
+      // Pre-fill params with the spec defaults so the node works out of the box.
+      const params: Record<string, unknown> = {};
+      for (const p of spec.inputs) {
+        if (p.default !== null && p.default !== undefined) params[p.name] = p.default;
+      }
       setNodes((ns) => {
         // Cascade new nodes so they don't stack on top of each other.
         const step = 36;
@@ -85,7 +99,7 @@ export default function App() {
           id,
           type: "block",
           position: { x: origin.x + k * step, y: origin.y + k * step },
-          data: { spec, label: spec.label, params: {} },
+          data: { spec, label: spec.label, params },
         };
         return ns.concat(node);
       });
@@ -322,6 +336,8 @@ export default function App() {
             node={selectedNode}
             connectedInputs={connectedInputs}
             assets={assets}
+            graphs={savedGraphs}
+            scenarios={scenarios}
             onChangeParam={changeParam}
             onChangeLabel={changeLabel}
             onDelete={deleteNode}

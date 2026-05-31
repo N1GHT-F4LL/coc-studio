@@ -110,7 +110,7 @@ class Deploy(BlockSpec):
     category = "CoC"
     # Empty scenario -> use settings active_scenario (AttackScreen.deploy path).
     # A scenario name -> run that migrated scenario (data/scenarios/<name>.json).
-    inputs = [Param("scenario", Kind.Text, default="")]
+    inputs = [Param("scenario", Kind.Text, default="", source="scenarios")]
     outputs = [Port("deployed", Kind.Bool)]
 
     def run(self, ctx, inputs):
