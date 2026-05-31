@@ -105,7 +105,7 @@ class EnsureTroops(BlockSpec):
         Param("capacity_region", Kind.Region, default=None),
         Param("target_capacity", Kind.Number, default=0),
         Param("tap_delay", Kind.Number, default=0.2),
-        Param("threshold", Kind.Number, default=0.55),
+        Param("threshold", Kind.Number, default=0.7),
         Param("max_wait", Kind.Number, default=180),
         Param("wait_seconds", Kind.Number, default=0),
     ]
@@ -135,14 +135,20 @@ class EnsureTroops(BlockSpec):
         if not train.open():
             ctx.vars["troops_ready"] = False
             return {"ready": False}
-        train.select_tab("troops")
+        # Clear current troops so the add-roster is bright (matchable) + empty,
+        # then open the roster palette ("Tap to edit") to make troops tappable.
+        train.clear_troops()
+        train.open_roster()
 
         tap_delay = float(inputs.get("tap_delay", 0.2))
-        threshold = float(inputs.get("threshold", 0.55))
+        threshold = float(inputs.get("threshold", 0.7))
         for template_key, count in comp.troops.items():
             if ctx.stopped():
                 break
-            train.train_unit(template_key, count, tap_delay=tap_delay, threshold=threshold)
+            # Roster icons need FACE templates (units/roster/<name>), not the
+            # badge-laden deploy assets (units/troops/<name>) — see train_screen.
+            roster_tpl = template_key.replace("units/troops/", "units/roster/")
+            train.train_unit(roster_tpl, count, tap_delay=tap_delay, threshold=threshold)
 
         train.back_home()
 

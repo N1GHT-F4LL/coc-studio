@@ -1,18 +1,22 @@
 """Army / training screen — NEW screen (not a verbatim coc-tools file).
 
-Drives the home-village "Train Troops" army UI so the bot can train troops
-manually, one icon at a time, to match a chosen deploy scenario. Mirrors the
-HomeScreen/AttackScreen/BattleScreen pattern (subclass of BaseScreen, all
-device interaction through ``ui_manager``) and reuses the exact
-"find unit icon by its ``units/...`` template then tap it" mechanism from
-``BattleScreen._slot_deploy`` — here the icons live in the army troop grid
-instead of the in-battle deploy bar.
+Drives the home-village "Train Troops" army UI to train troops MANUALLY, one
+icon at a time, to match a chosen deploy scenario. Subclass of BaseScreen; all
+device interaction via ``ui_manager``.
 
-The army-UI templates below (tabs, screen anchors) do NOT ship with the repo
-yet — only ``buttons/home/btn_train_troops`` exists. Capture the rest with the
-Asset Studio and the methods light up automatically; until then they degrade
-gracefully (open() assumes the tap worked; select_tab() assumes the Troops tab
-is already active).
+Flow that was reverse-engineered on a live TH18 device (see scripts/*calib):
+  1. tap home "Train Troops" -> the My Army screen opens.
+  2. CLEAR the troops: tap the troops-section trash (``buttons/attack/btn_delete_troop``,
+     the top-most of the 3 trash icons) -> confirm "Okay". Army troops go to 0/cap
+     and the add-roster at the bottom becomes BRIGHT (addable).
+  3. ADD each troop: the bright roster icons are matchable by a FACE-ONLY template
+     (``units/roster/<name>``) -- crucially NOT the old ``units/troops/<name>`` asset,
+     which carries the army-count/level badges and a different render and matches at
+     only ~0.5. With a face crop from the bright roster, find_template peaks ~1.0 at
+     the right tile (next-best ~0.65), so it localises reliably. Each tap adds one
+     troop (1 tap = +1). If a troop isn't on screen, scroll the roster and retry.
+
+Capture the ``units/roster/<name>`` face templates with scripts/capture_face.py.
 """
 import logging
 
@@ -21,42 +25,29 @@ from core.vision import vision
 
 logger = logging.getLogger(__name__)
 
-# Home-village button that opens the army screen (the only asset that exists today).
-TRAIN_TROOPS_BUTTON = "buttons/home/btn_train_troops"
+TRAIN_TROOPS_BUTTON = "buttons/home/btn_train_troops"   # exists in assets
+DELETE_TROOP_TEMPLATE = "buttons/attack/btn_delete_troop"  # exists; 1 per section
 
-# Calibration targets — capture these to enable screen detection + tab switching.
-ARMY_ANCHORS = (
-    "buttons/army/army_screen",
-    "buttons/army/btn_quick_train",
-)
-TAB_TEMPLATES = {
-    "troops": ("buttons/army/btn_troops_tab",),
-    "spells": ("buttons/army/btn_spells_tab",),
-    "sieges": ("buttons/army/btn_sieges_tab",),
-}
-# Optional: a "not enough housing space" popup to stop tapping before over-training.
-HOUSING_FULL_TEMPLATES = ("buttons/army/popup_not_enough_housing",)
-# Buttons that take us back to the village from the army screen.
-CLOSE_TEMPLATES = ("buttons/popup/btn_close", "buttons/army/btn_close")
+# The "Remove troops?" confirm dialog has no asset for its green Okay button, so
+# we locate it by colour in the dialog band, with a measured fallback.
+OKAY_FALLBACK = (973, 539)
+OKAY_COLOUR_BAND = (470, 600, 760, 1180)  # y1,y2,x1,x2 to search for the green button
+
+# After clearing, the add-roster is hidden ("Tap to edit"); tap the troops panel
+# to bring up the bright add-roster palette before training.
+TROOPS_PANEL_TAP = (1100, 290)
+
+# Roster scroll: swipe within the bottom palette to reveal off-screen troops.
+ROSTER_SWIPE = ((1400, 790), (300, 790))
+MAX_ROSTER_SCROLLS = 5
 
 
 class TrainScreen(BaseScreen):
     def is_current_screen(self):
-        found = self.ui_manager.scan_all(
-            self._existing_templates(ARMY_ANCHORS),
-            use_orb_fallback=False,
-        )
-        return bool(found)
-
-    def wait_until_entered(self, timeout=5):
-        """Poll until the army UI is visible (only if anchors are calibrated)."""
-        import time
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            if self.is_current_screen():
-                return True
-            self.ui_manager._poll_sleep(0.5)
-        return False
+        # The trash icons only exist on the army screen; any match => we're here.
+        return bool(vision.find_all_matches(
+            self.ui_manager.get_screen(), DELETE_TROOP_TEMPLATE, threshold=0.7
+        )) if self.ui_manager.get_screen() is not None else False
 
     def open(self, timeout=8):
         """From the home screen, tap Train Troops to open the army screen."""
@@ -65,46 +56,70 @@ class TrainScreen(BaseScreen):
             logger.warning("[TRAIN] 'Train Troops' button not found on home screen.")
             return False
         self.ui_manager.click(*loc)
-        self.ui_manager._poll_sleep(1.0)
-        # Confirm only if anchors are calibrated; otherwise trust the tap.
-        if any(a in vision.cache for a in ARMY_ANCHORS):
-            if not self.wait_until_entered(timeout=5):
-                logger.warning("[TRAIN] army screen anchor not detected after tap.")
-                return False
+        self.ui_manager._poll_sleep(1.2)
         logger.info("[TRAIN] army screen opened.")
         return True
 
-    def select_tab(self, tab="troops"):
-        """Tap a tab (Troops/Spells/Sieges). No-op if the tab asset isn't captured."""
-        loc = self._wait_until_any_appears(
-            TAB_TEMPLATES.get(tab, ()), timeout=3, silent=True, use_orb_fallback=False
-        )
-        if loc:
-            self.ui_manager.click(*loc)
-            self.ui_manager._poll_sleep(0.5)
-            return True
-        return False
-
-    def train_unit(self, template_key, count, tap_delay=0.2, threshold=0.55):
-        """Locate a unit icon in the army grid and tap it ``count`` times.
-
-        Each tap queues one unit. Returns the number of taps actually issued
-        (fewer if stop was requested or the housing-full popup appeared).
-        """
-        count = int(count)
-        name = template_key.rsplit("/", 1)[-1]
-        if count <= 0:
-            return 0
+    def clear_troops(self):
+        """Tap the troops-section trash then confirm, emptying the troop army."""
         screen = self.ui_manager.get_screen()
         if screen is None:
-            logger.warning("[TRAIN] no screen — skipping %s", name)
+            return False
+        matches = vision.find_all_matches(screen, DELETE_TROOP_TEMPLATE, threshold=0.7, min_distance=30)
+        if not matches:
+            logger.warning("[TRAIN] no trash button found — cannot clear troops.")
+            return False
+        # The troops trash is the top-most one (smallest y); spells/sieges sit lower.
+        tx, ty = min(matches, key=lambda p: p[1])
+        self.ui_manager.click(tx, ty)
+        self.ui_manager._poll_sleep(0.8)
+        self._tap_okay()
+        self.ui_manager._poll_sleep(0.8)
+        logger.info("[TRAIN] troops cleared.")
+        return True
+
+    def open_roster(self):
+        """Tap the troops panel ('Tap to edit') to reveal the bright add-roster."""
+        self.ui_manager.click(*TROOPS_PANEL_TAP)
+        self.ui_manager._poll_sleep(0.8)
+
+    def _tap_okay(self):
+        """Confirm the 'Remove troops?' dialog (green Okay, located by colour)."""
+        loc = self._find_green_button() or OKAY_FALLBACK
+        self.ui_manager.click(*loc)
+
+    def _find_green_button(self):
+        import numpy as np
+        import cv2
+        screen = self.ui_manager.get_screen()
+        if screen is None:
+            return None
+        y1, y2, x1, x2 = OKAY_COLOUR_BAND
+        hsv = cv2.cvtColor(screen[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, (35, 80, 80), (85, 255, 255))
+        ys, xs = np.where(mask > 0)
+        if len(xs) < 500:
+            return None
+        return (int(xs.mean()) + x1, int(ys.mean()) + y1)
+
+    def train_unit(self, roster_template, count, tap_delay=0.2, threshold=0.7):
+        """Find a troop's face in the bright roster and tap it ``count`` times.
+
+        ``roster_template`` is a ``units/roster/<name>`` face template. If the
+        troop isn't visible, the roster is scrolled and the search retried.
+        Returns the number of taps issued.
+        """
+        count = int(count)
+        name = roster_template.rsplit("/", 1)[-1]
+        if count <= 0:
             return 0
-        # Same lookup contract as _slot_deploy: template_key -> vision.cache.
-        loc = vision.find_template(
-            screen, template_key, threshold=float(threshold), use_orb_fallback=False
-        )
+        if roster_template not in vision.cache:
+            logger.warning("[TRAIN] no face template %s — capture it with scripts/capture_face.py", roster_template)
+            return 0
+
+        loc = self._locate_in_roster(roster_template, threshold)
         if not loc:
-            logger.warning("[TRAIN] icon not found: %s (conf < %.2f) — skipping", name, threshold)
+            logger.warning("[TRAIN] %s not found in roster after scrolling — skipping.", name)
             return 0
 
         cx, cy = loc
@@ -112,27 +127,32 @@ class TrainScreen(BaseScreen):
         for _ in range(count):
             if self.ui_manager._stopped():
                 break
-            # Stop early if the army is full (only when that popup asset is calibrated).
-            if any(t in vision.cache for t in HOUSING_FULL_TEMPLATES):
-                if self._wait_until_any_appears(
-                    HOUSING_FULL_TEMPLATES, timeout=0.2, silent=True, use_orb_fallback=False
-                ):
-                    logger.info("[TRAIN] %s: army full — stopping at %d/%d", name, done, count)
-                    self.close_popups()
-                    break
             self.ui_manager.click(cx, cy)
             self.ui_manager._poll_sleep(tap_delay)
             done += 1
-        logger.info("[TRAIN] %s ×%d (requested %d)", name, done, count)
+        logger.info("[TRAIN] %s ×%d (requested %d) at (%d,%d)", name, done, count, cx, cy)
         return done
 
+    def _locate_in_roster(self, roster_template, threshold):
+        """find_template the troop; scroll the roster up to MAX_ROSTER_SCROLLS if missing."""
+        for attempt in range(MAX_ROSTER_SCROLLS + 1):
+            screen = self.ui_manager.get_screen()
+            if screen is not None:
+                loc = vision.find_template(screen, roster_template, threshold=threshold, use_orb_fallback=False)
+                if loc:
+                    return loc
+            if attempt < MAX_ROSTER_SCROLLS and not self.ui_manager._stopped():
+                (sx, sy), (ex, ey) = ROSTER_SWIPE
+                self.ui_manager.device.swipe([(sx, sy), (ex, ey)])
+                self.ui_manager._poll_sleep(0.8)
+        return None
+
     def back_home(self):
-        """Return to the village: close any popup, tap a Close/X if present."""
-        self.close_popups()
+        """Leave the army screen back to the village (tap the X / close popups)."""
         loc = self._wait_until_any_appears(
-            CLOSE_TEMPLATES, timeout=2, silent=True, use_orb_fallback=False
+            ("buttons/popup/btn_close",), timeout=2, silent=True, use_orb_fallback=False
         )
         if loc:
             self.ui_manager.click(*loc)
-            self.ui_manager._poll_sleep(0.6)
+            self.ui_manager._poll_sleep(0.8)
         self.close_popups()
