@@ -33,11 +33,16 @@ DELETE_TROOP_TEMPLATE = "buttons/attack/btn_delete_troop"  # exists; 1 per secti
 OKAY_FALLBACK = (973, 539)
 OKAY_COLOUR_BAND = (470, 600, 760, 1180)  # y1,y2,x1,x2 to search for the green button
 
-# After clearing, the add-roster is hidden ("Tap to edit"); tap the troops panel
-# to bring up the bright add-roster palette before training.
-TROOPS_PANEL_TAP = (1100, 290)
+# Per-section coords (calibrated on a 1600x900 TH18 layout). Each section has a
+# panel tap (opens its bright add-roster, "Tap to edit") and a trash button
+# (clears that section). troop/spell/siege are the trainable sections.
+SECTIONS = {
+    "troop": {"panel": (1100, 290), "trash": (1544, 209)},
+    "spell": {"panel": (935, 455), "trash": (1223, 431)},
+    "siege": {"panel": (1320, 440), "trash": (1544, 431)},
+}
 
-# Roster scroll: swipe within the bottom palette to reveal off-screen troops.
+# Roster scroll: swipe within the bottom palette to reveal off-screen units.
 ROSTER_SWIPE = ((1400, 790), (300, 790))
 MAX_ROSTER_SCROLLS = 5
 
@@ -60,27 +65,41 @@ class TrainScreen(BaseScreen):
         logger.info("[TRAIN] army screen opened.")
         return True
 
-    def clear_troops(self):
-        """Tap the troops-section trash then confirm, emptying the troop army."""
+    def clear_section(self, kind):
+        """Empty a section (troop/spell/siege) by tapping its trash + confirming.
+
+        The trash only exists when the section has units; we tap the trash
+        match nearest the section's known position, then confirm. No-op (returns
+        False) if the section is already empty.
+        """
+        cfg = SECTIONS.get(kind)
+        if not cfg:
+            return False
         screen = self.ui_manager.get_screen()
         if screen is None:
             return False
         matches = vision.find_all_matches(screen, DELETE_TROOP_TEMPLATE, threshold=0.7, min_distance=30)
         if not matches:
-            logger.warning("[TRAIN] no trash button found — cannot clear troops.")
+            logger.info("[TRAIN] %s already empty (no trash).", kind)
             return False
-        # The troops trash is the top-most one (smallest y); spells/sieges sit lower.
-        tx, ty = min(matches, key=lambda p: p[1])
+        tx0, ty0 = cfg["trash"]
+        tx, ty = min(matches, key=lambda p: (p[0] - tx0) ** 2 + (p[1] - ty0) ** 2)
+        if (tx - tx0) ** 2 + (ty - ty0) ** 2 > 120 ** 2:
+            logger.info("[TRAIN] %s trash not present — assuming empty.", kind)
+            return False
         self.ui_manager.click(tx, ty)
         self.ui_manager._poll_sleep(0.8)
         self._tap_okay()
         self.ui_manager._poll_sleep(0.8)
-        logger.info("[TRAIN] troops cleared.")
+        logger.info("[TRAIN] %s cleared.", kind)
         return True
 
-    def open_roster(self):
-        """Tap the troops panel ('Tap to edit') to reveal the bright add-roster."""
-        self.ui_manager.click(*TROOPS_PANEL_TAP)
+    def open_roster(self, kind="troop"):
+        """Tap a section panel ('Tap to edit') to reveal its bright add-roster."""
+        cfg = SECTIONS.get(kind)
+        if not cfg:
+            return
+        self.ui_manager.click(*cfg["panel"])
         self.ui_manager._poll_sleep(0.8)
 
     def _tap_okay(self):

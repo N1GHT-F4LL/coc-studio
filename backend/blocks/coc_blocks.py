@@ -101,7 +101,7 @@ class EnsureTroops(BlockSpec):
     category = "CoC"
     inputs = [
         Param("scenario", Kind.Text, default="", source="scenarios"),
-        Param("troops_only", Kind.Bool, default=True),
+        Param("troops_only", Kind.Bool, default=False),
         Param("capacity_region", Kind.Region, default=None),
         Param("target_capacity", Kind.Number, default=0),
         Param("tap_delay", Kind.Number, default=0.2),
@@ -125,9 +125,9 @@ class EnsureTroops(BlockSpec):
             return {"ready": False}
 
         comp = required_composition(doc)
-        ctx.logger.info("[ensure_troops] %s -> train: %s", scenario, comp.summary())
-        if not comp.troops:
-            ctx.logger.info("[ensure_troops] scenario has no trainable troops — nothing to do.")
+        ctx.logger.info("[ensure_troops] %s -> %s", scenario, comp.summary())
+        if not (comp.troops or comp.spells or comp.sieges):
+            ctx.logger.info("[ensure_troops] scenario has nothing to train — nothing to do.")
             ctx.vars["troops_ready"] = True
             return {"ready": True}
 
@@ -135,20 +135,27 @@ class EnsureTroops(BlockSpec):
         if not train.open():
             ctx.vars["troops_ready"] = False
             return {"ready": False}
-        # Clear current troops so the add-roster is bright (matchable) + empty,
-        # then open the roster palette ("Tap to edit") to make troops tappable.
-        train.clear_troops()
-        train.open_roster()
 
         tap_delay = float(inputs.get("tap_delay", 0.2))
         threshold = float(inputs.get("threshold", 0.7))
-        for template_key, count in comp.troops.items():
-            if ctx.stopped():
-                break
-            # Roster icons need FACE templates (units/roster/<name>), not the
-            # badge-laden deploy assets (units/troops/<name>) — see train_screen.
-            roster_tpl = template_key.replace("units/troops/", "units/roster/")
-            train.train_unit(roster_tpl, count, tap_delay=tap_delay, threshold=threshold)
+        troops_only = bool(inputs.get("troops_only", False))
+
+        # Each section: clear it (-> bright roster) -> open its roster -> tap each
+        # unit N times. Roster icons need FACE templates (units/roster/<name>),
+        # NOT the badge-laden deploy assets (units/troops|spells|siege/<name>).
+        sections = [("troop", comp.troops)]
+        if not troops_only:
+            sections += [("spell", comp.spells), ("siege", comp.sieges)]
+        for kind, items in sections:
+            if not items or ctx.stopped():
+                continue
+            train.clear_section(kind)
+            train.open_roster(kind)
+            for template_key, count in items.items():
+                if ctx.stopped():
+                    break
+                roster_tpl = "units/roster/" + template_key.rsplit("/", 1)[-1]
+                train.train_unit(roster_tpl, count, tap_delay=tap_delay, threshold=threshold)
 
         train.back_home()
 

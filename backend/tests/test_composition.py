@@ -28,8 +28,9 @@ def test_thrower_scenario():
         "units/heroes/grand_warden",
         "units/heroes/royal_champion",
     ], c.heroes
-    assert c.spells == ["units/spells/rage", "units/spells/totem"], c.spells
-    assert c.sieges == ["units/siege/log_launcher"], c.sieges
+    # spells: each drop tap = one spell -> totem 2+3+2=7, rage 2
+    assert c.spells == {"units/spells/rage": 2, "units/spells/totem": 7}, c.spells
+    assert c.sieges == {"units/siege/log_launcher": 1}, c.sieges
 
 
 def test_legacy_slots_shape():
@@ -45,7 +46,7 @@ def test_legacy_slots_shape():
     }
     c = required_composition(doc)
     assert c.troops == {"units/troops/giant": 8}, c.troops
-    assert c.spells == ["units/spells/heal"], c.spells
+    assert c.spells == {"units/spells/heal": 2}, c.spells
 
 
 def test_max_across_variants():
