@@ -39,7 +39,7 @@ OKAY_COLOUR_BAND = (470, 600, 760, 1180)  # y1,y2,x1,x2 to search for the green 
 SECTIONS = {
     "troop": {"panel": (1100, 290), "trash": (1544, 209)},
     "spell": {"panel": (935, 455), "trash": (1223, 431)},
-    "siege": {"panel": (1320, 440), "trash": (1544, 431)},
+    "siege": {"panel": (1420, 478), "trash": (1544, 431)},
 }
 
 # Roster scroll: swipe within the bottom palette to reveal off-screen units.
