@@ -71,12 +71,30 @@ button:hover { border-color: var(--accent); }
 }
 .right .param-panel { border-left: none; flex: 1 1 auto; min-height: 0; }
 
-/* run console (bottom dock) */
-.run-console {
-  height: 230px;
+/* bottom dock with Console | Device tabs */
+.dock {
+  height: 280px;
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.dock-tabs { display: flex; gap: 4px; padding: 5px 8px 0; }
+.dock-tabs button {
+  border-radius: 6px 6px 0 0;
+  border-bottom-color: transparent;
+  background: var(--panel-2);
+  font-size: 12px;
+}
+.dock-tabs button.active { border-color: var(--accent); color: var(--accent); }
+.dock-body { flex: 1; min-height: 0; }
+.dock-pane { flex: 1; min-height: 0; min-width: 0; height: 100%; }
+.dock-pane > * { width: 100%; height: 100%; }
+
+/* run console (fills its dock pane) */
+.run-console {
+  display: flex;
+  flex-direction: column;
   background: var(--panel);
 }
 .run-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
@@ -99,14 +117,19 @@ button.stop { border-color: #d4356b; }
 .log-warning .log-level { color: #e0a32b; }
 .log-error .log-level, .log-error .log-msg { color: #ff6b8a; }
 
-/* device view */
-.device-view { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+/* device view (lives in the bottom dock) */
+.device-view { display: flex; flex-direction: column; min-height: 0; }
 .device-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
 .device-bar > span:first-child { text-transform: uppercase; font-size: 11px; color: var(--muted); }
 .device-info { margin-left: auto; font-size: 11px; }
-.device-stage { position: relative; line-height: 0; }
+/* Canvas anchored top-left so the crop/pick overlay (canvas-relative px) lines up. */
+.device-stage { position: relative; line-height: 0; flex: 1; min-height: 0; overflow: hidden; }
 .device-stage.picking { cursor: crosshair; }
-.device-canvas { width: 100%; background: #000; display: block; max-height: 260px; object-fit: contain; }
+.device-canvas {
+  display: block; background: #000;
+  width: auto; height: auto;
+  max-width: 100%; max-height: 100%;
+}
 .crop-rect { position: absolute; border: 1px solid #2bd4a3; background: #2bd4a322; pointer-events: none; }
 .asset-form { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); }
 .asset-form input, .asset-form select { width: 100%; }

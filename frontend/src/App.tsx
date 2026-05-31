@@ -39,6 +39,7 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [assets, setAssets] = useState<string[]>([]);
   const [pickReq, setPickReq] = useState<{ port: string; kind: "Coord" | "Region" } | null>(null);
+  const [dockTab, setDockTab] = useState<"console" | "device">("console");
   const runner = useRunner();
 
   const rfRef = useRef<ReactFlowInstance | null>(null);
@@ -274,15 +275,47 @@ export default function App() {
               </ReactFlow>
             </RunStateContext.Provider>
           </div>
-          <RunConsole
-            running={runner.running}
-            status={runner.status}
-            logs={runner.logs}
-            vars={runner.vars}
-            onStart={onRun}
-            onStop={runner.stop}
-            onClear={runner.clear}
-          />
+          <div className="dock">
+            <div className="dock-tabs">
+              <button
+                className={dockTab === "console" ? "active" : ""}
+                onClick={() => setDockTab("console")}
+              >
+                Run console
+              </button>
+              <button
+                className={dockTab === "device" ? "active" : ""}
+                onClick={() => setDockTab("device")}
+              >
+                Device
+              </button>
+            </div>
+            <div className="dock-body">
+              {/* Both stay mounted (keep the device WS alive); toggle visibility. */}
+              <div className="dock-pane" style={{ display: dockTab === "console" ? "flex" : "none" }}>
+                <RunConsole
+                  running={runner.running}
+                  status={runner.status}
+                  logs={runner.logs}
+                  vars={runner.vars}
+                  onStart={onRun}
+                  onStop={runner.stop}
+                  onClear={runner.clear}
+                />
+              </div>
+              <div className="dock-pane" style={{ display: dockTab === "device" ? "flex" : "none" }}>
+                <DeviceView
+                  pickKind={pickReq?.kind ?? null}
+                  onPick={(value) => {
+                    if (pickReq && selectedNode) changeParam(selectedNode.id, pickReq.port, value);
+                    setPickReq(null);
+                    setStatus("");
+                  }}
+                  onAssetSaved={refreshAssets}
+                />
+              </div>
+            </div>
+          </div>
         </div>
         <div className="right">
           <ParamPanel
@@ -295,17 +328,9 @@ export default function App() {
             onPick={(port, kind) => {
               if (!selectedNode) return;
               setPickReq({ port, kind });
+              setDockTab("device"); // jump to the device view so the user can click
               setStatus(`Pick ${kind} on the device view…`);
             }}
-          />
-          <DeviceView
-            pickKind={pickReq?.kind ?? null}
-            onPick={(value) => {
-              if (pickReq && selectedNode) changeParam(selectedNode.id, pickReq.port, value);
-              setPickReq(null);
-              setStatus("");
-            }}
-            onAssetSaved={refreshAssets}
           />
         </div>
       </div>
