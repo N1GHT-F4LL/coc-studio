@@ -20,6 +20,7 @@ from . import util_blocks     # noqa: F401
 DESCRIPTIONS = {
     # CoC
     "ensure_home": "Mở/đưa Clash of Clans ra trước, chờ về màn làng, đóng popup khởi động và zoom-out; lạc màn thì tự restart game. ĐẶT Ở ĐẦU mỗi graph farm.",
+    "ensure_troops": "Train quân THỦ CÔNG khớp scenario đã chọn (vd Thrower → Thrower×16, Healer×6, Archer×12). Mở Train Troops, tap từng icon lính đủ số, rồi về home. ĐẶT Ở ĐẦU cycle (quân vừa bị tiêu). Cần chụp asset màn Army trước. Readiness: khai capacity_region+target_capacity để OCR chờ army đầy, hoặc wait_seconds để chờ cứng.",
     "collect_resources": "Thu mọi mỏ vàng/dầu/dầu đen đang đầy trên màn làng. Phải đang ở home (đặt sau ensure_home).",
     "find_match": "Bấm Attack → Find a Match → đọc loot, bỏ qua base dưới ngưỡng (settings.farm) cho tới khi gặp base đạt. Đặt biến match_found. Phải đang ở home.",
     "deploy": "Vào trận rồi thả quân. Để trống 'scenario' = dùng đội hình trong settings; điền tên scenario đã migrate (vd 'Thrower') để thả theo scenario đó. Chỉ chạy khi match_found=true.",
