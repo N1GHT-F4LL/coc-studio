@@ -101,11 +101,18 @@ class EnsureHome(BlockSpec):
                 ui._poll_sleep(1)
             return False
 
-        if poll_home(inputs.get("timeout", 10)):
+        # poll_home returns True (home), False (timed out), or None (stopped).
+        # A cooperative stop must abort immediately, NOT fall through to the
+        # game-restart recovery below (which force-stops + relaunches CoC).
+        res = poll_home(inputs.get("timeout", 10))
+        if res:
             ctx.logger.info("[ensure_home] home screen detected.")
             settle()
             ctx.vars["home"] = True
             return {"home": True}
+        if res is None:
+            ctx.vars["home"] = False
+            return {"home": False}
 
         # Recovery: close popups then restart the game (run_bot HOME_DETECT path).
         ctx.logger.warning("[ensure_home] not home — restarting game.")
@@ -210,10 +217,13 @@ class EnsureTroops(BlockSpec):
         if not ensure_army():           # home -> army screen (once)
             ctx.vars["troops_ready"] = False
             return {"ready": False}
+        reached_all = True              # could we open the army for every section?
         for kind, items in sections:
             if not items or ctx.stopped():
                 continue
             if not ensure_army():       # recover if a popup bounced us home
+                ctx.logger.warning("[ensure_troops] could not reach army screen for %s — skipping.", kind)
+                reached_all = False
                 continue
             train.clear_section(kind)
             train.open_roster(kind)
@@ -225,7 +235,9 @@ class EnsureTroops(BlockSpec):
             train.close_roster()        # collapse before the next section
         train.back_home()               # X -> home (once, at the end)
 
-        ready = self._wait_ready(ctx, inputs)
+        # A fixed/no wait_ready can't observe training, so don't claim readiness
+        # if a section never reached the army screen (e.g. a persistent popup).
+        ready = self._wait_ready(ctx, inputs) and reached_all
         ctx.vars["troops_ready"] = ready
         return {"ready": ready}
 
