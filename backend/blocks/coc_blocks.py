@@ -13,12 +13,44 @@ import time
 
 from engine.registry import BlockSpec, Param, Port, Kind, register
 from engine.composition import required_composition
+from core.vision import vision
 from screens.home_screen import HomeScreen
 from screens.attack_screen import AttackScreen
 from screens.battle_screen import BattleScreen
 from screens.train_screen import TrainScreen
 from device_manager import save_settings, COC_PACKAGE
 import scenario_store
+
+# Reconnect popups CoC throws when the session is interrupted. Both leave the
+# village drawn behind a dim overlay, so screen detection would falsely succeed;
+# we must tap their reload button to get a live session back. ``reload_game`` =
+# "Anyone there? / disconnected due to inactivity" (RELOAD GAME); ``reload_connection``
+# = "Connection lost / Another device is connecting to this Village" (RELOAD).
+# The latter fires mid-cycle when more than one client reads the screen at once
+# (e.g. the browser DeviceView streaming while a run is in progress).
+_RECONNECT_BUTTONS = ("icons/status/reload_game", "icons/status/reload_connection")
+
+
+def dismiss_reconnect_popup(ui, logger=None, settle=8.0):
+    """Tap any visible reconnect popup's reload button. Returns True if it acted.
+
+    Safe to call anywhere a stale session might surface (startup or mid-cycle):
+    it's a no-op when no popup is present.
+    """
+    screen = ui.get_screen()
+    if screen is None:
+        return False
+    for key in _RECONNECT_BUTTONS:
+        if key not in vision.cache:
+            continue
+        loc = vision.find_template(screen, key, threshold=0.8, use_orb_fallback=False)
+        if loc:
+            if logger:
+                logger.warning("[reconnect] %s popup — tapping reload.", key.rsplit("/", 1)[-1])
+            ui.click(*loc)
+            ui._poll_sleep(settle)
+            return True
+    return False
 
 
 @register("ensure_home")
@@ -55,24 +87,33 @@ class EnsureHome(BlockSpec):
                 dev.pinch("out", span_pixels=600, repeats=1)
                 ui._poll_sleep(1.0)
 
-        deadline = time.time() + float(inputs.get("timeout", 10))
-        while time.time() < deadline:
-            if ctx.stopped():
-                ctx.vars["home"] = False
-                return {"home": False}
-            if home.is_current_screen():
-                ctx.logger.info("[ensure_home] home screen detected.")
-                settle()
-                ctx.vars["home"] = True
-                return {"home": True}
-            ui._poll_sleep(1)
+        def poll_home(timeout):
+            deadline = time.time() + float(timeout)
+            while time.time() < deadline:
+                if ctx.stopped():
+                    return None
+                # Always clear a reconnect popup first — it sits over the village
+                # and would otherwise produce a false home detection.
+                if dismiss_reconnect_popup(ui, ctx.logger):
+                    continue
+                if home.is_current_screen():
+                    return True
+                ui._poll_sleep(1)
+            return False
+
+        if poll_home(inputs.get("timeout", 10)):
+            ctx.logger.info("[ensure_home] home screen detected.")
+            settle()
+            ctx.vars["home"] = True
+            return {"home": True}
 
         # Recovery: close popups then restart the game (run_bot HOME_DETECT path).
         ctx.logger.warning("[ensure_home] not home — restarting game.")
         home.close_popups()
         if dev.restart_game(COC_PACKAGE):
             ui._poll_sleep(15)
-            if home.is_current_screen():
+            if poll_home(60):
+                ctx.logger.info("[ensure_home] home reached after restart.")
                 settle()
                 ctx.vars["home"] = True
                 return {"home": True}
@@ -136,23 +177,44 @@ class EnsureTroops(BlockSpec):
         threshold = float(inputs.get("threshold", 0.7))
         troops_only = bool(inputs.get("troops_only", False))
 
-        # Each section: clear it (-> bright roster) -> open its roster -> tap each
-        # unit N times. Roster icons need FACE templates (units/roster/<name>),
-        # NOT the badge-laden deploy assets (units/troops|spells|siege/<name>).
+        # Open the army screen ONCE, then switch sections IN PLACE. Per section:
+        # clear it (if non-empty), open its bright add-roster, tap each unit N
+        # times, then collapse the roster by tapping an empty spot so the next
+        # section's panel opens cleanly.
         #
-        # Opening a section's roster is only reliable from a FRESH army screen
-        # (no other section's roster open), so we re-enter the army (back to home,
-        # then Train Troops) for each section.
+        # Verified on device: clearing a section returns to the My Army overview
+        # with the roster CLOSED (not left open, as previously assumed), so we
+        # ALWAYS open_roster after clearing. And leaving the previous roster open
+        # is what made in-place switching flaky, so close_roster (tap-outside)
+        # between sections is required — the menu X can't be used because it
+        # scrolls out of view once a roster pushes the menu up.
+        #
+        # Roster icons need FACE templates (units/roster/<name>), NOT the
+        # badge-laden deploy assets (units/troops|spells|siege/<name>).
         sections = [("troop", comp.troops)]
         if not troops_only:
             sections += [("spell", comp.spells), ("siege", comp.sieges)]
-        opened_any = False
+
+        def ensure_army():
+            """Be on the army screen, recovering from a mid-cycle reconnect popup.
+
+            CoC throws a 'Connection lost / Another device is connecting' popup
+            when more than one client reads the screen at once (e.g. the browser
+            DeviceView streaming during a run); it drops us back to the village.
+            Dismiss any reconnect popup, then (re)open the army screen."""
+            dismiss_reconnect_popup(ctx.ui_manager, ctx.logger)
+            if train.is_current_screen():
+                return True
+            return train.open()
+
+        if not ensure_army():           # home -> army screen (once)
+            ctx.vars["troops_ready"] = False
+            return {"ready": False}
         for kind, items in sections:
             if not items or ctx.stopped():
                 continue
-            if not train.open():        # home -> fresh army screen
+            if not ensure_army():       # recover if a popup bounced us home
                 continue
-            opened_any = True
             train.clear_section(kind)
             train.open_roster(kind)
             for template_key, count in items.items():
@@ -160,11 +222,8 @@ class EnsureTroops(BlockSpec):
                     break
                 roster_tpl = "units/roster/" + template_key.rsplit("/", 1)[-1]
                 train.train_unit(roster_tpl, count, tap_delay=tap_delay, threshold=threshold)
-            train.back_home()           # X -> home, fresh for the next section
-
-        if not opened_any:
-            ctx.vars["troops_ready"] = False
-            return {"ready": False}
+            train.close_roster()        # collapse before the next section
+        train.back_home()               # X -> home (once, at the end)
 
         ready = self._wait_ready(ctx, inputs)
         ctx.vars["troops_ready"] = ready

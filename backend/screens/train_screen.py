@@ -36,15 +36,25 @@ OKAY_COLOUR_BAND = (470, 600, 760, 1180)  # y1,y2,x1,x2 to search for the green 
 # Per-section coords (calibrated on a 1600x900 TH18 layout). Each section has a
 # panel tap (opens its bright add-roster, "Tap to edit") and a trash button
 # (clears that section). troop/spell/siege are the trainable sections.
+# ``panel`` must land inside the section's CONTENT frame (the box right of the
+# count, e.g. "0/11"); tapping it opens that section's bright add-roster. The
+# left edge near the "Tap to edit" label does NOT reliably trigger it, so use the
+# frame centre (this bit the spell section, which is empty in the normal farm
+# flow — the previous army was just consumed — and so can't be opened via clear).
 SECTIONS = {
     "troop": {"panel": (1100, 290), "trash": (1544, 209)},
-    "spell": {"panel": (935, 455), "trash": (1223, 431)},
+    "spell": {"panel": (1072, 470), "trash": (1223, 431)},
     "siege": {"panel": (1420, 478), "trash": (1544, 431)},
 }
 
 # Roster scroll: swipe within the bottom palette to reveal off-screen units.
 ROSTER_SWIPE = ((1400, 790), (300, 790))
 MAX_ROSTER_SCROLLS = 5
+
+# Empty spot to tap to collapse an open add-roster (above the palette, clear of
+# every section box and button). Returns to the My Army overview without leaving
+# the army screen.
+ROSTER_CLOSE_TAP = (800, 130)
 
 
 class TrainScreen(BaseScreen):
@@ -110,6 +120,19 @@ class TrainScreen(BaseScreen):
         self.ui_manager.click(*cfg["panel"])
         self.ui_manager._poll_sleep(0.8)
 
+    def close_roster(self):
+        """Collapse an open add-roster by tapping an empty spot on the army screen.
+
+        The bright bottom roster is dismissed by tapping outside any section box
+        or the palette (not via the menu X, which scrolls out of view once a
+        roster pushes the menu up). This returns us to the My Army overview while
+        STAYING on the army screen, so the next section's panel opens cleanly —
+        switching sections in place was otherwise flaky because the previous
+        roster stayed open. Verified on device: tap-outside collapses the roster
+        and each section's face then matches ~1.0 (archer/rage/log_launcher)."""
+        self.ui_manager.click(*ROSTER_CLOSE_TAP)
+        self.ui_manager._poll_sleep(0.6)
+
     def _tap_okay(self):
         """Confirm the 'Remove troops?' dialog (green Okay, located by colour)."""
         loc = self._find_green_button() or OKAY_FALLBACK
@@ -161,7 +184,12 @@ class TrainScreen(BaseScreen):
         return done
 
     def _locate_in_roster(self, roster_template, threshold):
-        """find_template the troop; scroll the roster up to MAX_ROSTER_SCROLLS if missing."""
+        """find_template the troop; scroll the roster up to MAX_ROSTER_SCROLLS if missing.
+
+        A section's roster opens fresh at its start each time we enter it (via
+        clear_section or open_roster), so scanning forward from there reaches
+        every unit — no rewind needed.
+        """
         for attempt in range(MAX_ROSTER_SCROLLS + 1):
             screen = self.ui_manager.get_screen()
             if screen is not None:
@@ -174,12 +202,22 @@ class TrainScreen(BaseScreen):
                 self.ui_manager._poll_sleep(0.8)
         return None
 
-    def back_home(self):
-        """Leave the army screen back to the village (tap the X / close popups)."""
-        loc = self._wait_until_any_appears(
-            ("buttons/popup/btn_close",), timeout=2, silent=True, use_orb_fallback=False
-        )
-        if loc:
-            self.ui_manager.click(*loc)
+    def back_home(self, max_taps=4):
+        """Leave the army screen back to the village.
+
+        The army screen + an open add-roster are two stacked layers, so a single
+        X doesn't always reach home (this stranded the siege re-entry: after
+        training spells we were still on the army screen and Train Troops wasn't
+        visible). Tap the close X until the army screen is gone, then clear any
+        leftover popups.
+        """
+        for _ in range(max_taps):
+            if not self.is_current_screen():
+                break
+            loc = self._wait_until_any_appears(
+                ("buttons/popup/btn_close",), timeout=2, silent=True, use_orb_fallback=False
+            )
+            if loc:
+                self.ui_manager.click(*loc)
             self.ui_manager._poll_sleep(0.8)
         self.close_popups()

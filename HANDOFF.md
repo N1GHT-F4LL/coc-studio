@@ -162,6 +162,41 @@ bootstrap ADB+assets, KHÔNG đưa CoC ra trước.
   `_slot_deploy` (deploy parity ✓)**, return home. → Cách dùng: build FE, `main.py`,
   `POST /api/device/connect`, rồi Run `farm_cycle` (1 vòng) hoặc `farm_loop` (liên tục).
 
+## Army training — ensure_troops — XONG (verify e2e 3/3 trên device thật)
+Block `ensure_troops` train army thủ công khớp scenario. Code: `screens/train_screen.py`
+(TrainScreen: open_roster/close_roster/clear_section/train_unit/_locate_in_roster),
+block + helper trong `blocks/coc_blocks.py`. Branch `m2-engine-registry-executor`.
+- **Cơ chế match:** mỗi section (troops/spells/sieges) tap panel "Tap to edit" → roster
+  SÁNG → match FACE-only template `units/roster/<name>.png` (KHÔNG dùng `units/troops/
+  <name>` vì có badge/level → chỉ ~0.5; face crop từ roster sáng match ~1.0) → tap N lần.
+  Không thấy thì scroll roster rồi thử lại. Roster face: archer/healer/rage/thrower/totem/
+  **log_launcher** (đủ cho scenario Thrower).
+- **Switch section IN-PLACE (không re-enter):** mở army **1 lần** rồi mỗi section
+  `clear_section → open_roster → train → close_roster`. 2 điều then chốt (đã đo trên
+  device, từng làm flaky):
+  1. `clear_section` xong màn về **My Army overview, roster ĐÓNG** (KHÔNG để roster mở như
+     giả định cũ) → phải **LUÔN** `open_roster` sau clear.
+  2. Trước khi sang section sau phải **`close_roster`** = tap chỗ trống `(800,130)` để thu
+     roster đang mở (KHÔNG dùng X menu — X bị đẩy khuất khi roster mở). Để roster cũ mở →
+     section sau không switch được → "not found".
+  Đo xác nhận: với army fresh, open_roster mỗi section → archer 0.96 / rage 1.0 /
+  log_launcher 1.0, đều còn ở army screen.
+- **Reconnect-popup recovery (mới):** helper `dismiss_reconnect_popup(ui, logger)` trong
+  `coc_blocks.py` bắt 2 popup CoC làm hỏng run: `icons/status/reload_game` ("Anyone there?/
+  inactivity" → RELOAD GAME) và `icons/status/reload_connection` ("Connection lost/Another
+  device is connecting" → RELOAD). Popup thứ 2 nổ GIỮA run khi **>1 client đọc màn cùng lúc**
+  (browser DeviceView stream trong lúc chạy). ensure_home gọi nó trong poll_home; ensure_troops
+  gọi qua `ensure_army()` trước mỗi section (dismiss + reopen army nếu bị đá về làng).
+- **siege panel coord (1420,478); spell panel (1072,470)** (tap giữa content-frame, không
+  phải mép "Tap to edit"). `back_home(max_taps=4)` tap X tới khi rời army.
+- **Verify e2e device thật (graph `data/graphs/train_only.json` = ensure_home→ensure_troops
+  Thrower, không deploy nên không tiêu army):** chạy nhiều lần cả 2 path (army rỗng→panel,
+  army đầy→clear) đều **3/3 sạch**: troops 352/352 (archer×12,healer×6,thrower×16), spells
+  11/11 (rage×2,totem×7), siege log_launcher×1 @(1265,660). Có run popup "Connection lost"
+  nổ → `[reconnect] reload_connection popup — tapping reload` → tự phục hồi → vẫn 3/3.
+- **Lưu ý:** `backend/_calib/` (ảnh dò toạ độ) đã vào `.gitignore`. Scripts diag tạm
+  (`diag_*.py`, `make_log_launcher_face.py`) đã xóa.
+
 ## Post-v1 (plan §Open, chưa làm)
 - Subroutine block (graph-as-block) đầy đủ — hiện loop dùng `graph_ref`.
 - minitouch/scrcpy HID cho swipe mượt; đóng gói desktop app.

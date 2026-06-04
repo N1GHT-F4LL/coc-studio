@@ -19,6 +19,7 @@ backend/static/
 # Runtime artifacts
 backend/logs/
 logs/
+backend/_calib/
 
 # OS
 .DS_Store
