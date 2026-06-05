@@ -8,6 +8,7 @@ import ReactFlow, {
   type Connection,
   type Node,
   type NodeTypes,
+  type ReactFlowInstance,
 } from "reactflow";
 
 import {
@@ -40,6 +41,7 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pick, setPick] = useState<{ id: string; mode: PickMode } | null>(null);
   const idSeq = useRef(0);
+  const rfRef = useRef<ReactFlowInstance | null>(null);
 
   const refreshList = useCallback(
     () => listScenarios().then(setSaved).catch(() => setSaved([])),
@@ -186,10 +188,23 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
 
   const addNode = useCallback(() => {
     const id = `n_${idSeq.current++}`;
+    // Drop the new node in the middle of the visible canvas so it's never
+    // off-screen (a fixed position lands outside the viewport after panning /
+    // auto-layout). Fall back to a fixed spot before the instance is ready.
+    const inst = rfRef.current;
+    const cv = inst?.screenToFlowPosition
+      ? (() => {
+          const el = document.querySelector(".scenario-canvas");
+          const r = el?.getBoundingClientRect();
+          return r
+            ? inst.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+            : { x: 200, y: 200 };
+        })()
+      : { x: 200, y: 200 };
     const node: Node<DeployNodeData> = {
       id,
       type: "deploy",
-      position: { x: 120, y: 60 + nodes.length * 90 },
+      position: cv,
       data: {
         node: {
           id,
@@ -204,7 +219,7 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
     };
     setNodes((ns) => [...ns, node]);
     setSelectedId(id);
-  }, [nodes.length, setNodes]);
+  }, [setNodes]);
 
   const updateNode = useCallback(
     (id: string, patch: Partial<DeployNodeT>) =>
@@ -333,6 +348,7 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               onSelectionChange={onSelectionChange}
+              onInit={(inst) => (rfRef.current = inst)}
               fitView
               deleteKeyCode={["Backspace", "Delete"]}
               proOptions={{ hideAttribution: true }}
