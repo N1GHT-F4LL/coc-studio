@@ -54,7 +54,8 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
       <div className="block-title">{label || spec.label}</div>
       <div className="block-type">{spec.type}</div>
 
-      {/* data inputs along the top (hidden until hover/selected/connected) */}
+      {/* data inputs along the top (hidden until hover/selected/connected).
+          Each handle carries its own note that pops on hovering that port. */}
       {dataInputs.map((p, i) => {
         const hid = dataHandleId("in", p.name, p.kind);
         const hide = dataHidden(hid);
@@ -64,18 +65,17 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
             id={hid}
             type="target"
             position={Position.Top}
+            className="data-handle"
             style={{
               left: hslot(i, dataInputs.length),
               background: kindColor(p.kind),
               display: hide ? "none" : undefined,
             }}
-            title={`${p.label}: ${p.kind}`}
           >
-            {!hide && (
-              <span className="port-label port-label-in" style={{ color: kindColor(p.kind) }}>
-                {p.name}
-              </span>
-            )}
+            <span className="port-note port-note-in">
+              <span className="port-note-dot" style={{ background: kindColor(p.kind) }} />
+              {p.name} <span className="port-note-kind">{p.kind}</span>
+            </span>
           </Handle>
         );
       })}
@@ -90,21 +90,21 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
             id={hid}
             type="source"
             position={Position.Bottom}
+            className="data-handle"
             style={{
               left: hslot(i, dataOutputs.length),
               background: kindColor(p.kind),
               display: hide ? "none" : undefined,
             }}
-            title={`${p.label}: ${p.kind}`}
           >
-            {!hide && (
-              <span className="port-label port-label-out" style={{ color: kindColor(p.kind) }}>
-                {p.name}
-              </span>
-            )}
+            <span className="port-note port-note-out">
+              <span className="port-note-dot" style={{ background: kindColor(p.kind) }} />
+              {p.name} <span className="port-note-kind">{p.kind}</span>
+            </span>
           </Handle>
         );
       })}
+
 
       {/* control flow out (right): branch handles for Trigger outputs, else default */}
       {branches.length === 0 ? (
