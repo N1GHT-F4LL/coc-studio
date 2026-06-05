@@ -21,11 +21,7 @@ import {
   fetchAssets,
   listScenarios,
   deviceStatus,
-  connectDevice,
-  deviceProfiles,
-  setDeviceProfile,
   type DeviceStatus,
-  type DeviceProfiles,
 } from "./api/client";
 import type { BlockSpec } from "./blocks/types";
 import { BlockNode, type BlockNodeData } from "./canvas/BlockNode";
@@ -39,6 +35,7 @@ import { RunConsole } from "./panels/RunConsole";
 import { DeviceView } from "./panels/DeviceView";
 import { TopBar, type AppMode } from "./panels/TopBar";
 import { ScenarioEditor } from "./scenario/ScenarioEditor";
+import { DevicePanel } from "./panels/DevicePanel";
 import { RunStateContext } from "./run/RunStateContext";
 import { useRunner } from "./run/useRunner";
 
@@ -57,7 +54,6 @@ export default function App() {
   const [pickReq, setPickReq] = useState<{ port: string; kind: "Coord" | "Region" } | null>(null);
   const [dockTab, setDockTab] = useState<"console" | "device">("console");
   const [device, setDevice] = useState<DeviceStatus | null>(null);
-  const [profiles, setProfiles] = useState<DeviceProfiles | null>(null);
   const [mode, setMode] = useState<AppMode>("editor");
   const runner = useRunner();
 
@@ -84,7 +80,6 @@ export default function App() {
     refreshGraphs();
     fetchAssets().then(setAssets).catch(() => setAssets([]));
     listScenarios().then(setScenarios).catch(() => setScenarios([]));
-    deviceProfiles().then(setProfiles).catch(() => setProfiles(null));
   }, []);
 
   // Poll device status for the top-bar light.
@@ -242,28 +237,6 @@ export default function App() {
     setTimeout(refreshDevice, 2000);
   }, [nodes, edges, graphName, runner, refreshDevice]);
 
-  const onConnectDevice = useCallback(async () => {
-    setStatus("Connecting device…");
-    try {
-      const res = await connectDevice();
-      setDevice(res.status);
-      setStatus(res.ok ? "Device connected." : `Connect failed: ${res.reason}`);
-    } catch (e) {
-      setStatus(`Connect failed: ${(e as Error).message}`);
-      refreshDevice();
-    }
-  }, [refreshDevice]);
-
-  const onSetProfile = useCallback(async (profile: string) => {
-    try {
-      await setDeviceProfile(profile);
-      setProfiles((p) => (p ? { ...p, current: profile } : p));
-      setStatus(`Device profile → ${profile} (applies on next connect).`);
-    } catch (e) {
-      setStatus(`Set profile failed: ${(e as Error).message}`);
-    }
-  }, []);
-
   const onNew = useCallback(() => {
     setNodes([]);
     setEdges([]);
@@ -300,15 +273,15 @@ export default function App() {
         onRun={onRun}
         onStop={runner.stop}
         device={device}
-        onConnectDevice={onConnectDevice}
-        profiles={profiles}
-        onSetProfile={onSetProfile}
         message={status}
       />
 
       {mode === "scenario" && <ScenarioEditor onStatus={setStatus} />}
+      {mode === "device" && (
+        <DevicePanel device={device} onStatus={setDevice} onMessage={setStatus} />
+      )}
 
-      <div className="body" style={mode === "scenario" ? { display: "none" } : undefined}>
+      <div className="body" style={mode !== "editor" ? { display: "none" } : undefined}>
         <Palette blocks={blocks} onAdd={addBlock} />
         <div className="center">
           <div className="canvas">

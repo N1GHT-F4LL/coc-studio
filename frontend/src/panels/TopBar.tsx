@@ -1,6 +1,6 @@
-import type { DeviceStatus, DeviceProfiles } from "../api/client";
+import type { DeviceStatus } from "../api/client";
 
-export type AppMode = "editor" | "scenario";
+export type AppMode = "editor" | "scenario" | "device";
 
 interface Props {
   mode: AppMode;
@@ -16,9 +16,6 @@ interface Props {
   onRun: () => void;
   onStop: () => void;
   device: DeviceStatus | null;
-  onConnectDevice: () => void;
-  profiles: DeviceProfiles | null;
-  onSetProfile: (profile: string) => void;
   message: string; // free-text status line
 }
 
@@ -53,9 +50,6 @@ export function TopBar({
   onRun,
   onStop,
   device,
-  onConnectDevice,
-  profiles,
-  onSetProfile,
   message,
 }: Props) {
   const bot = botLight(running, status);
@@ -63,9 +57,8 @@ export function TopBar({
   const devTitle = device
     ? `device ${device.connected ? "connected" : "not connected"}` +
       (device.serial ? ` — ${device.serial}` : "") +
-      (device.reason ? ` (${device.reason})` : "") +
-      "\nClick to connect"
-    : "Click to connect device";
+      "\nClick to open the Device tab"
+    : "Click to open the Device tab";
 
   return (
     <header className="toolbar">
@@ -85,6 +78,13 @@ export function TopBar({
           title="Design the army composition + deploy plan"
         >
           Attack Plan
+        </button>
+        <button
+          className={mode === "device" ? "active" : ""}
+          onClick={() => onMode("device")}
+          title="Connect & manage the emulator / device"
+        >
+          Device
         </button>
       </div>
 
@@ -125,23 +125,9 @@ export function TopBar({
       )}
 
       <div className="lights">
-        {profiles && (
-          <select
-            className="profile-select"
-            value={profiles.current}
-            onChange={(e) => onSetProfile(e.target.value)}
-            title="Emulator / device profile (applies on next connect)"
-          >
-            {profiles.profiles.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        )}
         <span
           className="status-light clickable"
-          onClick={onConnectDevice}
+          onClick={() => onMode("device")}
           title={devTitle}
         >
           <span className={`dot ${devOn ? "on" : "off"}`} />

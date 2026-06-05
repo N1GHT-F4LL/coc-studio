@@ -22,7 +22,8 @@ import app_paths
 from core.humanize import Humanize
 from core.ui_manager import UIManager
 from core.vision import vision
-from core.bootstrap import bootstrap_device
+from core.device import Device, PROFILE_ENDPOINTS
+from core.bootstrap import bootstrap_device, connect_with_profile, ensure_emulator_running, is_emulator_running
 from core.ocr import warmup_ocr, read_number_with_confidence
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,57 @@ class DeviceManager:
             self.ensure_assets()
             self.last_reason = "connected" if device.connected else "device_unreachable"
             return device.connected, self.last_reason
+
+    def scan(self):
+        """List adb devices for the configured profile WITHOUT launching an
+        emulator. Returns [{serial, state}]. Tries the profile's known endpoints
+        (or the custom endpoint) so a freshly-started emulator gets connected.
+        """
+        with self._lock:
+            cfg = load_settings().get("device", {})
+            profile = cfg.get("profile", "usb_or_existing")
+            endpoint = cfg.get("endpoint", "")
+            dev = self.device or Device(
+                adb_path=cfg.get("adb_path") or None, profile=profile, endpoint=endpoint
+            )
+            if not getattr(dev, "available", False):
+                self.last_reason = "adb_unavailable"
+                return []
+            # Nudge the known endpoints so emulators that are up but not yet in
+            # `adb devices` get attached (mirrors connect_with_profile).
+            connect_with_profile(dev, profile, endpoint)
+            return dev.list_devices()
+
+    def launch_emulator(self):
+        """Launch the configured profile's emulator if it isn't running."""
+        with self._lock:
+            cfg = load_settings().get("device", {})
+            profile = cfg.get("profile", "usb_or_existing")
+            if profile not in PROFILE_ENDPOINTS or profile in ("usb_or_existing", "custom_endpoint"):
+                return {"launched": False, "running": False, "reason": "profile has no emulator"}
+            override = cfg.get("emulator_path") or None
+            ensure_emulator_running(profile, logger, override_path=override)
+            return {"launched": True, "running": is_emulator_running(profile)}
+
+    def disconnect(self):
+        """Drop the in-process device reference (does NOT kill the emulator or
+        adb-server). A subsequent connect() re-bootstraps cleanly."""
+        with self._lock:
+            self.device = None
+            self.ui_manager = None
+            self.last_reason = "disconnected"
+            return True
+
+    def set_serial(self, serial):
+        """Persist the chosen serial to settings; revalidate if connected."""
+        with self._lock:
+            settings = load_settings()
+            settings.setdefault("device", {})["serial"] = serial
+            save_settings(settings)
+            if self.device is not None:
+                self.device.serial = serial
+                self.device.ensure_connection(retries=1)
+            return True
 
     # -- capture -----------------------------------------------------------
     def capture_bgr(self):

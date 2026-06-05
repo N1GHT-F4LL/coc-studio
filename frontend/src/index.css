@@ -35,7 +35,32 @@ body {
 
 /* Status lights cluster, pushed to the right edge of the top bar. */
 .lights { margin-left: auto; display: flex; align-items: center; gap: 14px; }
-.profile-select { font-size: 12px; padding: 3px 6px; }
+
+/* --- device tab --- */
+.device-panel-page {
+  flex: 1; min-height: 0; overflow-y: auto; display: flex; gap: 16px;
+  padding: 16px; align-items: flex-start;
+}
+.device-col { display: flex; flex-direction: column; gap: 16px; flex: 1; max-width: 460px; }
+.device-section {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px;
+}
+.device-section h3 {
+  margin: 0 0 10px; font-size: 13px; text-transform: uppercase; color: var(--muted);
+  display: flex; align-items: center; gap: 10px;
+}
+.device-section h3 .inline-btn { margin-left: auto; font-size: 12px; padding: 3px 8px; text-transform: none; }
+.device-status-big { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
+.device-status-big .muted { font-weight: 400; font-size: 13px; }
+.device-reason { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.device-reason.warn { color: #e0a32b; }
+.device-actions { display: flex; gap: 8px; margin-top: 12px; }
+.device-table { width: 100%; border-collapse: collapse; }
+.device-table tr { cursor: pointer; border-bottom: 1px solid var(--border); }
+.device-table tr:hover { background: var(--panel-2); }
+.device-table tr.selected { background: #1f3a2f; }
+.device-table td { padding: 7px 6px; font-size: 13px; }
+.device-table td.serial { font-family: monospace; }
 .status-light { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
 .status-light.clickable { cursor: pointer; }
 .status-light.clickable:hover { color: var(--text); }

@@ -124,6 +124,35 @@ export async function setDeviceProfile(
   );
 }
 
+export interface AdbDevice {
+  serial: string;
+  state: string; // "device" | "offline" | "unauthorized" | ...
+}
+
+export async function scanDevices(): Promise<{ devices: AdbDevice[]; status: DeviceStatus }> {
+  return json(await fetch("/api/device/scan"));
+}
+
+export async function launchEmulator(): Promise<{ launched: boolean; running: boolean }> {
+  return json(await fetch("/api/device/launch", { method: "POST" }));
+}
+
+export async function disconnectDevice(): Promise<{ ok: boolean; status: DeviceStatus }> {
+  return json(await fetch("/api/device/disconnect", { method: "POST" }));
+}
+
+export async function selectSerial(
+  serial: string
+): Promise<{ ok: boolean; serial: string; status: DeviceStatus }> {
+  return json(
+    await fetch("/api/device/serial", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ serial }),
+    })
+  );
+}
+
 // --- assets ----------------------------------------------------------------
 export interface AssetCategory {
   label: string;

@@ -82,6 +82,33 @@ async def device_connect():
     return {"ok": ok, "reason": reason, "status": manager.status()}
 
 
+@router.get("/api/device/scan")
+async def device_scan():
+    devices = await asyncio.to_thread(manager.scan)
+    return {"devices": devices, "status": manager.status()}
+
+
+@router.post("/api/device/launch")
+async def device_launch():
+    res = await asyncio.to_thread(manager.launch_emulator)
+    return res
+
+
+@router.post("/api/device/disconnect")
+def device_disconnect():
+    manager.disconnect()
+    return {"ok": True, "status": manager.status()}
+
+
+@router.post("/api/device/serial")
+def device_set_serial(body: dict = Body(...)):
+    serial = (body.get("serial") or "").strip()
+    if not serial:
+        raise HTTPException(status_code=400, detail="serial required")
+    manager.set_serial(serial)
+    return {"ok": True, "serial": serial, "status": manager.status()}
+
+
 @router.websocket("/ws/device")
 async def device_stream(ws: WebSocket):
     await ws.accept()
