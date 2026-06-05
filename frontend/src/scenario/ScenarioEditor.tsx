@@ -20,7 +20,7 @@ import {
 import type { Variant, DeployNode as DeployNodeT } from "./types";
 import { composeFromVariants, formatComposition } from "./types";
 import { DeployNode, type DeployNodeData } from "./DeployNode";
-import { toVariant, fromVariant } from "./serialize";
+import { toVariant, fromVariant, layoutNodes } from "./serialize";
 import { DeployParamPanel } from "./DeployParamPanel";
 import { BattleCanvas, type PickMode } from "./BattleCanvas";
 
@@ -178,6 +178,12 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
     [setEdges]
   );
 
+  // Tidy the canvas: re-place nodes by dependency level (after-edges) so chains
+  // run top-to-bottom and branches fan out left-to-right.
+  const autoLayout = useCallback(() => {
+    setNodes((ns) => layoutNodes(ns, edges));
+  }, [edges, setNodes]);
+
   const addNode = useCallback(() => {
     const id = `n_${idSeq.current++}`;
     const node: Node<DeployNodeData> = {
@@ -307,6 +313,9 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
 
         <span className="toolbar-sep" />
         <button onClick={addNode}>+ Unit</button>
+        <button onClick={autoLayout} title="Tidy node positions by dependency order">
+          ⤓ Auto-layout
+        </button>
       </div>
 
       <div className="scenario-preview">
