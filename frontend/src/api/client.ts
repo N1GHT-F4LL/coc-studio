@@ -50,6 +50,35 @@ export async function deleteGraph(name: string): Promise<void> {
   );
 }
 
+// --- scenarios -------------------------------------------------------------
+import type { ScenarioDoc, Composition } from "../scenario/types";
+
+export async function getScenario(name: string): Promise<ScenarioDoc> {
+  return json<ScenarioDoc>(await fetch(`/api/scenarios/${encodeURIComponent(name)}`));
+}
+
+export async function saveScenario(name: string, doc: ScenarioDoc): Promise<void> {
+  await json<{ ok: boolean }>(
+    await fetch(`/api/scenarios/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(doc),
+    })
+  );
+}
+
+export async function deleteScenario(name: string): Promise<void> {
+  await json<{ ok: boolean }>(
+    await fetch(`/api/scenarios/${encodeURIComponent(name)}`, { method: "DELETE" })
+  );
+}
+
+export async function scenarioComposition(name: string): Promise<Composition> {
+  return json<Composition>(
+    await fetch(`/api/scenarios/${encodeURIComponent(name)}/composition`)
+  );
+}
+
 // --- device ----------------------------------------------------------------
 export interface DeviceStatus {
   connected: boolean;

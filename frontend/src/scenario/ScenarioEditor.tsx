@@ -1,0 +1,372 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import ReactFlow, {
+  Background,
+  Controls,
+  addEdge,
+  useNodesState,
+  useEdgesState,
+  type Connection,
+  type Node,
+  type NodeTypes,
+} from "reactflow";
+
+import {
+  listScenarios,
+  getScenario,
+  saveScenario,
+  deleteScenario,
+  fetchAssets,
+} from "../api/client";
+import type { Variant, DeployNode as DeployNodeT } from "./types";
+import { composeFromVariants, formatComposition } from "./types";
+import { DeployNode, type DeployNodeData } from "./DeployNode";
+import { toVariant, fromVariant } from "./serialize";
+import { DeployParamPanel } from "./DeployParamPanel";
+import { BattleCanvas, type PickMode } from "./BattleCanvas";
+
+const nodeTypes: NodeTypes = { deploy: DeployNode };
+
+const emptyVariant = (name = "Default"): Variant => ({ name, weight: 1, nodes: [] });
+
+export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) {
+  const [saved, setSaved] = useState<string[]>([]);
+  const [name, setName] = useState("untitled");
+  const [variants, setVariants] = useState<Variant[]>([emptyVariant()]);
+  const [vIdx, setVIdx] = useState(0);
+  const [assets, setAssets] = useState<string[]>([]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<DeployNodeData>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pick, setPick] = useState<{ id: string; mode: PickMode } | null>(null);
+  const idSeq = useRef(0);
+
+  const refreshList = useCallback(
+    () => listScenarios().then(setSaved).catch(() => setSaved([])),
+    []
+  );
+  useEffect(() => {
+    refreshList();
+    fetchAssets().then(setAssets).catch(() => setAssets([]));
+  }, [refreshList]);
+
+  // Load the selected variant into the canvas.
+  const loadVariant = useCallback(
+    (variant: Variant) => {
+      const { nodes: ns, edges: es } = fromVariant(variant);
+      for (const n of ns) {
+        const m = /_(\d+)$/.exec(n.id);
+        if (m) idSeq.current = Math.max(idSeq.current, Number(m[1]) + 1);
+      }
+      setNodes(ns);
+      setEdges(es);
+      setSelectedId(null);
+    },
+    [setNodes, setEdges]
+  );
+
+  // Persist the current canvas back into variants[vIdx] before switching away.
+  const captureCanvas = useCallback((): Variant[] => {
+    const updated = [...variants];
+    if (updated[vIdx]) {
+      updated[vIdx] = { ...updated[vIdx], nodes: toVariant(nodes, edges) };
+    }
+    return updated;
+  }, [variants, vIdx, nodes, edges]);
+
+  const doLoad = useCallback(
+    async (n: string) => {
+      if (!n) return;
+      try {
+        const doc = await getScenario(n);
+        const vs = doc.variants.length ? doc.variants : [emptyVariant()];
+        setName(doc.name || n);
+        setVariants(vs);
+        setVIdx(0);
+        loadVariant(vs[0]);
+        onStatus(`Loaded scenario "${n}" (${vs.length} variant(s)).`);
+      } catch (e) {
+        onStatus(`Load failed: ${(e as Error).message}`);
+      }
+    },
+    [loadVariant, onStatus]
+  );
+
+  const doNew = useCallback(() => {
+    setName("untitled");
+    setVariants([emptyVariant()]);
+    setVIdx(0);
+    setNodes([]);
+    setEdges([]);
+    setSelectedId(null);
+    onStatus("New scenario.");
+  }, [setNodes, setEdges, onStatus]);
+
+  const doSave = useCallback(async () => {
+    const nm = name.trim();
+    if (!nm) {
+      onStatus("Enter a scenario name first.");
+      return;
+    }
+    const vs = captureCanvas();
+    try {
+      await saveScenario(nm, { name: nm, variants: vs });
+      setVariants(vs);
+      onStatus(`Saved scenario "${nm}".`);
+      refreshList();
+    } catch (e) {
+      onStatus(`Save failed: ${(e as Error).message}`);
+    }
+  }, [name, captureCanvas, refreshList, onStatus]);
+
+  const doDelete = useCallback(async () => {
+    const nm = name.trim();
+    if (!nm || !saved.includes(nm)) {
+      onStatus("Nothing to delete.");
+      return;
+    }
+    try {
+      await deleteScenario(nm);
+      onStatus(`Deleted scenario "${nm}".`);
+      doNew();
+      refreshList();
+    } catch (e) {
+      onStatus(`Delete failed: ${(e as Error).message}`);
+    }
+  }, [name, saved, doNew, refreshList, onStatus]);
+
+  // --- variant management ---------------------------------------------------
+  const switchVariant = useCallback(
+    (idx: number) => {
+      const vs = captureCanvas();
+      setVariants(vs);
+      setVIdx(idx);
+      loadVariant(vs[idx]);
+    },
+    [captureCanvas, loadVariant]
+  );
+
+  const addVariant = useCallback(() => {
+    const vs = captureCanvas();
+    const nv = [...vs, emptyVariant(`Variant ${vs.length + 1}`)];
+    setVariants(nv);
+    setVIdx(nv.length - 1);
+    loadVariant(nv[nv.length - 1]);
+  }, [captureCanvas, loadVariant]);
+
+  const removeVariant = useCallback(() => {
+    if (variants.length <= 1) {
+      onStatus("A scenario needs at least one variant.");
+      return;
+    }
+    const vs = captureCanvas().filter((_, i) => i !== vIdx);
+    const ni = Math.max(0, vIdx - 1);
+    setVariants(vs);
+    setVIdx(ni);
+    loadVariant(vs[ni]);
+  }, [variants, captureCanvas, vIdx, loadVariant, onStatus]);
+
+  const setVariantField = useCallback(
+    (patch: Partial<Variant>) =>
+      setVariants((vs) => vs.map((v, i) => (i === vIdx ? { ...v, ...patch } : v))),
+    [vIdx]
+  );
+
+  // --- canvas ---------------------------------------------------------------
+  const onConnect = useCallback(
+    (c: Connection) => setEdges((es) => addEdge({ ...c, type: "default" }, es)),
+    [setEdges]
+  );
+
+  const addNode = useCallback(() => {
+    const id = `n_${idSeq.current++}`;
+    const node: Node<DeployNodeData> = {
+      id,
+      type: "deploy",
+      position: { x: 120, y: 60 + nodes.length * 90 },
+      data: {
+        node: {
+          id,
+          label: "New unit",
+          type: "troop",
+          after: [],
+          template: "",
+          taps: 1,
+          strategy: "line",
+        },
+      },
+    };
+    setNodes((ns) => [...ns, node]);
+    setSelectedId(id);
+  }, [nodes.length, setNodes]);
+
+  const updateNode = useCallback(
+    (id: string, patch: Partial<DeployNodeT>) =>
+      setNodes((ns) =>
+        ns.map((n) =>
+          n.id === id ? { ...n, data: { ...n.data, node: { ...n.data.node, ...patch } } } : n
+        )
+      ),
+    [setNodes]
+  );
+
+  const deleteNode = useCallback(
+    (id: string) => {
+      setNodes((ns) => ns.filter((n) => n.id !== id));
+      setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
+      setSelectedId((cur) => (cur === id ? null : cur));
+    },
+    [setNodes, setEdges]
+  );
+
+  const onSelectionChange = useCallback(({ nodes: sel }: { nodes: Node[] }) => {
+    setSelectedId(sel.length === 1 ? sel[0].id : null);
+  }, []);
+
+  const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
+  const variant = variants[vIdx];
+  const variantWeight = variant?.weight ?? 1;
+
+  // Live "will train" preview: current canvas folded back into the variant set.
+  const preview = formatComposition(composeFromVariants(captureCanvas()));
+
+  // --- battle-canvas pick ---------------------------------------------------
+  const pickNode = pick ? nodes.find((n) => n.id === pick.id)?.data.node ?? null : null;
+  const onBattlePoint = useCallback(
+    (x: number, y: number) => {
+      if (!pick) return;
+      const cur = nodes.find((n) => n.id === pick.id)?.data.node;
+      const pts = [...(cur?.points ?? []), [x, y] as [number, number]];
+      updateNode(pick.id, { points: pts });
+    },
+    [pick, nodes, updateNode]
+  );
+  const onBattleLine = useCallback(
+    (x1: number, y1: number, x2: number, y2: number) => {
+      if (!pick) return;
+      updateNode(pick.id, { x1, y1, x2, y2 });
+      setPick(null); // a line is one drag — done
+    },
+    [pick, updateNode]
+  );
+
+  return (
+    <div className="scenario-editor">
+      <div className="scenario-bar">
+        <select
+          value={saved.includes(name) ? name : ""}
+          onChange={(e) => doLoad(e.target.value)}
+          title="Load a scenario"
+        >
+          <option value="">Load…</option>
+          {saved.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <input
+          className="graph-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="scenario name"
+        />
+        <button onClick={doSave}>Save</button>
+        <button onClick={doNew}>New</button>
+        <button className="danger-inline" onClick={doDelete}>
+          Delete
+        </button>
+
+        <span className="toolbar-sep" />
+
+        <span className="muted">variant</span>
+        <select value={vIdx} onChange={(e) => switchVariant(Number(e.target.value))}>
+          {variants.map((v, i) => (
+            <option key={i} value={i}>
+              {v.name}
+            </option>
+          ))}
+        </select>
+        <input
+          className="variant-name"
+          value={variant?.name ?? ""}
+          onChange={(e) => setVariantField({ name: e.target.value })}
+          placeholder="variant name"
+        />
+        <label className="weight">
+          weight
+          <input
+            type="number"
+            min={1}
+            value={variantWeight}
+            onChange={(e) => setVariantField({ weight: Number(e.target.value) || 1 })}
+          />
+        </label>
+        <button onClick={addVariant}>+ Variant</button>
+        <button onClick={removeVariant}>− Variant</button>
+
+        <span className="toolbar-sep" />
+        <button onClick={addNode}>+ Unit</button>
+      </div>
+
+      <div className="scenario-preview">
+        <span className="muted">will train:</span> {preview}
+      </div>
+
+      <div className="scenario-body">
+        <div className="scenario-center">
+          <div className="scenario-canvas">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onSelectionChange={onSelectionChange}
+              fitView
+              deleteKeyCode={["Backspace", "Delete"]}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background />
+              <Controls />
+            </ReactFlow>
+          </div>
+          <div className="scenario-battle">
+            <BattleCanvas
+              pickMode={pick?.mode ?? null}
+              onPoint={onBattlePoint}
+              onLine={onBattleLine}
+              overlayPoints={pickNode?.points}
+              overlayLine={
+                pickNode &&
+                pickNode.x1 !== undefined &&
+                pickNode.y1 !== undefined &&
+                pickNode.x2 !== undefined &&
+                pickNode.y2 !== undefined
+                  ? [pickNode.x1, pickNode.y1, pickNode.x2, pickNode.y2]
+                  : null
+              }
+            />
+            {pick && (
+              <div className="pick-hint">
+                picking {pick.mode} for {pick.id}
+                <button onClick={() => setPick(null)}>Done</button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="scenario-right">
+          <DeployParamPanel
+            node={selectedNode?.data.node ?? null}
+            assets={assets}
+            onChange={updateNode}
+            onDelete={deleteNode}
+            onPickPoints={(id) => setPick({ id, mode: "points" })}
+            onPickLine={(id) => setPick({ id, mode: "line" })}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

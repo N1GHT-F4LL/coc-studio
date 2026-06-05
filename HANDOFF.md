@@ -197,6 +197,36 @@ block + helper trong `blocks/coc_blocks.py`. Branch `m2-engine-registry-executor
 - **Lưu ý:** `backend/_calib/` (ảnh dò toạ độ) đã vào `.gitignore`. Scripts diag tạm
   (`diag_*.py`, `make_log_launcher_face.py`) đã xóa.
 
+## UX: top control bar + scenario editor (đã verify browser thật)
+- **Top control bar** (`frontend/src/panels/TopBar.tsx`): gom điều khiển lên thanh
+  trên cùng — tab `Editor`/`Scenario`, dropdown graph (load vào canvas), Save/New,
+  ▶Run/■Stop (đã rời khỏi RunConsole dock), 2 đèn: device (xám/xanh, **click =
+  connect** POST /api/device/connect) + bot (idle/running/ok/stopped/error). App
+  poll GET /api/device/status mỗi 3s. RunConsole giờ chỉ log+vars+Clear.
+- **WS fix** (`api/run_ws.py`): await stopper cancel trước khi outer loop recv lại
+  (lỗi "cannot call recv while another coroutine is already waiting").
+- **Scenario editor** (`frontend/src/scenario/`): sửa/tạo scenario deploy ngay
+  trong web (trước chỉ migrate được từ tool cũ) → giải pain "custom troop".
+  - Backend: `api/scenarios_api.py` thêm GET/PUT/DELETE `/{name}` + `/{name}/composition`
+    (dùng `scenario_store` + `required_composition`). Sanitize tên như graphs_api.
+  - FE: `ScenarioEditor.tsx` (ReactFlow node-graph như block editor; mỗi deploy
+    node 1 box, edge = `after`), `DeployNode.tsx` (thumbnail+type màu+taps),
+    `serialize.ts` (RF↔variant.nodes, lưu cả x/y vị trí), `DeployParamPanel.tsx`
+    (type/template combobox theo TYPE_FOLDER/taps/strategy line|points/seconds),
+    `BattleCanvas.tsx` (stream /ws/device, **click=pick point / drag=pick line**
+    → toạ độ gốc, overlay points/line), `types.ts` (contract + `composeFromVariants`
+    client-side cho preview "will train").
+  - **Quản lý variant**: dropdown + name + weight + ±Variant; canvas auto
+    capture/restore khi switch variant.
+  - **Verify browser:** load Thrower round-trip đủ ~30 node + edge `after` đúng,
+    preview `troops[thrower×16,healer×6,archer×12] spells[totem×7,rage×2]
+    sieges[log_launcher×1]` khớp API; chọn node → param panel đúng (type/template
+    /taps/strategy/points); CRUD API round-trip (PUT→GET→composition→DELETE) sạch;
+    mode switch Editor↔Scenario 2 chiều OK. Scenario lưu ra tự xuất hiện trong
+    dropdown của ensure_troops/deploy block.
+  - **Migrator giữ nguyên** (`scripts/migrate_scenario.py`) — vẫn import scenario
+    tool cũ; editor là đường tạo/sửa mới. Không đụng engine/screens/composition.
+
 ## Post-v1 (plan §Open, chưa làm)
 - Subroutine block (graph-as-block) đầy đủ — hiện loop dùng `graph_ref`.
 - minitouch/scrcpy HID cho swipe mượt; đóng gói desktop app.

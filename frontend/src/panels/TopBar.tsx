@@ -1,6 +1,10 @@
 import type { DeviceStatus } from "../api/client";
 
+export type AppMode = "editor" | "scenario";
+
 interface Props {
+  mode: AppMode;
+  onMode: (m: AppMode) => void;
   graphName: string;
   savedGraphs: string[];
   onRename: (name: string) => void;
@@ -34,6 +38,8 @@ function botLight(running: boolean, status: string): { cls: string; label: strin
 }
 
 export function TopBar({
+  mode,
+  onMode,
   graphName,
   savedGraphs,
   onRename,
@@ -61,35 +67,56 @@ export function TopBar({
     <header className="toolbar">
       <strong>coc-studio</strong>
 
-      <select
-        value={savedGraphs.includes(graphName) ? graphName : ""}
-        onChange={(e) => onLoad(e.target.value)}
-        title="Load a saved graph"
-      >
-        <option value="">Load…</option>
-        {savedGraphs.map((g) => (
-          <option key={g} value={g}>
-            {g}
-          </option>
-        ))}
-      </select>
-      <input
-        className="graph-name"
-        value={graphName}
-        onChange={(e) => onRename(e.target.value)}
-        placeholder="graph name"
-      />
-      <button onClick={onSave}>Save</button>
-      <button onClick={onNew}>New</button>
+      <div className="mode-tabs">
+        <button
+          className={mode === "editor" ? "active" : ""}
+          onClick={() => onMode("editor")}
+        >
+          Editor
+        </button>
+        <button
+          className={mode === "scenario" ? "active" : ""}
+          onClick={() => onMode("scenario")}
+        >
+          Scenario
+        </button>
+      </div>
 
       <span className="toolbar-sep" />
 
-      <button className="run" onClick={onRun} disabled={running} title="Run the current graph">
-        ▶ Run
-      </button>
-      <button className="stop" onClick={onStop} disabled={!running} title="Stop the run">
-        ■ Stop
-      </button>
+      {mode === "editor" && (
+        <>
+          <select
+            value={savedGraphs.includes(graphName) ? graphName : ""}
+            onChange={(e) => onLoad(e.target.value)}
+            title="Load a saved graph"
+          >
+            <option value="">Load…</option>
+            {savedGraphs.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+          <input
+            className="graph-name"
+            value={graphName}
+            onChange={(e) => onRename(e.target.value)}
+            placeholder="graph name"
+          />
+          <button onClick={onSave}>Save</button>
+          <button onClick={onNew}>New</button>
+
+          <span className="toolbar-sep" />
+
+          <button className="run" onClick={onRun} disabled={running} title="Run the current graph">
+            ▶ Run
+          </button>
+          <button className="stop" onClick={onStop} disabled={!running} title="Stop the run">
+            ■ Stop
+          </button>
+        </>
+      )}
 
       <div className="lights">
         <span

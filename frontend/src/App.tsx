@@ -34,7 +34,8 @@ import { Palette } from "./panels/Palette";
 import { ParamPanel } from "./panels/ParamPanel";
 import { RunConsole } from "./panels/RunConsole";
 import { DeviceView } from "./panels/DeviceView";
-import { TopBar } from "./panels/TopBar";
+import { TopBar, type AppMode } from "./panels/TopBar";
+import { ScenarioEditor } from "./scenario/ScenarioEditor";
 import { RunStateContext } from "./run/RunStateContext";
 import { useRunner } from "./run/useRunner";
 
@@ -53,6 +54,7 @@ export default function App() {
   const [pickReq, setPickReq] = useState<{ port: string; kind: "Coord" | "Region" } | null>(null);
   const [dockTab, setDockTab] = useState<"console" | "device">("console");
   const [device, setDevice] = useState<DeviceStatus | null>(null);
+  const [mode, setMode] = useState<AppMode>("editor");
   const runner = useRunner();
 
   const refreshDevice = useCallback(
@@ -270,6 +272,8 @@ export default function App() {
   return (
     <div className="app">
       <TopBar
+        mode={mode}
+        onMode={setMode}
         graphName={graphName}
         savedGraphs={savedGraphs}
         onRename={setGraphName}
@@ -285,7 +289,9 @@ export default function App() {
         message={status}
       />
 
-      <div className="body">
+      {mode === "scenario" && <ScenarioEditor onStatus={setStatus} />}
+
+      <div className="body" style={mode === "scenario" ? { display: "none" } : undefined}>
         <Palette blocks={blocks} onAdd={addBlock} />
         <div className="center">
           <div className="canvas">
