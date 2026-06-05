@@ -41,14 +41,16 @@ if ($Dev) {
     $env:COC_OPEN_BROWSER = "0"
     $be = Start-Process -FilePath $python -ArgumentList "main.py" `
         -WorkingDirectory $backend -PassThru
+    Push-Location $frontend
     try {
         Start-Sleep -Seconds 2
         Write-Host "==> Open http://127.0.0.1:5173  (Ctrl+C to stop)" -ForegroundColor Green
-        Push-Location $frontend
         npm run dev
-        Pop-Location
     }
     finally {
+        # Runs even on Ctrl+C, so the shell returns to where it started and the
+        # backend doesn't linger.
+        Pop-Location
         Write-Host "==> Stopping backend (pid $($be.Id))..." -ForegroundColor Cyan
         if (-not $be.HasExited) { Stop-Process -Id $be.Id -Force -ErrorAction SilentlyContinue }
     }
@@ -62,6 +64,12 @@ else {
 
     Write-Host "==> Starting backend at http://127.0.0.1:8000 (Ctrl+C to stop)" -ForegroundColor Green
     Push-Location $backend
-    & $python main.py
-    Pop-Location
+    try {
+        & $python main.py
+    }
+    finally {
+        # Ctrl+C aborts the script mid-run; without this the shell would stay
+        # stranded in backend\. finally runs on Ctrl+C, so we always return.
+        Pop-Location
+    }
 }
