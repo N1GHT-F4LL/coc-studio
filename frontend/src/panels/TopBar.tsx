@@ -1,4 +1,4 @@
-import type { DeviceStatus } from "../api/client";
+import type { DeviceStatus, DeviceProfiles } from "../api/client";
 
 export type AppMode = "editor" | "scenario";
 
@@ -17,6 +17,8 @@ interface Props {
   onStop: () => void;
   device: DeviceStatus | null;
   onConnectDevice: () => void;
+  profiles: DeviceProfiles | null;
+  onSetProfile: (profile: string) => void;
   message: string; // free-text status line
 }
 
@@ -52,6 +54,8 @@ export function TopBar({
   onStop,
   device,
   onConnectDevice,
+  profiles,
+  onSetProfile,
   message,
 }: Props) {
   const bot = botLight(running, status);
@@ -119,6 +123,20 @@ export function TopBar({
       )}
 
       <div className="lights">
+        {profiles && (
+          <select
+            className="profile-select"
+            value={profiles.current}
+            onChange={(e) => onSetProfile(e.target.value)}
+            title="Emulator / device profile (applies on next connect)"
+          >
+            {profiles.profiles.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        )}
         <span
           className="status-light clickable"
           onClick={onConnectDevice}

@@ -101,6 +101,29 @@ export async function connectDevice(): Promise<{
   return json(await fetch("/api/device/connect", { method: "POST" }));
 }
 
+export interface DeviceProfiles {
+  profiles: { value: string; label: string }[];
+  current: string;
+  endpoint: string;
+}
+
+export async function deviceProfiles(): Promise<DeviceProfiles> {
+  return json<DeviceProfiles>(await fetch("/api/device/profiles"));
+}
+
+export async function setDeviceProfile(
+  profile: string,
+  endpoint?: string
+): Promise<{ ok: boolean; profile: string; endpoint: string }> {
+  return json(
+    await fetch("/api/device/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile, endpoint }),
+    })
+  );
+}
+
 // --- assets ----------------------------------------------------------------
 export interface AssetCategory {
   label: string;

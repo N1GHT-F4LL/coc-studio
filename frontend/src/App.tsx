@@ -22,7 +22,10 @@ import {
   listScenarios,
   deviceStatus,
   connectDevice,
+  deviceProfiles,
+  setDeviceProfile,
   type DeviceStatus,
+  type DeviceProfiles,
 } from "./api/client";
 import type { BlockSpec } from "./blocks/types";
 import { BlockNode, type BlockNodeData } from "./canvas/BlockNode";
@@ -54,6 +57,7 @@ export default function App() {
   const [pickReq, setPickReq] = useState<{ port: string; kind: "Coord" | "Region" } | null>(null);
   const [dockTab, setDockTab] = useState<"console" | "device">("console");
   const [device, setDevice] = useState<DeviceStatus | null>(null);
+  const [profiles, setProfiles] = useState<DeviceProfiles | null>(null);
   const [mode, setMode] = useState<AppMode>("editor");
   const runner = useRunner();
 
@@ -80,6 +84,7 @@ export default function App() {
     refreshGraphs();
     fetchAssets().then(setAssets).catch(() => setAssets([]));
     listScenarios().then(setScenarios).catch(() => setScenarios([]));
+    deviceProfiles().then(setProfiles).catch(() => setProfiles(null));
   }, []);
 
   // Poll device status for the top-bar light.
@@ -249,6 +254,16 @@ export default function App() {
     }
   }, [refreshDevice]);
 
+  const onSetProfile = useCallback(async (profile: string) => {
+    try {
+      await setDeviceProfile(profile);
+      setProfiles((p) => (p ? { ...p, current: profile } : p));
+      setStatus(`Device profile → ${profile} (applies on next connect).`);
+    } catch (e) {
+      setStatus(`Set profile failed: ${(e as Error).message}`);
+    }
+  }, []);
+
   const onNew = useCallback(() => {
     setNodes([]);
     setEdges([]);
@@ -286,6 +301,8 @@ export default function App() {
         onStop={runner.stop}
         device={device}
         onConnectDevice={onConnectDevice}
+        profiles={profiles}
+        onSetProfile={onSetProfile}
         message={status}
       />
 

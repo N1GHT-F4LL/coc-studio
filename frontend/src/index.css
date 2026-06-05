@@ -35,6 +35,7 @@ body {
 
 /* Status lights cluster, pushed to the right edge of the top bar. */
 .lights { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.profile-select { font-size: 12px; padding: 3px 6px; }
 .status-light { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
 .status-light.clickable { cursor: pointer; }
 .status-light.clickable:hover { color: var(--text); }
