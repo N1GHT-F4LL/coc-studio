@@ -55,10 +55,12 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
       <div className="block-type">{spec.type}</div>
 
       {/* data inputs along the top (hidden until hover/selected/connected).
-          Each handle carries its own note that pops on hovering that port. */}
+          On reveal, every port floats a note above it, staggered into tiers
+          (with a leader line) so all notes are visible at once without overlap. */}
       {dataInputs.map((p, i) => {
         const hid = dataHandleId("in", p.name, p.kind);
         const hide = dataHidden(hid);
+        const tier = 14 + i * 22; // px above the port for this note's tier
         return (
           <Handle
             key={`in-${p.name}`}
@@ -72,10 +74,15 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
               display: hide ? "none" : undefined,
             }}
           >
-            <span className="port-note port-note-in">
-              <span className="port-note-dot" style={{ background: kindColor(p.kind) }} />
-              {p.name} <span className="port-note-kind">{p.kind}</span>
-            </span>
+            {showData && (
+              <>
+                <span className="port-leader port-leader-in" style={{ height: tier }} />
+                <span className="port-note port-note-in" style={{ bottom: tier }}>
+                  <span className="port-note-dot" style={{ background: kindColor(p.kind) }} />
+                  {p.name} <span className="port-note-kind">{p.kind}</span>
+                </span>
+              </>
+            )}
           </Handle>
         );
       })}
@@ -84,6 +91,7 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
       {dataOutputs.map((p, i) => {
         const hid = dataHandleId("out", p.name, p.kind);
         const hide = dataHidden(hid);
+        const tier = 14 + i * 22;
         return (
           <Handle
             key={`out-${p.name}`}
@@ -97,10 +105,15 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
               display: hide ? "none" : undefined,
             }}
           >
-            <span className="port-note port-note-out">
-              <span className="port-note-dot" style={{ background: kindColor(p.kind) }} />
-              {p.name} <span className="port-note-kind">{p.kind}</span>
-            </span>
+            {showData && (
+              <>
+                <span className="port-leader port-leader-out" style={{ height: tier }} />
+                <span className="port-note port-note-out" style={{ top: tier }}>
+                  <span className="port-note-dot" style={{ background: kindColor(p.kind) }} />
+                  {p.name} <span className="port-note-kind">{p.kind}</span>
+                </span>
+              </>
+            )}
           </Handle>
         );
       })}

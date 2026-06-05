@@ -255,31 +255,41 @@ button.danger:hover { background: #3a2530; }
   color: var(--muted);
   white-space: nowrap;
 }
-/* Per-port note: a small tag pinned to one handle, shown only when that handle
-   is hovered. One note at a time → never overlaps. Non-interactive. */
+/* Per-port note: every revealed port floats a tag, staggered into tiers with a
+   thin leader line back to the handle, so all are readable at once. */
 .data-handle .port-note {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  display: none;
+  display: inline-flex;
   align-items: center;
   gap: 5px;
   white-space: nowrap;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 5px;
-  padding: 3px 7px;
+  padding: 2px 7px;
   font-size: 11px;
   color: var(--text);
   pointer-events: none;
   z-index: 20;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
 }
-.data-handle:hover .port-note { display: inline-flex; }
-.port-note-in { bottom: 150%; }   /* above the top-edge input handle */
-.port-note-out { top: 150%; }     /* below the bottom-edge output handle */
+.data-handle:hover .port-note { border-color: var(--accent); z-index: 21; }
 .port-note-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .port-note-kind { color: var(--muted); font-size: 10px; }
+
+/* Leader line from the handle up/down to its note tier. */
+.port-leader {
+  position: absolute;
+  left: 50%;
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+  z-index: 19;
+}
+.port-leader-in { bottom: 100%; }
+.port-leader-out { top: 100%; }
 .block-title { font-weight: 600; }
 .block-type { font-size: 11px; color: var(--muted); }
 .ctl-handle { width: 10px; height: 10px; background: #444b54; border: 1px solid #6b7280; }
