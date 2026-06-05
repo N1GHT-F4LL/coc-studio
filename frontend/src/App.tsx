@@ -83,11 +83,29 @@ export default function App() {
     listScenarios().then(setScenarios).catch(() => setScenarios([]));
   }, []);
 
-  // Poll device status for the top-bar light.
+  // Poll device status for the top-bar light. Device state only changes on
+  // explicit Connect/Disconnect, so a slow poll is plenty; pause it while the
+  // tab is hidden to avoid pointless background requests.
   useEffect(() => {
-    refreshDevice();
-    const id = setInterval(refreshDevice, 3000);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (id !== null) return;
+      refreshDevice();
+      id = setInterval(refreshDevice, 8000);
+    };
+    const stop = () => {
+      if (id !== null) {
+        clearInterval(id);
+        id = null;
+      }
+    };
+    const onVisibility = () => (document.hidden ? stop() : start());
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [refreshDevice]);
 
   const refreshAssets = () => fetchAssets().then(setAssets).catch(() => setAssets([]));
