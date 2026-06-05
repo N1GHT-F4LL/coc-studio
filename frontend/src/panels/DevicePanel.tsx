@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deviceProfiles,
   setDeviceProfile,
@@ -11,6 +11,7 @@ import {
   type DeviceStatus,
   type AdbDevice,
 } from "../api/client";
+import { wsUrl } from "../api/ws";
 
 // Human-readable explanation for each connection reason the backend reports.
 const REASON_TEXT: Record<string, string> = {
@@ -23,10 +24,10 @@ const REASON_TEXT: Record<string, string> = {
   device_setup_failed: "Bootstrap thất bại — thử Scan / Launch / đổi profile.",
 };
 
-const stateText: Record<string, string> = {
+const STATE_TEXT: Record<string, string> = {
   device: "sẵn sàng",
-  offline: "offline — thử Scan lại hoặc khởi động lại emulator",
-  unauthorized: "chưa cấp quyền — mở khoá thiết bị và chấp nhận RSA prompt",
+  offline: "offline — Scan lại hoặc khởi động lại emulator",
+  unauthorized: "chưa cấp quyền — mở khoá thiết bị, chấp nhận RSA",
 };
 
 interface Props {
@@ -40,7 +41,22 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
   const [profile, setProfile] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [devices, setDevices] = useState<AdbDevice[]>([]);
-  const [busy, setBusy] = useState<string>(""); // "scan" | "connect" | "launch" | ""
+  const [busy, setBusy] = useState<string>("");
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const connected = !!device?.connected;
+  const isCustom = profile === "custom_endpoint";
+  const hasEmulator = !isCustom && profile !== "usb_or_existing" && profile !== "";
+
+  // --- scan (shared by the Scan button and the smart Connect) --------------
+  const runScan = useCallback(async (): Promise<AdbDevice[]> => {
+    const res = await scanDevices();
+    setDevices(res.devices);
+    onStatus(res.status);
+    return res.devices;
+  }, [onStatus]);
 
   useEffect(() => {
     deviceProfiles()
@@ -50,14 +66,40 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
         setEndpoint(p.endpoint);
       })
       .catch(() => setProfiles(null));
-  }, []);
+    // Auto-scan once on entering the tab so the list is ready.
+    runScan().catch(() => {});
+  }, [runScan]);
+
+  // Live screen preview while connected.
+  useEffect(() => {
+    if (!connected) {
+      wsRef.current?.close();
+      wsRef.current = null;
+      return;
+    }
+    const ws = new WebSocket(wsUrl("/ws/device?fps=3"));
+    ws.binaryType = "arraybuffer";
+    wsRef.current = ws;
+    ws.onmessage = async (e) => {
+      if (typeof e.data === "string") return;
+      const bmp = await createImageBitmap(new Blob([e.data], { type: "image/jpeg" }));
+      const cv = canvasRef.current;
+      if (cv) {
+        cv.width = bmp.width;
+        cv.height = bmp.height;
+        cv.getContext("2d")?.drawImage(bmp, 0, 0);
+      }
+      bmp.close();
+    };
+    return () => ws.close();
+  }, [connected]);
 
   const saveProfile = useCallback(
     async (p: string, ep: string) => {
       try {
         await setDeviceProfile(p, ep);
         setProfiles((prev) => (prev ? { ...prev, current: p, endpoint: ep } : prev));
-        onMessage(`Profile → ${p} (áp dụng ở lần Connect kế).`);
+        onMessage(`Profile → ${p}.`);
       } catch (e) {
         onMessage(`Lưu profile lỗi: ${(e as Error).message}`);
       }
@@ -69,47 +111,55 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
     setBusy("scan");
     onMessage("Đang quét thiết bị…");
     try {
-      const res = await scanDevices();
-      setDevices(res.devices);
-      onStatus(res.status);
-      onMessage(
-        res.devices.length
-          ? `Tìm thấy ${res.devices.length} thiết bị.`
-          : "Không thấy thiết bị nào — bấm Launch emulator hoặc kiểm tra profile/endpoint."
-      );
+      const ds = await runScan();
+      onMessage(ds.length ? `Tìm thấy ${ds.length} thiết bị.` : "Không thấy thiết bị nào.");
     } catch (e) {
       onMessage(`Scan lỗi: ${(e as Error).message}`);
     } finally {
       setBusy("");
     }
-  }, [onMessage, onStatus]);
+  }, [runScan, onMessage]);
 
   const doLaunch = useCallback(async () => {
     setBusy("launch");
     onMessage("Đang khởi động emulator (đợi ~12s)…");
     try {
-      const res = await launchEmulator();
-      onMessage(res.launched ? "Đã gọi khởi động emulator. Bấm Scan để kiểm tra." : "Profile này không có emulator để khởi động.");
+      await launchEmulator();
+      await runScan();
+      onMessage("Đã gọi khởi động emulator.");
     } catch (e) {
       onMessage(`Launch lỗi: ${(e as Error).message}`);
     } finally {
       setBusy("");
     }
-  }, [onMessage]);
+  }, [runScan, onMessage]);
 
+  // Smart connect: scan first; if a usable device exists, connect (the backend
+  // auto-picks/validates the serial). If none and the profile has an emulator,
+  // hint to Launch.
   const doConnect = useCallback(async () => {
     setBusy("connect");
     onMessage("Đang kết nối…");
     try {
+      const ds = await runScan();
+      const ready = ds.filter((d) => d.state === "device");
+      if (ready.length === 0) {
+        onMessage(
+          hasEmulator
+            ? "Chưa thấy thiết bị — bấm Launch emulator rồi thử lại."
+            : "Chưa thấy thiết bị adb nào — kiểm tra emulator/endpoint."
+        );
+        return;
+      }
       const res = await connectDevice();
       onStatus(res.status);
-      onMessage(res.ok ? "Đã kết nối." : `Kết nối thất bại: ${REASON_TEXT[res.reason] ?? res.reason}`);
+      onMessage(res.ok ? "Đã kết nối." : `Thất bại: ${REASON_TEXT[res.reason] ?? res.reason}`);
     } catch (e) {
       onMessage(`Kết nối lỗi: ${(e as Error).message}`);
     } finally {
       setBusy("");
     }
-  }, [onMessage, onStatus]);
+  }, [runScan, hasEmulator, onMessage, onStatus]);
 
   const doDisconnect = useCallback(async () => {
     try {
@@ -134,82 +184,57 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
     [onMessage, onStatus]
   );
 
-  const connected = !!device?.connected;
-  const isCustom = profile === "custom_endpoint";
-
   return (
-    <div className="device-panel-page">
-      <div className="device-col">
-        <section className="device-section">
-          <h3>Trạng thái</h3>
-          <div className="device-status-big">
-            <span className={`dot ${connected ? "on" : "off"}`} />
-            <span>{connected ? "Đã kết nối" : "Chưa kết nối"}</span>
-            {device?.serial ? <span className="muted">· {device.serial}</span> : null}
-            {device?.profile ? <span className="muted">· {device.profile}</span> : null}
-          </div>
-          {device?.reason && REASON_TEXT[device.reason] ? (
-            <div className={`device-reason${connected ? "" : " warn"}`}>
-              {REASON_TEXT[device.reason]}
-            </div>
-          ) : null}
-          <div className="device-actions">
-            <button className="run" onClick={doConnect} disabled={busy === "connect"}>
-              {busy === "connect" ? "Đang kết nối…" : "▶ Connect"}
-            </button>
-            <button onClick={doDisconnect} disabled={!connected}>
-              Disconnect
-            </button>
-          </div>
-        </section>
-
-        <section className="device-section">
-          <h3>Profile</h3>
-          <label className="field">
-            <span>Emulator / thiết bị</span>
-            <select
-              value={profile}
-              onChange={(e) => {
-                setProfile(e.target.value);
-                saveProfile(e.target.value, e.target.value === "custom_endpoint" ? endpoint : "");
-              }}
-            >
-              {profiles?.profiles.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
+    <div className="device-tab">
+      {/* Sidebar: configure + pick (top-to-bottom = the connect flow) */}
+      <aside className="device-sidebar">
+        <div className="device-step">
+          <div className="device-step-title">1 · Profile</div>
+          <select
+            value={profile}
+            onChange={(e) => {
+              const p = e.target.value;
+              setProfile(p);
+              saveProfile(p, p === "custom_endpoint" ? endpoint : "");
+            }}
+          >
+            {profiles?.profiles.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </select>
           {isCustom && (
-            <label className="field">
-              <span>ADB endpoint (ip:port)</span>
-              <div className="field-row">
-                <input
-                  value={endpoint}
-                  placeholder="127.0.0.1:5555"
-                  onChange={(e) => setEndpoint(e.target.value)}
-                />
-                <button onClick={() => saveProfile("custom_endpoint", endpoint)}>Save</button>
-              </div>
-            </label>
+            <div className="field-row" style={{ marginTop: 6 }}>
+              <input
+                value={endpoint}
+                placeholder="127.0.0.1:5555"
+                onChange={(e) => setEndpoint(e.target.value)}
+              />
+              <button onClick={() => saveProfile("custom_endpoint", endpoint)}>Save</button>
+            </div>
           )}
-          <button onClick={doLaunch} disabled={busy === "launch" || isCustom || profile === "usb_or_existing"}>
-            {busy === "launch" ? "Đang khởi động…" : "Launch emulator"}
-          </button>
-        </section>
-      </div>
-
-      <div className="device-col">
-        <section className="device-section">
-          <h3>
-            Thiết bị
-            <button className="inline-btn" onClick={doScan} disabled={busy === "scan"}>
-              {busy === "scan" ? "Đang quét…" : "↻ Scan"}
+          {hasEmulator && (
+            <button
+              className="device-wide"
+              onClick={doLaunch}
+              disabled={busy === "launch"}
+              style={{ marginTop: 6 }}
+            >
+              {busy === "launch" ? "Đang khởi động…" : "Launch emulator"}
             </button>
-          </h3>
+          )}
+        </div>
+
+        <div className="device-step">
+          <div className="device-step-title">
+            2 · Thiết bị
+            <button className="inline-btn" onClick={doScan} disabled={busy === "scan"}>
+              {busy === "scan" ? "…" : "↻ Scan"}
+            </button>
+          </div>
           {devices.length === 0 ? (
-            <div className="muted">Chưa quét. Bấm Scan để liệt kê adb devices.</div>
+            <div className="muted">Chưa thấy thiết bị. Bấm Scan.</div>
           ) : (
             <table className="device-table">
               <tbody>
@@ -224,13 +249,52 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
                       <span className={`dot ${d.state === "device" ? "on" : "warn"}`} />
                     </td>
                     <td className="serial">{d.serial}</td>
-                    <td className="muted">{stateText[d.state] ?? d.state}</td>
+                    <td className="muted">{STATE_TEXT[d.state] ?? d.state}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-        </section>
+        </div>
+
+        <div className="device-step">
+          <div className="device-step-title">3 · Kết nối</div>
+          <button className="run device-wide" onClick={doConnect} disabled={busy === "connect"}>
+            {busy === "connect" ? "Đang kết nối…" : "▶ Connect"}
+          </button>
+          <button
+            className="device-wide"
+            onClick={doDisconnect}
+            disabled={!connected}
+            style={{ marginTop: 6 }}
+          >
+            Disconnect
+          </button>
+        </div>
+      </aside>
+
+      {/* Content: status + live screen */}
+      <div className="device-content">
+        <div className="device-statusbar">
+          <span className={`dot ${connected ? "on" : "off"}`} />
+          <strong>{connected ? "Đã kết nối" : "Chưa kết nối"}</strong>
+          {device?.serial ? <span className="muted">· {device.serial}</span> : null}
+          {device?.profile ? <span className="muted">· {device.profile}</span> : null}
+          {device?.reason && REASON_TEXT[device.reason] ? (
+            <span className={`device-reason${connected ? "" : " warn"}`}>
+              — {REASON_TEXT[device.reason]}
+            </span>
+          ) : null}
+        </div>
+        <div className="device-screen">
+          {connected ? (
+            <canvas ref={canvasRef} className="device-screen-canvas" />
+          ) : (
+            <div className="muted device-screen-empty">
+              Kết nối thiết bị để xem màn hình trực tiếp.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

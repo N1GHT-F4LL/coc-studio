@@ -36,31 +36,39 @@ body {
 /* Status lights cluster, pushed to the right edge of the top bar. */
 .lights { margin-left: auto; display: flex; align-items: center; gap: 14px; }
 
-/* --- device tab --- */
-.device-panel-page {
-  flex: 1; min-height: 0; overflow-y: auto; display: flex; gap: 16px;
-  padding: 16px; align-items: flex-start;
+/* --- device tab: sidebar (configure/flow) + content (status + live screen) --- */
+.device-tab { flex: 1; min-height: 0; display: flex; }
+.device-sidebar {
+  width: 300px; flex: 0 0 300px; background: var(--panel);
+  border-right: 1px solid var(--border); overflow-y: auto; padding: 14px;
+  display: flex; flex-direction: column; gap: 18px;
 }
-.device-col { display: flex; flex-direction: column; gap: 16px; flex: 1; max-width: 460px; }
-.device-section {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px;
+.device-step { display: flex; flex-direction: column; gap: 6px; }
+.device-step-title {
+  font-size: 12px; text-transform: uppercase; color: var(--muted);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
 }
-.device-section h3 {
-  margin: 0 0 10px; font-size: 13px; text-transform: uppercase; color: var(--muted);
-  display: flex; align-items: center; gap: 10px;
-}
-.device-section h3 .inline-btn { margin-left: auto; font-size: 12px; padding: 3px 8px; text-transform: none; }
-.device-status-big { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
-.device-status-big .muted { font-weight: 400; font-size: 13px; }
-.device-reason { margin-top: 8px; font-size: 13px; color: var(--muted); }
-.device-reason.warn { color: #e0a32b; }
-.device-actions { display: flex; gap: 8px; margin-top: 12px; }
+.device-step-title .inline-btn { margin-left: auto; font-size: 12px; padding: 2px 8px; text-transform: none; }
+.device-wide { width: 100%; }
+.device-step select, .device-step input { width: 100%; }
+
 .device-table { width: 100%; border-collapse: collapse; }
 .device-table tr { cursor: pointer; border-bottom: 1px solid var(--border); }
 .device-table tr:hover { background: var(--panel-2); }
 .device-table tr.selected { background: #1f3a2f; }
-.device-table td { padding: 7px 6px; font-size: 13px; }
+.device-table td { padding: 6px 5px; font-size: 12px; }
 .device-table td.serial { font-family: monospace; }
+
+.device-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.device-statusbar {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  border-bottom: 1px solid var(--border); font-size: 14px;
+}
+.device-reason { color: var(--muted); font-size: 13px; }
+.device-reason.warn { color: #e0a32b; }
+.device-screen { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #14171c; }
+.device-screen-canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+.device-screen-empty { padding: 40px; }
 .status-light { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
 .status-light.clickable { cursor: pointer; }
 .status-light.clickable:hover { color: var(--text); }
