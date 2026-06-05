@@ -75,14 +75,16 @@ export function TopBar({
         <button
           className={mode === "editor" ? "active" : ""}
           onClick={() => onMode("editor")}
+          title="Build the automation flow (block graph)"
         >
-          Editor
+          Bot Builder
         </button>
         <button
           className={mode === "scenario" ? "active" : ""}
           onClick={() => onMode("scenario")}
+          title="Design the army composition + deploy plan"
         >
-          Scenario
+          Attack Plan
         </button>
       </div>
 
