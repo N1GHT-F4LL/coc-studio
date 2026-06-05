@@ -78,7 +78,15 @@ async def _run_streaming(ws: WebSocket, loop, graph_dict, stop_event):
                     disconnected = True
                     stop_event.set()  # keep draining so the worker can finish
     finally:
+        # Await the stopper's cancellation so it has released ws.receive_json()
+        # before the outer loop resumes receiving — otherwise two coroutines
+        # briefly recv() the same socket ("cannot call recv while another
+        # coroutine is already waiting for the next message").
         stopper.cancel()
+        try:
+            await stopper
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 @router.websocket("/ws/run")
