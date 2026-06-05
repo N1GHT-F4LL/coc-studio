@@ -255,6 +255,20 @@ button.danger:hover { background: #3a2530; }
   color: var(--muted);
   white-space: nowrap;
 }
+/* Port name labels, shown only while a node's data ports are revealed. Rotated
+   vertical so adjacent ports don't overlap; non-interactive. */
+.port-label {
+  position: absolute;
+  left: 50%;
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  transform-origin: left center;
+  transform: rotate(-90deg);
+}
+.port-label-in { bottom: 100%; transform: translateX(-50%) translateY(-6px) rotate(-90deg); transform-origin: center bottom; }
+.port-label-out { top: 100%; transform: translateX(-50%) translateY(6px) rotate(-90deg); transform-origin: center top; }
 .block-title { font-weight: 600; }
 .block-type { font-size: 11px; color: var(--muted); }
 .ctl-handle { width: 10px; height: 10px; background: #444b54; border: 1px solid #6b7280; }

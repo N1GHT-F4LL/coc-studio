@@ -57,6 +57,7 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
       {/* data inputs along the top (hidden until hover/selected/connected) */}
       {dataInputs.map((p, i) => {
         const hid = dataHandleId("in", p.name, p.kind);
+        const hide = dataHidden(hid);
         return (
           <Handle
             key={`in-${p.name}`}
@@ -66,16 +67,23 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
             style={{
               left: hslot(i, dataInputs.length),
               background: kindColor(p.kind),
-              display: dataHidden(hid) ? "none" : undefined,
+              display: hide ? "none" : undefined,
             }}
             title={`${p.label}: ${p.kind}`}
-          />
+          >
+            {!hide && (
+              <span className="port-label port-label-in" style={{ color: kindColor(p.kind) }}>
+                {p.name}
+              </span>
+            )}
+          </Handle>
         );
       })}
 
       {/* data outputs along the bottom */}
       {dataOutputs.map((p, i) => {
         const hid = dataHandleId("out", p.name, p.kind);
+        const hide = dataHidden(hid);
         return (
           <Handle
             key={`out-${p.name}`}
@@ -85,10 +93,16 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
             style={{
               left: hslot(i, dataOutputs.length),
               background: kindColor(p.kind),
-              display: dataHidden(hid) ? "none" : undefined,
+              display: hide ? "none" : undefined,
             }}
             title={`${p.label}: ${p.kind}`}
-          />
+          >
+            {!hide && (
+              <span className="port-label port-label-out" style={{ color: kindColor(p.kind) }}>
+                {p.name}
+              </span>
+            )}
+          </Handle>
         );
       })}
 
