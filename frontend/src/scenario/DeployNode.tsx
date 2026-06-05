@@ -25,7 +25,7 @@ function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
       className={`deploy-node${selected ? " selected" : ""}`}
       style={{ borderColor: color }}
     >
-      <Handle id="in" type="target" position={Position.Top} className="ctl-handle" />
+      <Handle id="in" type="target" position={Position.Left} className="ctl-handle" />
 
       <div className="deploy-node-row">
         {!isDelay && n.template ? (
@@ -45,7 +45,7 @@ function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
         </div>
       </div>
 
-      <Handle id="out" type="source" position={Position.Bottom} className="ctl-handle" />
+      <Handle id="out" type="source" position={Position.Right} className="ctl-handle" />
     </div>
   );
 }
