@@ -31,53 +31,53 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
         runState ? ` run-${runState}` : ""
       }`}
     >
-      {/* control flow in (top) */}
-      <Handle id={CTL_IN} type="target" position={Position.Top} className="ctl-handle" />
+      {/* control flow in (left) — the graph flows left-to-right */}
+      <Handle id={CTL_IN} type="target" position={Position.Left} className="ctl-handle" />
 
       <div className="block-title">{label || spec.label}</div>
       <div className="block-type">{spec.type}</div>
 
-      {/* data inputs on the left */}
+      {/* data inputs along the top */}
       {dataInputs.map((p, i) => (
         <Handle
           key={`in-${p.name}`}
           id={dataHandleId("in", p.name, p.kind)}
           type="target"
-          position={Position.Left}
-          style={{ top: slot(i, dataInputs.length), background: kindColor(p.kind) }}
+          position={Position.Top}
+          style={{ left: hslot(i, dataInputs.length), background: kindColor(p.kind) }}
           title={`${p.label}: ${p.kind}`}
         />
       ))}
 
-      {/* data outputs on the right */}
+      {/* data outputs along the bottom */}
       {dataOutputs.map((p, i) => (
         <Handle
           key={`out-${p.name}`}
           id={dataHandleId("out", p.name, p.kind)}
           type="source"
-          position={Position.Right}
-          style={{ top: slot(i, dataOutputs.length), background: kindColor(p.kind) }}
+          position={Position.Bottom}
+          style={{ left: hslot(i, dataOutputs.length), background: kindColor(p.kind) }}
           title={`${p.label}: ${p.kind}`}
         />
       ))}
 
-      {/* control flow out (bottom): branch handles for Trigger outputs, else default */}
+      {/* control flow out (right): branch handles for Trigger outputs, else default */}
       {branches.length === 0 ? (
-        <Handle id={CTL_OUT} type="source" position={Position.Bottom} className="ctl-handle" />
+        <Handle id={CTL_OUT} type="source" position={Position.Right} className="ctl-handle" />
       ) : (
         branches.map((p, i) => (
           <div
             key={`br-${p.name}`}
-            className="branch-label"
-            style={{ left: hslot(i, branches.length) }}
+            className="branch-label-v"
+            style={{ top: slot(i, branches.length) }}
           >
             {p.name}
             <Handle
               id={ctlOutBranch(p.name)}
               type="source"
-              position={Position.Bottom}
+              position={Position.Right}
               className="ctl-handle"
-              style={{ left: "50%" }}
+              style={{ top: "50%" }}
               title={`branch: ${p.name}`}
             />
           </div>
