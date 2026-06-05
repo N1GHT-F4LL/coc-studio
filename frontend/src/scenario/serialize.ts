@@ -24,13 +24,15 @@ export function toVariant(nodes: RFNode[], edges: Edge[]): DeployNodeT[] {
   return Object.values(byId);
 }
 
-// Auto-layout: assign each node a level = longest dependency chain from a root
-// (via after-edges), lay levels out top-to-bottom and siblings left-to-right so
-// branches (several nodes sharing an `after`) fan out instead of overlapping.
-const LAYOUT_X = 200; // horizontal gap between siblings
-const LAYOUT_Y = 110; // vertical gap between levels
-const LAYOUT_X0 = 80;
-const LAYOUT_Y0 = 40;
+// Auto-layout (horizontal, suits a 16:9 screen): assign each node a level =
+// longest dependency chain from a root (via after-edges), lay levels out
+// left-to-right and stack siblings vertically. Every column is centred on the
+// same horizontal midline so chains read straight across and branches fan out
+// symmetrically above/below — no drift.
+const LAYOUT_X = 240; // horizontal gap between levels (columns)
+const LAYOUT_Y = 120; // vertical gap between siblings in a column
+const LAYOUT_X0 = 60;
+const LAYOUT_MID = 300; // y of the centre line each column is balanced around
 
 export function layoutNodes(nodes: RFNode[], edges: Edge[]): RFNode[] {
   // preds[id] = nodes this one runs after (incoming edges).
@@ -53,23 +55,19 @@ export function layoutNodes(nodes: RFNode[], edges: Edge[]): RFNode[] {
   };
   for (const n of nodes) levelOf(n.id);
 
-  // Group by level, keep a stable order, spread siblings horizontally centred.
+  // Group by level (column); stack siblings vertically, centred on the midline.
   const byLevel: Record<number, RFNode[]> = {};
   for (const n of nodes) (byLevel[level[n.id]] ??= []).push(n);
-  const maxRowWidth = Math.max(1, ...Object.values(byLevel).map((r) => r.length));
 
   return nodes.map((n) => {
     const lv = level[n.id];
-    const row = byLevel[lv];
-    const idx = row.indexOf(n);
-    // Centre each row against the widest row.
-    const offset = (maxRowWidth - row.length) / 2;
+    const col = byLevel[lv];
+    const idx = col.indexOf(n);
+    // Centre this column's siblings around LAYOUT_MID.
+    const y = LAYOUT_MID + (idx - (col.length - 1) / 2) * LAYOUT_Y;
     return {
       ...n,
-      position: {
-        x: LAYOUT_X0 + (idx + offset) * LAYOUT_X,
-        y: LAYOUT_Y0 + lv * LAYOUT_Y,
-      },
+      position: { x: LAYOUT_X0 + lv * LAYOUT_X, y },
     };
   });
 }
