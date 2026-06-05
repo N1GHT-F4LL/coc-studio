@@ -28,7 +28,7 @@ import { BlockNode, type BlockNodeData } from "./canvas/BlockNode";
 import { parseHandle } from "./canvas/handleId";
 import { kindColor } from "./canvas/kindColors";
 import { validateConnection } from "./canvas/validation";
-import { fromGraphDoc, toGraphDoc } from "./graph/serialize";
+import { fromGraphDoc, toGraphDoc, layoutGraphNodes } from "./graph/serialize";
 import { Palette } from "./panels/Palette";
 import { ParamPanel } from "./panels/ParamPanel";
 import { RunConsole } from "./panels/RunConsole";
@@ -256,6 +256,10 @@ export default function App() {
     setTimeout(refreshDevice, 2000);
   }, [nodes, edges, graphName, runner, refreshDevice]);
 
+  const onAutoLayout = useCallback(() => {
+    setNodes((ns) => layoutGraphNodes(ns, edgesRef.current));
+  }, [setNodes]);
+
   const onNew = useCallback(() => {
     setNodes([]);
     setEdges([]);
@@ -287,6 +291,7 @@ export default function App() {
         onLoad={doLoad}
         onSave={doSave}
         onNew={onNew}
+        onAutoLayout={onAutoLayout}
         running={runner.running}
         status={runner.status}
         onRun={onRun}

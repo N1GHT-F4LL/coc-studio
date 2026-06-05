@@ -79,3 +79,49 @@ export function fromGraphDoc(
   }
   return { nodes, edges };
 }
+
+// Auto-layout the block graph horizontally (suits a 16:9 screen): control flow
+// runs left-to-right, so a node's level = longest control-edge chain from a root
+// and becomes its column; siblings in a column stack vertically, centred on a
+// midline. Data edges are ignored for levelling so the control spine stays
+// straight.
+const G_X = 260; // horizontal gap between levels (columns)
+const G_Y = 130; // vertical gap between siblings in a column
+const G_X0 = 80;
+const G_MID = 300; // y midline each column is balanced around
+
+export function layoutGraphNodes(nodes: RFNode[], edges: Edge[]): RFNode[] {
+  // Control-edge predecessors only (handle ids start with "ctl").
+  const preds: Record<string, string[]> = {};
+  for (const n of nodes) preds[n.id] = [];
+  for (const e of edges) {
+    const isControl =
+      (e.sourceHandle?.startsWith("ctl") ?? false) || (e.targetHandle?.startsWith("ctl") ?? false);
+    if (isControl && preds[e.target]) preds[e.target].push(e.source);
+  }
+
+  const level: Record<string, number> = {};
+  const visiting = new Set<string>();
+  const levelOf = (id: string): number => {
+    if (level[id] !== undefined) return level[id];
+    if (visiting.has(id)) return 0; // cycle guard
+    visiting.add(id);
+    const ps = preds[id] ?? [];
+    const lv = ps.length ? Math.max(...ps.map(levelOf)) + 1 : 0;
+    visiting.delete(id);
+    level[id] = lv;
+    return lv;
+  };
+  for (const n of nodes) levelOf(n.id);
+
+  const byLevel: Record<number, RFNode[]> = {};
+  for (const n of nodes) (byLevel[level[n.id]] ??= []).push(n);
+
+  return nodes.map((n) => {
+    const lv = level[n.id];
+    const col = byLevel[lv];
+    const idx = col.indexOf(n);
+    const y = G_MID + (idx - (col.length - 1) / 2) * G_Y;
+    return { ...n, position: { x: G_X0 + lv * G_X, y } };
+  });
+}

@@ -11,6 +11,7 @@ interface Props {
   onLoad: (name: string) => void;
   onSave: () => void;
   onNew: () => void;
+  onAutoLayout: () => void;
   running: boolean;
   status: string; // runner status: "", "running", "ok", "error", "stopped", ...
   onRun: () => void;
@@ -45,6 +46,7 @@ export function TopBar({
   onLoad,
   onSave,
   onNew,
+  onAutoLayout,
   running,
   status,
   onRun,
@@ -112,6 +114,9 @@ export function TopBar({
           />
           <button onClick={onSave}>Save</button>
           <button onClick={onNew}>New</button>
+          <button onClick={onAutoLayout} title="Tidy node positions by control-flow order">
+            ⤓ Auto-layout
+          </button>
 
           <span className="toolbar-sep" />
 
