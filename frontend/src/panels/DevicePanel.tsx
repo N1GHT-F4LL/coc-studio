@@ -11,7 +11,7 @@ import {
   type DeviceStatus,
   type AdbDevice,
 } from "../api/client";
-import { wsUrl } from "../api/ws";
+import { useDeviceFrames } from "../device/DeviceStreamContext";
 
 // Human-readable explanation for each connection reason the backend reports.
 const REASON_TEXT: Record<string, string> = {
@@ -44,9 +44,17 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
   const [busy, setBusy] = useState<string>("");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
 
   const connected = !!device?.connected;
+
+  // Live screen via the shared device stream (one WS for the whole app).
+  useDeviceFrames((bmp) => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    cv.width = bmp.width;
+    cv.height = bmp.height;
+    cv.getContext("2d")?.drawImage(bmp, 0, 0);
+  });
   const isCustom = profile === "custom_endpoint";
   const hasEmulator = !isCustom && profile !== "usb_or_existing" && profile !== "";
 
@@ -69,30 +77,6 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
     // Auto-scan once on entering the tab so the list is ready.
     runScan().catch(() => {});
   }, [runScan]);
-
-  // Live screen preview while connected.
-  useEffect(() => {
-    if (!connected) {
-      wsRef.current?.close();
-      wsRef.current = null;
-      return;
-    }
-    const ws = new WebSocket(wsUrl("/ws/device?fps=3"));
-    ws.binaryType = "arraybuffer";
-    wsRef.current = ws;
-    ws.onmessage = async (e) => {
-      if (typeof e.data === "string") return;
-      const bmp = await createImageBitmap(new Blob([e.data], { type: "image/jpeg" }));
-      const cv = canvasRef.current;
-      if (cv) {
-        cv.width = bmp.width;
-        cv.height = bmp.height;
-        cv.getContext("2d")?.drawImage(bmp, 0, 0);
-      }
-      bmp.close();
-    };
-    return () => ws.close();
-  }, [connected]);
 
   const saveProfile = useCallback(
     async (p: string, ep: string) => {

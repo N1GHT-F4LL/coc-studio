@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { wsUrl } from "../api/ws";
 import { fetchAssetCategories, saveCrop, type AssetCategory } from "../api/client";
+import { useDeviceStream } from "../device/DeviceStreamContext";
 
 interface Props {
   // When set, the next click (Coord) / drag (Region) on the frame picks a value.
@@ -20,57 +20,34 @@ interface Rect {
 // Doubles as the picker (Coord/Region for params) and the asset studio (crop a
 // region of the live screen and save it as a template).
 export function DeviceView({ pickKind, onPick, onAssetSaved }: Props) {
-  const [on, setOn] = useState(false);
-  const [info, setInfo] = useState("off");
+  const { connected, goToDevice, subscribe } = useDeviceStream();
   const [assetMode, setAssetMode] = useState(false);
   const [dispRect, setDispRect] = useState<Rect | null>(null); // overlay, display px
   const [pending, setPending] = useState<{ region: number[] } | null>(null);
   const [cats, setCats] = useState<AssetCategory[]>([]);
   const [folder, setFolder] = useState("units/troops");
   const [assetName, setAssetName] = useState("");
+  const [info, setInfo] = useState("");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     fetchAssetCategories().then(setCats).catch(() => setCats([]));
   }, []);
 
-  useEffect(() => {
-    if (!on) {
-      wsRef.current?.close();
-      wsRef.current = null;
-      return;
-    }
-    const ws = new WebSocket(wsUrl("/ws/device?fps=4"));
-    ws.binaryType = "arraybuffer";
-    wsRef.current = ws;
-    setInfo("connecting…");
-    ws.onopen = () => setInfo("streaming");
-    ws.onclose = () => setInfo("off");
-    ws.onerror = () => setInfo("error");
-    ws.onmessage = async (e) => {
-      if (typeof e.data === "string") {
-        try {
-          const m = JSON.parse(e.data);
-          if (m.type === "no_frame") setInfo(`no frame (${m.reason})`);
-        } catch {
-          /* ignore */
-        }
-        return;
-      }
-      const bmp = await createImageBitmap(new Blob([e.data], { type: "image/jpeg" }));
-      const cv = canvasRef.current;
-      if (cv) {
+  // Draw frames from the shared device stream (one WS for the whole app).
+  useEffect(
+    () =>
+      subscribe((bmp) => {
+        const cv = canvasRef.current;
+        if (!cv) return;
         cv.width = bmp.width;
         cv.height = bmp.height;
         cv.getContext("2d")?.drawImage(bmp, 0, 0);
-      }
-      bmp.close();
-    };
-    return () => ws.close();
-  }, [on]);
+      }),
+    [subscribe]
+  );
 
   const picking = pickKind !== null || assetMode;
 
@@ -141,8 +118,7 @@ export function DeviceView({ pickKind, onPick, onAssetSaved }: Props) {
     <div className="device-view">
       <div className="device-bar">
         <span>Device</span>
-        <button onClick={() => setOn((v) => !v)}>{on ? "Disconnect" : "Connect"}</button>
-        {on && (
+        {connected && (
           <button
             className={assetMode ? "active" : ""}
             onClick={() => setAssetMode((v) => !v)}
@@ -164,6 +140,12 @@ export function DeviceView({ pickKind, onPick, onAssetSaved }: Props) {
           onMouseMove={onMove}
           onMouseUp={onUp}
         />
+        {!connected && (
+          <div className="device-offline">
+            <div className="muted">Chưa kết nối thiết bị.</div>
+            <button onClick={goToDevice}>Mở tab Device</button>
+          </div>
+        )}
         {dispRect && (
           <div
             className="crop-rect"

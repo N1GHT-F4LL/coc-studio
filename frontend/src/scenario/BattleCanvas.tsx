@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { wsUrl } from "../api/ws";
+import { useDeviceStream } from "../device/DeviceStreamContext";
 
 export type PickMode = "points" | "line" | null;
 
@@ -23,13 +23,11 @@ export function BattleCanvas({
   overlayPoints,
   overlayLine,
 }: Props) {
-  const [on, setOn] = useState(false);
-  const [info, setInfo] = useState("off");
+  const { connected, goToDevice, subscribe } = useDeviceStream();
   const [drag, setDrag] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(
     null
   );
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const lastFrame = useRef<ImageBitmap | null>(null);
 
@@ -39,11 +37,6 @@ export function BattleCanvas({
     const ctx = cv?.getContext("2d");
     if (!cv || !ctx) return;
     if (lastFrame.current) ctx.drawImage(lastFrame.current, 0, 0, cv.width, cv.height);
-    const sx = cv.width;
-    const sy = cv.height;
-    // device px -> canvas px (canvas already at device resolution, so 1:1)
-    void sx;
-    void sy;
     ctx.lineWidth = 3;
     if (overlayLine) {
       const [x1, y1, x2, y2] = overlayLine;
@@ -68,44 +61,25 @@ export function BattleCanvas({
     }
   };
 
-  useEffect(() => {
-    if (!on) {
-      wsRef.current?.close();
-      wsRef.current = null;
-      return;
-    }
-    const ws = new WebSocket(wsUrl("/ws/device?fps=4"));
-    ws.binaryType = "arraybuffer";
-    wsRef.current = ws;
-    setInfo("connecting…");
-    ws.onopen = () => setInfo("streaming");
-    ws.onclose = () => setInfo("off");
-    ws.onerror = () => setInfo("error");
-    ws.onmessage = async (e) => {
-      if (typeof e.data === "string") {
-        try {
-          const m = JSON.parse(e.data);
-          if (m.type === "no_frame") setInfo(`no frame (${m.reason})`);
-        } catch {
-          /* ignore */
-        }
-        return;
-      }
-      const bmp = await createImageBitmap(new Blob([e.data], { type: "image/jpeg" }));
-      const cv = canvasRef.current;
-      if (cv) {
+  // Draw frames from the shared device stream. The provider closes the bitmap
+  // right after the callback, so clone it (createImageBitmap) to keep a copy for
+  // overlay-only redraws between frames.
+  useEffect(
+    () =>
+      subscribe((bmp) => {
+        const cv = canvasRef.current;
+        if (!cv) return;
         cv.width = bmp.width;
         cv.height = bmp.height;
-        lastFrame.current?.close();
-        lastFrame.current = bmp;
-        redraw();
-      } else {
-        bmp.close();
-      }
-    };
-    return () => ws.close();
+        createImageBitmap(bmp).then((copy) => {
+          lastFrame.current?.close();
+          lastFrame.current = copy;
+          redraw();
+        });
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [on]);
+    [subscribe]
+  );
 
   // Redraw overlay when it changes (even between frames).
   useEffect(redraw, [overlayPoints, overlayLine, drag]);
@@ -147,9 +121,8 @@ export function BattleCanvas({
     <div className="battle-canvas">
       <div className="device-bar">
         <span>Battle view</span>
-        <button onClick={() => setOn((v) => !v)}>{on ? "Disconnect" : "Connect"}</button>
         <span className="muted device-info">
-          {pickMode ? `pick ${pickMode}…` : info}
+          {connected ? (pickMode ? `pick ${pickMode}…` : "streaming") : "chưa kết nối"}
         </span>
       </div>
       <div className={`device-stage${pickMode ? " picking" : ""}`}>
@@ -160,7 +133,12 @@ export function BattleCanvas({
           onMouseMove={onMove}
           onMouseUp={onUp}
         />
-        {!on && <div className="battle-hint muted">Connect to pick deploy coordinates.</div>}
+        {!connected && (
+          <div className="device-offline">
+            <div className="muted">Chưa kết nối thiết bị.</div>
+            <button onClick={goToDevice}>Mở tab Device</button>
+          </div>
+        )}
       </div>
     </div>
   );

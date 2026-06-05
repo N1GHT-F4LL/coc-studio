@@ -36,6 +36,7 @@ import { DeviceView } from "./panels/DeviceView";
 import { TopBar, type AppMode } from "./panels/TopBar";
 import { ScenarioEditor } from "./scenario/ScenarioEditor";
 import { DevicePanel } from "./panels/DevicePanel";
+import { DeviceStreamProvider } from "./device/DeviceStreamContext";
 import { RunStateContext } from "./run/RunStateContext";
 import { useRunner } from "./run/useRunner";
 
@@ -276,6 +277,10 @@ export default function App() {
         message={status}
       />
 
+      <DeviceStreamProvider
+        connected={!!device?.connected}
+        onGotoDevice={() => setMode("device")}
+      >
       {mode === "scenario" && <ScenarioEditor onStatus={setStatus} />}
       {mode === "device" && (
         <DevicePanel device={device} onStatus={setDevice} onMessage={setStatus} />
@@ -364,6 +369,7 @@ export default function App() {
           />
         </div>
       </div>
+      </DeviceStreamProvider>
     </div>
   );
 }
