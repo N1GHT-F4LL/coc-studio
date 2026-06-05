@@ -50,6 +50,28 @@ export async function deleteGraph(name: string): Promise<void> {
   );
 }
 
+// --- device ----------------------------------------------------------------
+export interface DeviceStatus {
+  connected: boolean;
+  available: boolean;
+  serial: string | null;
+  profile: string | null;
+  assets_loaded: boolean;
+  reason: string | null;
+}
+
+export async function deviceStatus(): Promise<DeviceStatus> {
+  return json<DeviceStatus>(await fetch("/api/device/status"));
+}
+
+export async function connectDevice(): Promise<{
+  ok: boolean;
+  reason: string;
+  status: DeviceStatus;
+}> {
+  return json(await fetch("/api/device/connect", { method: "POST" }));
+}
+
 // --- assets ----------------------------------------------------------------
 export interface AssetCategory {
   label: string;

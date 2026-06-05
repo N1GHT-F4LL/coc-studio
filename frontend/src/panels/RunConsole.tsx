@@ -6,8 +6,6 @@ interface Props {
   status: string;
   logs: LogLine[];
   vars: Record<string, unknown>;
-  onStart: () => void;
-  onStop: () => void;
   onClear: () => void;
 }
 
@@ -20,7 +18,7 @@ const statusColor: Record<string, string> = {
   running: "#2b7de0",
 };
 
-export function RunConsole({ running, status, logs, vars, onStart, onStop, onClear }: Props) {
+export function RunConsole({ running, status, logs, vars, onClear }: Props) {
   const logRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -31,22 +29,16 @@ export function RunConsole({ running, status, logs, vars, onStart, onStop, onCle
   return (
     <div className="run-console">
       <div className="run-bar">
-        <button className="run" onClick={onStart} disabled={running}>
-          ▶ Run
-        </button>
-        <button className="stop" onClick={onStop} disabled={!running}>
-          ■ Stop
-        </button>
-        <button onClick={onClear} disabled={running}>
-          Clear
-        </button>
+        <span className="run-title">Run console</span>
         {status && (
           <span className="run-status" style={{ color: statusColor[status] ?? "#8b929c" }}>
             {running ? "● " : ""}
             {status}
           </span>
         )}
-        <span className="run-title">Run console</span>
+        <button onClick={onClear} disabled={running} style={{ marginLeft: "auto" }}>
+          Clear
+        </button>
       </div>
       <div className="run-body">
         <div className="run-logs" ref={logRef}>

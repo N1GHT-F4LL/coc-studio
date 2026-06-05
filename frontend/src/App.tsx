@@ -20,6 +20,9 @@ import {
   saveGraph,
   fetchAssets,
   listScenarios,
+  deviceStatus,
+  connectDevice,
+  type DeviceStatus,
 } from "./api/client";
 import type { BlockSpec } from "./blocks/types";
 import { BlockNode, type BlockNodeData } from "./canvas/BlockNode";
@@ -31,6 +34,7 @@ import { Palette } from "./panels/Palette";
 import { ParamPanel } from "./panels/ParamPanel";
 import { RunConsole } from "./panels/RunConsole";
 import { DeviceView } from "./panels/DeviceView";
+import { TopBar } from "./panels/TopBar";
 import { RunStateContext } from "./run/RunStateContext";
 import { useRunner } from "./run/useRunner";
 
@@ -48,7 +52,13 @@ export default function App() {
   const [scenarios, setScenarios] = useState<string[]>([]);
   const [pickReq, setPickReq] = useState<{ port: string; kind: "Coord" | "Region" } | null>(null);
   const [dockTab, setDockTab] = useState<"console" | "device">("console");
+  const [device, setDevice] = useState<DeviceStatus | null>(null);
   const runner = useRunner();
+
+  const refreshDevice = useCallback(
+    () => deviceStatus().then(setDevice).catch(() => setDevice(null)),
+    []
+  );
 
   const rfRef = useRef<ReactFlowInstance | null>(null);
   const idSeq = useRef(0);
@@ -69,6 +79,13 @@ export default function App() {
     fetchAssets().then(setAssets).catch(() => setAssets([]));
     listScenarios().then(setScenarios).catch(() => setScenarios([]));
   }, []);
+
+  // Poll device status for the top-bar light.
+  useEffect(() => {
+    refreshDevice();
+    const id = setInterval(refreshDevice, 3000);
+    return () => clearInterval(id);
+  }, [refreshDevice]);
 
   const refreshAssets = () => fetchAssets().then(setAssets).catch(() => setAssets([]));
 
@@ -214,7 +231,28 @@ export default function App() {
     }
     setStatus("");
     runner.start(toGraphDoc(graphName.trim() || "untitled", nodes, edges));
-  }, [nodes, edges, graphName, runner]);
+    // Run connects the device itself; refresh the light shortly after.
+    setTimeout(refreshDevice, 2000);
+  }, [nodes, edges, graphName, runner, refreshDevice]);
+
+  const onConnectDevice = useCallback(async () => {
+    setStatus("Connecting device…");
+    try {
+      const res = await connectDevice();
+      setDevice(res.status);
+      setStatus(res.ok ? "Device connected." : `Connect failed: ${res.reason}`);
+    } catch (e) {
+      setStatus(`Connect failed: ${(e as Error).message}`);
+      refreshDevice();
+    }
+  }, [refreshDevice]);
+
+  const onNew = useCallback(() => {
+    setNodes([]);
+    setEdges([]);
+    setSelectedId(null);
+    setStatus("New graph.");
+  }, [setNodes, setEdges]);
 
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
   // Input ports of the selected node that are driven by a data edge (literal overridden).
@@ -231,39 +269,21 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="toolbar">
-        <strong>coc-studio</strong>
-        <input
-          className="graph-name"
-          value={graphName}
-          onChange={(e) => setGraphName(e.target.value)}
-          placeholder="graph name"
-        />
-        <button onClick={doSave}>Save</button>
-        <select
-          value=""
-          onChange={(e) => doLoad(e.target.value)}
-          title="Load a saved graph"
-        >
-          <option value="">Load…</option>
-          {savedGraphs.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={() => {
-            setNodes([]);
-            setEdges([]);
-            setSelectedId(null);
-            setStatus("New graph.");
-          }}
-        >
-          New
-        </button>
-        <span className="status">{status}</span>
-      </header>
+      <TopBar
+        graphName={graphName}
+        savedGraphs={savedGraphs}
+        onRename={setGraphName}
+        onLoad={doLoad}
+        onSave={doSave}
+        onNew={onNew}
+        running={runner.running}
+        status={runner.status}
+        onRun={onRun}
+        onStop={runner.stop}
+        device={device}
+        onConnectDevice={onConnectDevice}
+        message={status}
+      />
 
       <div className="body">
         <Palette blocks={blocks} onAdd={addBlock} />
@@ -312,8 +332,6 @@ export default function App() {
                   status={runner.status}
                   logs={runner.logs}
                   vars={runner.vars}
-                  onStart={onRun}
-                  onStop={runner.stop}
                   onClear={runner.clear}
                 />
               </div>
