@@ -28,7 +28,7 @@ function SourceSelect({
 }) {
   return (
     <select id={id} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
-      <option value="">— chọn —</option>
+      <option value="">— select —</option>
       {options.map((o) => (
         <option key={o} value={o}>
           {o}

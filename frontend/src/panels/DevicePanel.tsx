@@ -15,19 +15,19 @@ import { useDeviceFrames } from "../device/DeviceStreamContext";
 
 // Human-readable explanation for each connection reason the backend reports.
 const REASON_TEXT: Record<string, string> = {
-  connected: "Đã kết nối.",
-  already_connected: "Đã kết nối.",
-  not_connected: "Chưa kết nối.",
-  disconnected: "Đã ngắt kết nối.",
-  adb_unavailable: "Không tìm thấy adb trong PATH — cài Android platform-tools.",
-  device_unreachable: "Không tới được thiết bị — kiểm tra emulator đang chạy và serial đúng.",
-  device_setup_failed: "Bootstrap thất bại — thử Scan / Launch / đổi profile.",
+  connected: "Connected.",
+  already_connected: "Connected.",
+  not_connected: "Not connected.",
+  disconnected: "Disconnected.",
+  adb_unavailable: "adb not found in PATH — install Android platform-tools.",
+  device_unreachable: "Device unreachable — check the emulator is running and the serial is correct.",
+  device_setup_failed: "Bootstrap failed — try Scan / Launch / a different profile.",
 };
 
 const STATE_TEXT: Record<string, string> = {
-  device: "sẵn sàng",
-  offline: "offline — Scan lại hoặc khởi động lại emulator",
-  unauthorized: "chưa cấp quyền — mở khoá thiết bị, chấp nhận RSA",
+  device: "ready",
+  offline: "offline — Scan again or restart the emulator",
+  unauthorized: "unauthorized — unlock the device, accept the RSA prompt",
 };
 
 interface Props {
@@ -85,7 +85,7 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
         setProfiles((prev) => (prev ? { ...prev, current: p, endpoint: ep } : prev));
         onMessage(`Profile → ${p}.`);
       } catch (e) {
-        onMessage(`Lưu profile lỗi: ${(e as Error).message}`);
+        onMessage(`Save profile failed: ${(e as Error).message}`);
       }
     },
     [onMessage]
@@ -93,12 +93,12 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
 
   const doScan = useCallback(async () => {
     setBusy("scan");
-    onMessage("Đang quét thiết bị…");
+    onMessage("Scanning devices…");
     try {
       const ds = await runScan();
-      onMessage(ds.length ? `Tìm thấy ${ds.length} thiết bị.` : "Không thấy thiết bị nào.");
+      onMessage(ds.length ? `Found ${ds.length} device(s).` : "No devices found.");
     } catch (e) {
-      onMessage(`Scan lỗi: ${(e as Error).message}`);
+      onMessage(`Scan failed: ${(e as Error).message}`);
     } finally {
       setBusy("");
     }
@@ -106,13 +106,13 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
 
   const doLaunch = useCallback(async () => {
     setBusy("launch");
-    onMessage("Đang khởi động emulator (đợi ~12s)…");
+    onMessage("Launching emulator (wait ~12s)…");
     try {
       await launchEmulator();
       await runScan();
-      onMessage("Đã gọi khởi động emulator.");
+      onMessage("Emulator launch requested.");
     } catch (e) {
-      onMessage(`Launch lỗi: ${(e as Error).message}`);
+      onMessage(`Launch failed: ${(e as Error).message}`);
     } finally {
       setBusy("");
     }
@@ -123,23 +123,23 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
   // hint to Launch.
   const doConnect = useCallback(async () => {
     setBusy("connect");
-    onMessage("Đang kết nối…");
+    onMessage("Connecting…");
     try {
       const ds = await runScan();
       const ready = ds.filter((d) => d.state === "device");
       if (ready.length === 0) {
         onMessage(
           hasEmulator
-            ? "Chưa thấy thiết bị — bấm Launch emulator rồi thử lại."
-            : "Chưa thấy thiết bị adb nào — kiểm tra emulator/endpoint."
+            ? "No device yet — click Launch emulator then try again."
+            : "No adb device found — check the emulator / endpoint."
         );
         return;
       }
       const res = await connectDevice();
       onStatus(res.status);
-      onMessage(res.ok ? "Đã kết nối." : `Thất bại: ${REASON_TEXT[res.reason] ?? res.reason}`);
+      onMessage(res.ok ? "Connected." : `Failed: ${REASON_TEXT[res.reason] ?? res.reason}`);
     } catch (e) {
-      onMessage(`Kết nối lỗi: ${(e as Error).message}`);
+      onMessage(`Connect failed: ${(e as Error).message}`);
     } finally {
       setBusy("");
     }
@@ -149,9 +149,9 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
     try {
       const res = await disconnectDevice();
       onStatus(res.status);
-      onMessage("Đã ngắt kết nối.");
+      onMessage("Disconnected.");
     } catch (e) {
-      onMessage(`Ngắt lỗi: ${(e as Error).message}`);
+      onMessage(`Disconnect failed: ${(e as Error).message}`);
     }
   }, [onMessage, onStatus]);
 
@@ -160,9 +160,9 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
       try {
         const res = await selectSerial(serial);
         onStatus(res.status);
-        onMessage(`Đã chọn serial ${serial}.`);
+        onMessage(`Selected serial ${serial}.`);
       } catch (e) {
-        onMessage(`Chọn serial lỗi: ${(e as Error).message}`);
+        onMessage(`Select serial failed: ${(e as Error).message}`);
       }
     },
     [onMessage, onStatus]
@@ -205,20 +205,20 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
               disabled={busy === "launch"}
               style={{ marginTop: 6 }}
             >
-              {busy === "launch" ? "Đang khởi động…" : "Launch emulator"}
+              {busy === "launch" ? "Launching…" : "Launch emulator"}
             </button>
           )}
         </div>
 
         <div className="device-step">
           <div className="device-step-title">
-            2 · Thiết bị
+            2 · Device
             <button className="inline-btn" onClick={doScan} disabled={busy === "scan"}>
               {busy === "scan" ? "…" : "↻ Scan"}
             </button>
           </div>
           {devices.length === 0 ? (
-            <div className="muted">Chưa thấy thiết bị. Bấm Scan.</div>
+            <div className="muted">No device yet. Click Scan.</div>
           ) : (
             <table className="device-table">
               <tbody>
@@ -227,7 +227,7 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
                     key={d.serial}
                     className={d.serial === device?.serial ? "selected" : ""}
                     onClick={() => pickSerial(d.serial)}
-                    title="Click để chọn serial này"
+                    title="Click to select this serial"
                   >
                     <td>
                       <span className={`dot ${d.state === "device" ? "on" : "warn"}`} />
@@ -242,9 +242,9 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
         </div>
 
         <div className="device-step">
-          <div className="device-step-title">3 · Kết nối</div>
+          <div className="device-step-title">3 · Connect</div>
           <button className="run device-wide" onClick={doConnect} disabled={busy === "connect"}>
-            {busy === "connect" ? "Đang kết nối…" : "▶ Connect"}
+            {busy === "connect" ? "Connecting…" : "▶ Connect"}
           </button>
           <button
             className="device-wide"
@@ -261,7 +261,7 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
       <div className="device-content">
         <div className="device-statusbar">
           <span className={`dot ${connected ? "on" : "off"}`} />
-          <strong>{connected ? "Đã kết nối" : "Chưa kết nối"}</strong>
+          <strong>{connected ? "Connected" : "Not connected"}</strong>
           {device?.serial ? <span className="muted">· {device.serial}</span> : null}
           {device?.profile ? <span className="muted">· {device.profile}</span> : null}
           {device?.reason && REASON_TEXT[device.reason] ? (
@@ -275,7 +275,7 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
             <canvas ref={canvasRef} className="device-screen-canvas" />
           ) : (
             <div className="muted device-screen-empty">
-              Kết nối thiết bị để xem màn hình trực tiếp.
+              Connect a device to see the live screen.
             </div>
           )}
         </div>

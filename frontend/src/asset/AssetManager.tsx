@@ -77,7 +77,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
     try {
       const u = await assetUsage(key);
       const refs = [...u.graphs.map((g) => `graph ${g}`), ...u.scenarios.map((s) => `scenario ${s}`)];
-      if (refs.length) extra = `\n\nĐang được dùng ở:\n• ${refs.join("\n• ")}\n→ sẽ orphan reference.`;
+      if (refs.length) extra = `\n\nCurrently used by:\n• ${refs.join("\n• ")}\n→ this will orphan the reference.`;
     } catch {
       /* usage scan best-effort */
     }
@@ -88,32 +88,32 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
     if (!selected) return;
     const key = `${editFolder}/${editName}`;
     if (key === selected) {
-      onMessage("Tên/category không đổi.");
+      onMessage("Name/category unchanged.");
       return;
     }
-    if (!(await confirmWithUsage(selected, "Đổi tên/category"))) return;
+    if (!(await confirmWithUsage(selected, "Rename / recategorise"))) return;
     try {
       const res = await moveAsset(selected, editFolder, editName);
-      onMessage(`Đã đổi → ${res.key}.`);
+      onMessage(`Moved → ${res.key}.`);
       await refresh();
       onAssetsChanged();
       setSelected(res.key);
     } catch (e) {
-      onMessage(`Đổi tên lỗi: ${(e as Error).message}`);
+      onMessage(`Rename failed: ${(e as Error).message}`);
     }
   };
 
   const doDelete = async () => {
     if (!selected) return;
-    if (!(await confirmWithUsage(selected, "Xoá asset"))) return;
+    if (!(await confirmWithUsage(selected, "Delete asset"))) return;
     try {
       await deleteAsset(selected);
-      onMessage(`Đã xoá ${selected}.`);
+      onMessage(`Deleted ${selected}.`);
       setSelected(null);
       await refresh();
       onAssetsChanged();
     } catch (e) {
-      onMessage(`Xoá lỗi: ${(e as Error).message}`);
+      onMessage(`Delete failed: ${(e as Error).message}`);
     }
   };
 
@@ -131,7 +131,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
     if (!pendingRegion) return;
     try {
       const res = await saveCrop(pendingRegion, newFolder, newName);
-      onMessage(`Đã lưu ${res.key} (${res.width}×${res.height}).`);
+      onMessage(`Saved ${res.key} (${res.width}×${res.height}).`);
       setPendingRegion(null);
       setMode("idle");
       if (mode !== "replace") setNewName("");
@@ -139,9 +139,11 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
       onAssetsChanged();
       setSelected(res.key);
     } catch (e) {
-      onMessage(`Lưu lỗi: ${(e as Error).message}`);
+      onMessage(`Save failed: ${(e as Error).message}`);
     }
   };
+
+  const capturing = mode !== "idle"; // capture/replace takes over the centre area
 
   return (
     <div className="asset-tab">
@@ -149,7 +151,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
       <aside className="asset-sidebar">
         <div className="asset-side-title">Categories</div>
         <button className={cat === "" ? "active" : ""} onClick={() => setCat("")}>
-          Tất cả ({assets.length})
+          All ({assets.length})
         </button>
         {cats.map((c) => {
           const n = assets.filter((a) => a.startsWith(c.folder + "/")).length;
@@ -165,39 +167,56 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
         })}
       </aside>
 
-      {/* Grid: thumbnails */}
+      {/* Centre: thumbnail grid, OR the live device crop surface while capturing. */}
       <div className="asset-grid-wrap">
         <div className="asset-grid-bar">
-          <span>{shown.length} asset</span>
-          <button className="run" onClick={() => { setMode("capture"); setPendingRegion(null); }}>
-            + Capture từ device
-          </button>
+          {capturing ? (
+            <>
+              <span>{mode === "replace" ? `Replace ${selected}` : "Capture a new asset"} — drag a rectangle on the screen</span>
+              <button onClick={() => { setMode("idle"); setPendingRegion(null); }}>Cancel</button>
+            </>
+          ) : (
+            <>
+              <span>{shown.length} assets</span>
+              <button
+                className="run"
+                onClick={() => { setMode("capture"); setPendingRegion(null); setNewName(""); }}
+              >
+                + Capture from device
+              </button>
+            </>
+          )}
         </div>
-        <div className="asset-grid">
-          {shown.map((key) => (
-            <button
-              key={key}
-              className={`asset-cell${selected === key ? " active" : ""}`}
-              onClick={() => select(key)}
-              title={key}
-            >
-              <img src={thumbUrl(key)} alt={key} loading="lazy" />
-              <span className="asset-cell-name">{splitKey(key)[1]}</span>
-            </button>
-          ))}
-          {shown.length === 0 && <div className="muted">Không có asset trong mục này.</div>}
-        </div>
+        {capturing ? (
+          <div className="asset-capture-stage">
+            <DeviceCanvas mode="crop" onCrop={onCrop} label="Crop" />
+          </div>
+        ) : (
+          <div className="asset-grid">
+            {shown.map((key) => (
+              <button
+                key={key}
+                className={`asset-cell${selected === key ? " active" : ""}`}
+                onClick={() => select(key)}
+                title={key}
+              >
+                <img src={thumbUrl(key)} alt={key} loading="lazy" />
+                <span className="asset-cell-name">{splitKey(key)[1]}</span>
+              </button>
+            ))}
+            {shown.length === 0 && <div className="muted">No assets in this category.</div>}
+          </div>
+        )}
       </div>
 
       {/* Detail / actions */}
       <aside className="asset-detail">
-        {mode !== "idle" ? (
+        {capturing ? (
           <>
             <div className="asset-side-title">
-              {mode === "replace" ? `Replace ${selected}` : "Capture asset mới"}
+              {mode === "replace" ? "Replace image" : "New asset"}
             </div>
-            <DeviceCanvas mode="crop" onCrop={onCrop} label="Crop" />
-            {pendingRegion && (
+            {pendingRegion ? (
               <div className="asset-form">
                 <div className="muted">region {pendingRegion.join(", ")}</div>
                 <label className="field">
@@ -209,20 +228,22 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
                   </select>
                 </label>
                 <label className="field">
-                  <span>Tên</span>
+                  <span>Name</span>
                   <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="asset name" />
                 </label>
                 <div className="field-row">
                   <button className="run" disabled={!newName || !newFolder} onClick={doSaveCrop}>
-                    Lưu asset
+                    Save asset
                   </button>
-                  <button onClick={() => { setMode("idle"); setPendingRegion(null); }}>Huỷ</button>
+                  <button onClick={() => { setMode("idle"); setPendingRegion(null); }}>Cancel</button>
                 </div>
               </div>
+            ) : (
+              <div className="muted">Drag a rectangle on the device screen to capture a region.</div>
             )}
           </>
         ) : !selected ? (
-          <div className="muted">Chọn 1 asset để xem / sửa, hoặc Capture asset mới.</div>
+          <div className="muted">Select an asset to view / edit, or capture a new one.</div>
         ) : (
           <>
             <div className="asset-side-title">{splitKey(selected)[1]}</div>
@@ -231,7 +252,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
               <span className="muted">key</span> {selected}
             </div>
             <label className="field">
-              <span>Tên</span>
+              <span>Name</span>
               <input value={editName} onChange={(e) => setEditName(e.target.value)} />
             </label>
             <label className="field">
@@ -243,10 +264,10 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
               </select>
             </label>
             <div className="field-row">
-              <button onClick={doRename}>Đổi tên / category</button>
-              <button onClick={() => { setMode("replace"); setPendingRegion(null); }}>Replace ảnh</button>
+              <button onClick={doRename}>Rename / category</button>
+              <button onClick={() => { setMode("replace"); setPendingRegion(null); }}>Replace image</button>
             </div>
-            <button className="danger" onClick={doDelete}>Xoá asset</button>
+            <button className="danger" onClick={doDelete}>Delete asset</button>
           </>
         )}
       </aside>

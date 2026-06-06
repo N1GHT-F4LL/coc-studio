@@ -161,7 +161,7 @@ export function DeviceCanvas({
     }
   };
 
-  const barInfo = info ?? (connected ? (picking ? `pick ${mode}…` : "streaming") : "chưa kết nối");
+  const barInfo = info ?? (connected ? (picking ? `pick ${mode}…` : "streaming") : "not connected");
 
   return (
     <div className="device-view">
@@ -179,8 +179,8 @@ export function DeviceCanvas({
         />
         {!connected && (
           <div className="device-offline">
-            <div className="muted">Chưa kết nối thiết bị.</div>
-            <button onClick={goToDevice}>Mở tab Device</button>
+            <div className="muted">Device not connected.</div>
+            <button onClick={goToDevice}>Open Device tab</button>
           </div>
         )}
       </div>
