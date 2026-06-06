@@ -162,7 +162,9 @@ const A_MAX = 72;    // flank box max angle (deg from vertical; <90 so the lowes
 const BW = 54;       // representative box width, for even edge spacing
 const BH = 22;       // representative box height
 const GAP = 4;       // target edge gap between adjacent callouts (kept constant)
-const R_ONE = 64;    // arc radius when a wing holds a single box
+const R_ONE = 70;    // arc radius when a wing holds a single box
+const SOLO_A = 42;   // angle for a wing's only box (chosen so a 1-per-side node
+                     // sits up-and-out, not chevroned tight at the apex)
 const R_CAP = 200;   // safety clamp on the computed radius (keeps leaders short)
 const LONE_OFF = 64; // offset for a single callout sitting straight off the edge
 const HSEG = 18;     // length of the horizontal leader segment into the box
@@ -177,7 +179,7 @@ const RAD = Math.PI / 180;
 // is solved (binary search) so those uneven angular steps span exactly A0..A_MAX
 // for the given box count; equal angles would instead give uneven visual gaps.
 function wingAngles(n: number): { angles: number[]; R: number } {
-  if (n <= 1) return { angles: [A0 * RAD], R: R_ONE };
+  if (n <= 1) return { angles: [SOLO_A * RAD], R: R_ONE };
   const stepDeg = (a: number, R: number) =>
     (BW * Math.abs(Math.cos(a * RAD)) + BH * Math.abs(Math.sin(a * RAD)) + GAP) / R / RAD;
   const span = (R: number) => {
