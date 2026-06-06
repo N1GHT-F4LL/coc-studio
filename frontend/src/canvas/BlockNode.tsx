@@ -143,24 +143,59 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
 export const BlockNode = memo(BlockNodeImpl);
 
 // --- port callouts ---------------------------------------------------------
-// Modern callouts: pill labels arched over the node on the SAME side as the
-// ports — inputs (top edge) bow upward, outputs (bottom edge) downward. Ports
-// split left/right of centre; on each wing the box nearest the node centre sits
-// closest in (rank 0), and ranks step out along a convex arc: an even vertical
-// pitch (so boxes never overlap) with a horizontal offset that eases out (grows
-// fast low, then flattens) and is capped, so the lower boxes splay toward their
-// side while the upper boxes stand upright and hug — a canopy that wraps the
-// node instead of shooting straight out to its flanks. The cluster auto-sizes
-// to the port count. Each port joins its box with an elbow leader (diagonal
-// rib, then a short horizontal segment); ribs only travel away from the edge,
-// so they never cross the node body.
+// Modern callouts: pill labels arranged as a half-ring (rainbow) over the node
+// on the SAME side as the ports — inputs (top edge) above, outputs (bottom edge)
+// below. Ports split left/right of centre; on each wing the boxes sit at EQUAL
+// angular steps on a circular arc, so the box nearest the node centre rides the
+// apex (farthest from the node, near the centreline) and each rank steps an even
+// angle down-and-out toward the flank (lowest, closest to the node). Equal
+// angles make the dome look uniform. The radius is sized to the port count so
+// the apex pair clears vertically (no overlap) — the wider the fan, the larger
+// the ring. Each port joins its box with an elbow leader (diagonal rib, then a
+// short horizontal segment); ribs only travel away from the edge, so they never
+// cross the node body.
 import type { PortSpec } from "../blocks/types";
 
-const V0 = 50;     // vertical offset of the innermost box from the edge
-const VS = 34;     // vertical pitch per rank outward (>= box height, no overlap)
-const X0 = 56;     // horizontal offset of the innermost box from the node centre
-const XSPAN = 96;  // max extra horizontal offset (capped so boxes stay off the flank)
-const HSEG = 18;   // length of the horizontal leader segment into the box
+const A0 = 18;       // apex box angle (deg from vertical)
+const A_MAX = 72;    // flank box max angle (deg from vertical; <90 so the lowest
+                     // boxes lift off the edge instead of lying flat at 180°)
+const BW = 54;       // representative box width, for even edge spacing
+const BH = 22;       // representative box height
+const GAP = 4;       // target edge gap between adjacent callouts (kept constant)
+const R_ONE = 64;    // arc radius when a wing holds a single box
+const R_CAP = 200;   // safety clamp on the computed radius (keeps leaders short)
+const LONE_OFF = 64; // offset for a single callout sitting straight off the edge
+const HSEG = 18;     // length of the horizontal leader segment into the box
+const RAD = Math.PI / 180;
+
+// Even-gap placement: walk the arc from the apex outward, advancing each step by
+// the angle that keeps a CONSTANT edge gap between adjacent boxes. Because the
+// boxes are wide pills, the gap-preserving angular step is large near the apex
+// (boxes sit side-by-side, separated by their width) and small at the flank
+// (boxes stack vertically, separated by their short height) — the rectangle's
+// support length W·|cos a| + H·|sin a| projected on the arc tangent. The radius
+// is solved (binary search) so those uneven angular steps span exactly A0..A_MAX
+// for the given box count; equal angles would instead give uneven visual gaps.
+function wingAngles(n: number): { angles: number[]; R: number } {
+  if (n <= 1) return { angles: [A0 * RAD], R: R_ONE };
+  const stepDeg = (a: number, R: number) =>
+    (BW * Math.abs(Math.cos(a * RAD)) + BH * Math.abs(Math.sin(a * RAD)) + GAP) / R / RAD;
+  const span = (R: number) => {
+    let a = A0;
+    for (let k = 1; k < n; k++) a += stepDeg(a, R);
+    return a; // final flank angle for this radius
+  };
+  // Larger R => smaller steps => smaller final angle, so span() is monotonic.
+  let lo = 40, hi = 2000;
+  for (let it = 0; it < 50; it++) {
+    const mid = (lo + hi) / 2;
+    if (span(mid) > A_MAX) lo = mid; else hi = mid;
+  }
+  const R = Math.min(R_CAP, hi);
+  const angles = [A0];
+  for (let k = 1; k < n; k++) angles.push(angles[k - 1] + stepDeg(angles[k - 1], R));
+  return { angles: angles.map((d) => d * RAD), R };
+}
 
 // `dir = -1` floats the boxes above the node (top/input ports), `dir = +1`
 // below (bottom/output ports). cx is the node centre x in node-local coords.
@@ -179,23 +214,15 @@ function CalloutFan({
 
   // A lone callout sits straight off the edge.
   if (items.length === 1) {
-    return <Callout {...items[0]} py={edgeY} bx={cx} by={edgeY + dir * V0} sign={0} />;
+    return <Callout {...items[0]} py={edgeY} bx={cx} by={edgeY + dir * LONE_OFF} sign={0} />;
   }
 
-  // Rank each wing from the centre outward. Vertical pitch is even; the
-  // horizontal offset eases out via sin() so the arc is convex (hugs at the top,
-  // splays at the bottom) rather than a straight diagonal.
+  // rank 0 = nearest the centre (apex); ranks step out to the flank.
   const place = (arr: typeof items, sign: -1 | 1) => {
-    const last = arr.length - 1;
+    const { angles, R } = wingAngles(arr.length);
     return arr.map(({ port, px }, rank) => {
-      const t = last > 0 ? rank / last : 0; // 0 (innermost) .. 1 (outermost)
-      return {
-        port,
-        px,
-        sign,
-        bx: cx + sign * (X0 + XSPAN * Math.sin((t * Math.PI) / 2)),
-        by: edgeY + dir * (V0 + rank * VS),
-      };
+      const a = angles[rank];
+      return { port, px, sign, bx: cx + sign * R * Math.sin(a), by: edgeY + dir * R * Math.cos(a) };
     });
   };
   const lefts = place(items.filter((it) => it.px < cx).sort((a, b) => b.px - a.px), -1);
