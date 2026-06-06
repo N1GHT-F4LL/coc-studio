@@ -27,6 +27,7 @@ router = APIRouter(prefix="/api/assets", tags=["assets"])
 CAT_TO_FOLDER = {
     "Troops": "units/troops",
     "Super Troops": "units/super_troops",
+    "Roster (train faces)": "units/roster",
     "Heroes": "units/heroes",
     "Spells": "units/spells",
     "Siege": "units/siege",
