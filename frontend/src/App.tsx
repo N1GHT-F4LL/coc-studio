@@ -32,9 +32,9 @@ import { fromGraphDoc, toGraphDoc, layoutGraphNodes } from "./graph/serialize";
 import { Palette } from "./panels/Palette";
 import { ParamPanel } from "./panels/ParamPanel";
 import { RunConsole } from "./panels/RunConsole";
-import { DeviceView } from "./panels/DeviceView";
 import { TopBar, type AppMode } from "./panels/TopBar";
 import { ScenarioEditor } from "./scenario/ScenarioEditor";
+import { AssetManager } from "./asset/AssetManager";
 import { DevicePanel } from "./panels/DevicePanel";
 import { DeviceStreamProvider } from "./device/DeviceStreamContext";
 import { RunStateContext } from "./run/RunStateContext";
@@ -52,8 +52,6 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [assets, setAssets] = useState<string[]>([]);
   const [scenarios, setScenarios] = useState<string[]>([]);
-  const [pickReq, setPickReq] = useState<{ port: string; kind: "Coord" | "Region" } | null>(null);
-  const [dockTab, setDockTab] = useState<"console" | "device">("console");
   const [device, setDevice] = useState<DeviceStatus | null>(null);
   const [mode, setMode] = useState<AppMode>("editor");
   const runner = useRunner();
@@ -305,6 +303,9 @@ export default function App() {
         onGotoDevice={() => setMode("device")}
       >
       {mode === "scenario" && <ScenarioEditor onStatus={setStatus} />}
+      {mode === "asset" && (
+        <AssetManager onMessage={setStatus} onAssetsChanged={refreshAssets} />
+      )}
       {mode === "device" && (
         <DevicePanel device={device} onStatus={setDevice} onMessage={setStatus} />
       )}
@@ -335,39 +336,16 @@ export default function App() {
           </div>
           <div className="dock">
             <div className="dock-tabs">
-              <button
-                className={dockTab === "console" ? "active" : ""}
-                onClick={() => setDockTab("console")}
-              >
-                Run console
-              </button>
-              <button
-                className={dockTab === "device" ? "active" : ""}
-                onClick={() => setDockTab("device")}
-              >
-                Device
-              </button>
+              <span className="dock-title">Run console</span>
             </div>
             <div className="dock-body">
-              {/* Both stay mounted (keep the device WS alive); toggle visibility. */}
-              <div className="dock-pane" style={{ display: dockTab === "console" ? "flex" : "none" }}>
+              <div className="dock-pane">
                 <RunConsole
                   running={runner.running}
                   status={runner.status}
                   logs={runner.logs}
                   vars={runner.vars}
                   onClear={runner.clear}
-                />
-              </div>
-              <div className="dock-pane" style={{ display: dockTab === "device" ? "flex" : "none" }}>
-                <DeviceView
-                  pickKind={pickReq?.kind ?? null}
-                  onPick={(value) => {
-                    if (pickReq && selectedNode) changeParam(selectedNode.id, pickReq.port, value);
-                    setPickReq(null);
-                    setStatus("");
-                  }}
-                  onAssetSaved={refreshAssets}
                 />
               </div>
             </div>
@@ -383,12 +361,6 @@ export default function App() {
             onChangeParam={changeParam}
             onChangeLabel={changeLabel}
             onDelete={deleteNode}
-            onPick={(port, kind) => {
-              if (!selectedNode) return;
-              setPickReq({ port, kind });
-              setDockTab("device"); // jump to the device view so the user can click
-              setStatus(`Pick ${kind} on the device view…`);
-            }}
           />
         </div>
       </div>

@@ -12,7 +12,6 @@ interface Props {
   onChangeParam: (nodeId: string, name: string, value: unknown) => void;
   onChangeLabel: (nodeId: string, label: string) => void;
   onDelete: (nodeId: string) => void;
-  onPick: (port: string, kind: "Coord" | "Region") => void;
 }
 
 // Dropdown of dynamic values (saved graphs / scenarios) for params with a source.
@@ -52,7 +51,6 @@ function Field({
   graphs,
   scenarios,
   onChange,
-  onPick,
 }: {
   p: PortSpec;
   value: unknown;
@@ -60,7 +58,6 @@ function Field({
   graphs: string[];
   scenarios: string[];
   onChange: (v: unknown) => void;
-  onPick: (port: string, kind: "Coord" | "Region") => void;
 }) {
   const id = `param-${p.name}`;
   // Dynamic dropdown (pick a saved graph / scenario) instead of typing a name.
@@ -139,25 +136,20 @@ function Field({
         <span>
           {p.label} <em className="muted">({p.kind === "Coord" ? "x, y" : "x1, y1, x2, y2"})</em>
         </span>
-        <div className="field-row">
-          <input
-            id={id}
-            type="text"
-            value={text}
-            placeholder={p.kind === "Coord" ? "100, 200" : "0, 70, 420, 360"}
-            onChange={(e) => {
-              const nums = e.target.value
-                .split(",")
-                .map((s) => s.trim())
-                .filter((s) => s !== "")
-                .map(Number);
-              onChange(nums.some(Number.isNaN) ? e.target.value : nums);
-            }}
-          />
-          <button type="button" onClick={() => onPick(p.name, p.kind as "Coord" | "Region")}>
-            Pick
-          </button>
-        </div>
+        <input
+          id={id}
+          type="text"
+          value={text}
+          placeholder={p.kind === "Coord" ? "100, 200" : "0, 70, 420, 360"}
+          onChange={(e) => {
+            const nums = e.target.value
+              .split(",")
+              .map((s) => s.trim())
+              .filter((s) => s !== "")
+              .map(Number);
+            onChange(nums.some(Number.isNaN) ? e.target.value : nums);
+          }}
+        />
       </label>
     );
   }
@@ -184,7 +176,6 @@ export function ParamPanel({
   onChangeParam,
   onChangeLabel,
   onDelete,
-  onPick,
 }: Props) {
   if (!node) {
     return (
@@ -231,7 +222,6 @@ export function ParamPanel({
             graphs={graphs}
             scenarios={scenarios}
             onChange={(v) => onChangeParam(node.id, p.name, v)}
-            onPick={onPick}
           />
         )
       )}

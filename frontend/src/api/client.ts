@@ -187,3 +187,34 @@ export async function saveCrop(
     })
   );
 }
+
+const assetPath = (rel: string) => rel.split("/").map(encodeURIComponent).join("/");
+
+export async function moveAsset(
+  src: string,
+  folder: string,
+  name: string
+): Promise<{ ok: boolean; key: string }> {
+  return json(
+    await fetch("/api/assets/move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ src, folder, name }),
+    })
+  );
+}
+
+export async function deleteAsset(rel: string): Promise<void> {
+  await json<{ ok: boolean }>(
+    await fetch(`/api/assets/${assetPath(rel)}`, { method: "DELETE" })
+  );
+}
+
+export interface AssetUsage {
+  graphs: string[];
+  scenarios: string[];
+}
+
+export async function assetUsage(rel: string): Promise<AssetUsage> {
+  return json<AssetUsage>(await fetch(`/api/assets/usage/${assetPath(rel)}`));
+}

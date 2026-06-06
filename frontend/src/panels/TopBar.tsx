@@ -1,6 +1,6 @@
 import type { DeviceStatus } from "../api/client";
 
-export type AppMode = "editor" | "scenario" | "device";
+export type AppMode = "editor" | "scenario" | "asset" | "device";
 
 interface Props {
   mode: AppMode;
@@ -80,6 +80,13 @@ export function TopBar({
           title="Design the army composition + deploy plan"
         >
           Attack Plan
+        </button>
+        <button
+          className={mode === "asset" ? "active" : ""}
+          onClick={() => onMode("asset")}
+          title="Manage template assets — capture, rename, replace, delete"
+        >
+          Assets
         </button>
         <button
           className={mode === "device" ? "active" : ""}

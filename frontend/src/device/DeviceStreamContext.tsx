@@ -10,7 +10,7 @@ import {
 import { wsUrl } from "../api/ws";
 
 // A frame callback gets the latest decoded device screen. Subscribers draw it
-// however they like (DeviceView/BattleCanvas/DevicePanel). The bitmap is owned
+// however they like (DeviceCanvas/DevicePanel). The bitmap is owned
 // by the provider and reused/closed between frames — draw synchronously inside
 // the callback; do not retain it.
 type FrameCb = (bmp: ImageBitmap) => void;
