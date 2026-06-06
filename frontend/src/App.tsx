@@ -302,10 +302,16 @@ export default function App() {
         connected={!!device?.connected}
         onGotoDevice={() => setMode("device")}
       >
-      {mode === "scenario" && <ScenarioEditor onStatus={setStatus} />}
-      {mode === "asset" && (
+      {/* Keep the scenario + asset panels mounted (toggle visibility) so
+          in-progress work survives a tab switch — display:contents lets the
+          panel stay a flex child of .app. Device stays conditional so it
+          doesn't auto-scan adb on app load. */}
+      <div style={{ display: mode === "scenario" ? "contents" : "none" }}>
+        <ScenarioEditor onStatus={setStatus} active={mode === "scenario"} />
+      </div>
+      <div style={{ display: mode === "asset" ? "contents" : "none" }}>
         <AssetManager onMessage={setStatus} onAssetsChanged={refreshAssets} />
-      )}
+      </div>
       {mode === "device" && (
         <DevicePanel device={device} onStatus={setDevice} onMessage={setStatus} />
       )}

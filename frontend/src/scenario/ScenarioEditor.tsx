@@ -31,7 +31,13 @@ const nodeTypes: NodeTypes = { deploy: DeployNode };
 
 const emptyVariant = (name = "Default"): Variant => ({ name, weight: 1, nodes: [] });
 
-export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) {
+export function ScenarioEditor({
+  onStatus,
+  active = true,
+}: {
+  onStatus: (s: string) => void;
+  active?: boolean; // mount the ReactFlow canvas only while the tab is visible
+}) {
   const [saved, setSaved] = useState<string[]>([]);
   const [name, setName] = useState("untitled");
   const [variants, setVariants] = useState<Variant[]>([emptyVariant()]);
@@ -370,22 +376,28 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
             </>
           ) : (
             <div className="scenario-canvas">
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={nodeTypes}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onSelectionChange={onSelectionChange}
-                onInit={(inst) => (rfRef.current = inst)}
-                fitView
-                deleteKeyCode={["Backspace", "Delete"]}
-                proOptions={{ hideAttribution: true }}
-              >
-                <Background />
-                <Controls />
-              </ReactFlow>
+              {/* Mount ReactFlow only while visible — mounting it inside a
+                  display:none panel leaves it stuck at size 0 and it won't
+                  render nodes when shown. Node state lives above, so it
+                  survives the remount. */}
+              {active && (
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  nodeTypes={nodeTypes}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onConnect={onConnect}
+                  onSelectionChange={onSelectionChange}
+                  onInit={(inst) => (rfRef.current = inst)}
+                  fitView
+                  deleteKeyCode={["Backspace", "Delete"]}
+                  proOptions={{ hideAttribution: true }}
+                >
+                  <Background />
+                  <Controls />
+                </ReactFlow>
+              )}
             </div>
           )}
         </div>
