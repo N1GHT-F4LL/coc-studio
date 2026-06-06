@@ -325,15 +325,7 @@ button.danger:hover { background: #3a2530; }
 .scenario-body { display: flex; flex: 1; min-height: 0; }
 .scenario-center { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .scenario-canvas { flex: 1; min-height: 0; position: relative; }
-.scenario-battle { height: 320px; border-top: 1px solid var(--border); position: relative; display: flex; flex-direction: column; }
 .scenario-right { width: 260px; background: var(--panel); border-left: 1px solid var(--border); overflow-y: auto; padding: 10px; }
-.battle-canvas { display: flex; flex-direction: column; height: 100%; }
-.battle-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-.pick-hint {
-  position: absolute; top: 40px; right: 10px; z-index: 5; background: var(--panel);
-  border: 1px solid var(--accent); border-radius: 6px; padding: 4px 8px; font-size: 12px;
-  display: flex; gap: 8px; align-items: center;
-}
 
 /* deploy nodes */
 .deploy-node {

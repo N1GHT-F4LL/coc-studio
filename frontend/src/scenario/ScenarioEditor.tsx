@@ -23,7 +23,6 @@ import { composeFromVariants, formatComposition } from "./types";
 import { DeployNode, type DeployNodeData } from "./DeployNode";
 import { toVariant, fromVariant, layoutNodes } from "./serialize";
 import { DeployParamPanel } from "./DeployParamPanel";
-import { BattleCanvas, type PickMode } from "./BattleCanvas";
 
 const nodeTypes: NodeTypes = { deploy: DeployNode };
 
@@ -39,7 +38,6 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
   const [nodes, setNodes, onNodesChange] = useNodesState<DeployNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [pick, setPick] = useState<{ id: string; mode: PickMode } | null>(null);
   const idSeq = useRef(0);
   const rfRef = useRef<ReactFlowInstance | null>(null);
 
@@ -251,26 +249,6 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
   // Live "will train" preview: current canvas folded back into the variant set.
   const preview = formatComposition(composeFromVariants(captureCanvas()));
 
-  // --- battle-canvas pick ---------------------------------------------------
-  const pickNode = pick ? nodes.find((n) => n.id === pick.id)?.data.node ?? null : null;
-  const onBattlePoint = useCallback(
-    (x: number, y: number) => {
-      if (!pick) return;
-      const cur = nodes.find((n) => n.id === pick.id)?.data.node;
-      const pts = [...(cur?.points ?? []), [x, y] as [number, number]];
-      updateNode(pick.id, { points: pts });
-    },
-    [pick, nodes, updateNode]
-  );
-  const onBattleLine = useCallback(
-    (x1: number, y1: number, x2: number, y2: number) => {
-      if (!pick) return;
-      updateNode(pick.id, { x1, y1, x2, y2 });
-      setPick(null); // a line is one drag — done
-    },
-    [pick, updateNode]
-  );
-
   return (
     <div className="scenario-editor">
       <div className="scenario-bar">
@@ -357,29 +335,6 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
               <Controls />
             </ReactFlow>
           </div>
-          <div className="scenario-battle">
-            <BattleCanvas
-              pickMode={pick?.mode ?? null}
-              onPoint={onBattlePoint}
-              onLine={onBattleLine}
-              overlayPoints={pickNode?.points}
-              overlayLine={
-                pickNode &&
-                pickNode.x1 !== undefined &&
-                pickNode.y1 !== undefined &&
-                pickNode.x2 !== undefined &&
-                pickNode.y2 !== undefined
-                  ? [pickNode.x1, pickNode.y1, pickNode.x2, pickNode.y2]
-                  : null
-              }
-            />
-            {pick && (
-              <div className="pick-hint">
-                picking {pick.mode} for {pick.id}
-                <button onClick={() => setPick(null)}>Done</button>
-              </div>
-            )}
-          </div>
         </div>
         <div className="scenario-right">
           <DeployParamPanel
@@ -387,8 +342,6 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
             assets={assets}
             onChange={updateNode}
             onDelete={deleteNode}
-            onPickPoints={(id) => setPick({ id, mode: "points" })}
-            onPickLine={(id) => setPick({ id, mode: "line" })}
           />
         </div>
       </div>

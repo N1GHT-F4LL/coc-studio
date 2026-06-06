@@ -12,19 +12,9 @@ interface Props {
   assets: string[];
   onChange: (id: string, patch: Partial<DeployNodeT>) => void;
   onDelete: (id: string) => void;
-  // Phase C wires these to the battle-canvas picker; optional until then.
-  onPickPoints?: (id: string) => void;
-  onPickLine?: (id: string) => void;
 }
 
-export function DeployParamPanel({
-  node,
-  assets,
-  onChange,
-  onDelete,
-  onPickPoints,
-  onPickLine,
-}: Props) {
+export function DeployParamPanel({ node, assets, onChange, onDelete }: Props) {
   if (!node) {
     return (
       <aside className="param-panel">
@@ -151,39 +141,27 @@ export function DeployParamPanel({
                   set({ points: pts });
                 }}
               />
-              {onPickPoints ? (
-                <button type="button" onClick={() => onPickPoints(node.id)}>
-                  Pick points on device
-                </button>
-              ) : null}
             </label>
           ) : (
             <label className="field">
               <span>
                 Line <em className="muted">(x1, y1, x2, y2)</em>
               </span>
-              <div className="field-row">
-                <input
-                  type="text"
-                  value={[node.x1, node.y1, node.x2, node.y2]
-                    .map((v) => (v === undefined ? "" : v))
-                    .join(", ")}
-                  placeholder="1213, 267, 1015, 120"
-                  onChange={(e) => {
-                    const n = e.target.value
-                      .split(",")
-                      .map((s) => Number(s.trim()));
-                    if (n.length === 4 && n.every((v) => !Number.isNaN(v))) {
-                      set({ x1: n[0], y1: n[1], x2: n[2], y2: n[3] });
-                    }
-                  }}
-                />
-                {onPickLine ? (
-                  <button type="button" onClick={() => onPickLine(node.id)}>
-                    Pick
-                  </button>
-                ) : null}
-              </div>
+              <input
+                type="text"
+                value={[node.x1, node.y1, node.x2, node.y2]
+                  .map((v) => (v === undefined ? "" : v))
+                  .join(", ")}
+                placeholder="1213, 267, 1015, 120"
+                onChange={(e) => {
+                  const n = e.target.value
+                    .split(",")
+                    .map((s) => Number(s.trim()));
+                  if (n.length === 4 && n.every((v) => !Number.isNaN(v))) {
+                    set({ x1: n[0], y1: n[1], x2: n[2], y2: n[3] });
+                  }
+                }}
+              />
             </label>
           )}
         </>
