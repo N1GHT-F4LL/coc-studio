@@ -23,6 +23,9 @@ import { composeFromVariants, formatComposition } from "./types";
 import { DeployNode, type DeployNodeData } from "./DeployNode";
 import { toVariant, fromVariant, layoutNodes } from "./serialize";
 import { DeployParamPanel } from "./DeployParamPanel";
+import { DeviceCanvas } from "../device/DeviceCanvas";
+
+type PickReq = { id: string; mode: "points" | "line" };
 
 const nodeTypes: NodeTypes = { deploy: DeployNode };
 
@@ -38,6 +41,7 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
   const [nodes, setNodes, onNodesChange] = useNodesState<DeployNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pick, setPick] = useState<PickReq | null>(null);
   const idSeq = useRef(0);
   const rfRef = useRef<ReactFlowInstance | null>(null);
 
@@ -249,6 +253,25 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
   // Live "will train" preview: current canvas folded back into the variant set.
   const preview = formatComposition(composeFromVariants(captureCanvas()));
 
+  // --- pick deploy coords on the live device (shared DeviceCanvas) ----------
+  const pickNode = pick ? nodes.find((n) => n.id === pick.id)?.data.node ?? null : null;
+  const onPickPoint = useCallback(
+    (x: number, y: number) => {
+      if (!pick) return;
+      const cur = nodes.find((n) => n.id === pick.id)?.data.node;
+      updateNode(pick.id, { points: [...(cur?.points ?? []), [x, y] as [number, number]] });
+    },
+    [pick, nodes, updateNode]
+  );
+  const onPickLine = useCallback(
+    (x1: number, y1: number, x2: number, y2: number) => {
+      if (!pick) return;
+      updateNode(pick.id, { x1, y1, x2, y2 });
+      setPick(null); // a line is one drag — done
+    },
+    [pick, updateNode]
+  );
+
   return (
     <div className="scenario-editor">
       <div className="scenario-bar">
@@ -317,24 +340,54 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
 
       <div className="scenario-body">
         <div className="scenario-center">
-          <div className="scenario-canvas">
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onSelectionChange={onSelectionChange}
-              onInit={(inst) => (rfRef.current = inst)}
-              fitView
-              deleteKeyCode={["Backspace", "Delete"]}
-              proOptions={{ hideAttribution: true }}
-            >
-              <Background />
-              <Controls />
-            </ReactFlow>
-          </div>
+          {pick ? (
+            <>
+              <div className="asset-grid-bar">
+                <span>
+                  Pick {pick.mode} for {pickNode?.label ?? pick.id} —{" "}
+                  {pick.mode === "points" ? "click to add a point" : "drag to set the line"}
+                </span>
+                <button onClick={() => setPick(null)}>Done</button>
+              </div>
+              <div className="asset-capture-stage">
+                <DeviceCanvas
+                  mode={pick.mode}
+                  onPoint={onPickPoint}
+                  onLine={onPickLine}
+                  overlayPoints={pickNode?.points}
+                  overlayLine={
+                    pickNode &&
+                    pickNode.x1 !== undefined &&
+                    pickNode.y1 !== undefined &&
+                    pickNode.x2 !== undefined &&
+                    pickNode.y2 !== undefined
+                      ? [pickNode.x1, pickNode.y1, pickNode.x2, pickNode.y2]
+                      : null
+                  }
+                  label="Battle"
+                />
+              </div>
+            </>
+          ) : (
+            <div className="scenario-canvas">
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onSelectionChange={onSelectionChange}
+                onInit={(inst) => (rfRef.current = inst)}
+                fitView
+                deleteKeyCode={["Backspace", "Delete"]}
+                proOptions={{ hideAttribution: true }}
+              >
+                <Background />
+                <Controls />
+              </ReactFlow>
+            </div>
+          )}
         </div>
         <div className="scenario-right">
           <DeployParamPanel
@@ -342,6 +395,8 @@ export function ScenarioEditor({ onStatus }: { onStatus: (s: string) => void }) 
             assets={assets}
             onChange={updateNode}
             onDelete={deleteNode}
+            onPickPoints={(id) => setPick({ id, mode: "points" })}
+            onPickLine={(id) => setPick({ id, mode: "line" })}
           />
         </div>
       </div>
