@@ -282,7 +282,10 @@ export default function App() {
     <div className="app">
       <TopBar
         mode={mode}
-        onMode={setMode}
+        onMode={(m) => {
+          setMode(m);
+          setStatus(""); // each tab has its own status; don't carry it over
+        }}
         graphName={graphName}
         savedGraphs={savedGraphs}
         onRename={setGraphName}
