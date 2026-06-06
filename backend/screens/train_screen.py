@@ -47,9 +47,12 @@ SECTIONS = {
     "siege": {"panel": (1420, 478), "trash": (1544, 431)},
 }
 
-# Roster scroll: swipe within the bottom palette to reveal off-screen units.
+# Roster scroll: swipe HORIZONTALLY within the bottom palette to reveal
+# off-screen units (the roster is a single long horizontal strip). Enough scrolls
+# to reach units far down the strip — e.g. super troops sit well past the regular
+# troops, so a handful of swipes never reached them.
 ROSTER_SWIPE = ((1400, 790), (300, 790))
-MAX_ROSTER_SCROLLS = 5
+MAX_ROSTER_SCROLLS = 12
 
 # Empty spot to tap to collapse an open add-roster (above the palette, clear of
 # every section box and button). Returns to the My Army overview without leaving
