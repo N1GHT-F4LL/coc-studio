@@ -172,12 +172,32 @@ class EnsureTroops(BlockSpec):
             ctx.vars["troops_ready"] = False
             return {"ready": False}
 
-        comp = required_composition(doc)
-        ctx.logger.info("[ensure_troops] %s -> %s", scenario, comp.summary())
+        # Pick ONE variant and train exactly it, then record the choice so the
+        # deploy block uses the SAME variant (otherwise training counts the
+        # MAX across variants while deploy picks one at random — over-training
+        # and possibly overflowing the camp). Compose from just this variant.
+        variant = scenario_store.pick_variant(doc)
+        chosen_name = variant.get("name", "?")
+        ctx.vars["chosen_variant"] = chosen_name
+        comp = required_composition({"variants": [variant]})
+        ctx.logger.info("[ensure_troops] %s variant=%s -> %s", scenario, chosen_name, comp.summary())
         if not (comp.troops or comp.spells or comp.sieges):
             ctx.logger.info("[ensure_troops] scenario has nothing to train — nothing to do.")
             ctx.vars["troops_ready"] = True
             return {"ready": True}
+
+        # Roster training matches a face by the template's bare stem
+        # (units/roster/<stem>), so two templates that differ only by folder
+        # collide — warn rather than silently mistrain.
+        from collections import defaultdict
+        by_stem = defaultdict(list)
+        for key in (*comp.troops, *comp.spells, *comp.sieges):
+            by_stem[key.rsplit("/", 1)[-1]].append(key)
+        for stem, keys in by_stem.items():
+            if len(keys) > 1:
+                ctx.logger.warning(
+                    "[ensure_troops] %s share roster face %r — training can't tell "
+                    "them apart; rename one.", keys, "units/roster/" + stem)
 
         train = TrainScreen(ctx.ui_manager)
         tap_delay = float(inputs.get("tap_delay", 0.2))
@@ -231,7 +251,12 @@ class EnsureTroops(BlockSpec):
                 if ctx.stopped():
                     break
                 roster_tpl = "units/roster/" + template_key.rsplit("/", 1)[-1]
-                train.train_unit(roster_tpl, count, tap_delay=tap_delay, threshold=threshold)
+                tapped = train.train_unit(roster_tpl, count, tap_delay=tap_delay, threshold=threshold)
+                if tapped == 0 and "super_troops" in template_key:
+                    ctx.logger.warning(
+                        "[ensure_troops] %s trained 0 — a super troop only shows in the "
+                        "roster once BOOSTED in-game (and needs a units/roster/ face).",
+                        template_key.rsplit("/", 1)[-1])
             train.close_roster()        # collapse before the next section
         train.back_home()               # X -> home (once, at the end)
 
@@ -323,7 +348,10 @@ class Deploy(BlockSpec):
             ctx.logger.warning("[deploy] battle screen not detected — bailing.")
             return {"deployed": False}
         doc = scenario_store.load_scenario(scenario)
-        nodes, variant_name = scenario_store.chosen_variant_nodes(doc)
+        # Reuse the variant ensure_troops trained for (set in ctx.vars); fall back
+        # to a fresh weighted pick if it ran without ensure_troops.
+        nodes, variant_name = scenario_store.variant_nodes_by_name(
+            doc, ctx.vars.get("chosen_variant"))
         deploy_cfg = dict(ctx.settings.get("attack", {}).get("deploy", {}))
         deploy_cfg["nodes"] = nodes
         ctx.logger.info("[deploy] scenario=%s variant=%s nodes=%d",
