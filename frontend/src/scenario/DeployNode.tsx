@@ -9,6 +9,7 @@ export interface DeployNodeData {
 
 const TYPE_COLOR: Record<DeployType, string> = {
   troop: "#2b7de0",
+  super_troop: "#1fa37a",
   spell: "#a64ce0",
   siege: "#e0a32b",
   hero: "#d4356b",

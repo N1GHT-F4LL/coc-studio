@@ -2,7 +2,7 @@
 // (backend/screens/battle_screen.py) and required_composition
 // (backend/engine/composition.py).
 
-export type DeployType = "troop" | "spell" | "siege" | "hero" | "delay";
+export type DeployType = "troop" | "super_troop" | "spell" | "siege" | "hero" | "delay";
 export type Strategy = "line" | "points" | "delay";
 
 // One deploy slot. Fields depend on type/strategy:
@@ -47,7 +47,7 @@ export interface Composition {
   heroes: string[];
 }
 
-export const DEPLOY_TYPES: DeployType[] = ["troop", "spell", "siege", "hero", "delay"];
+export const DEPLOY_TYPES: DeployType[] = ["troop", "super_troop", "spell", "siege", "hero", "delay"];
 
 // Mirror of backend required_composition: per template, sum taps within a
 // variant, then take the MAX across variants (deploy picks one variant). Used
@@ -70,8 +70,15 @@ export function composeFromVariants(variants: Variant[]): Composition {
       if (!tpl) continue;
       if (node.type === "hero") {
         heroes.add(tpl);
-      } else if (node.type === "troop" || node.type === "spell" || node.type === "siege") {
-        const pv = perVariant[node.type];
+      } else if (
+        node.type === "troop" ||
+        node.type === "super_troop" ||
+        node.type === "spell" ||
+        node.type === "siege"
+      ) {
+        // Super troops occupy regular troop slots, so they count as troops.
+        const bucket = node.type === "super_troop" ? "troop" : node.type;
+        const pv = perVariant[bucket];
         pv[tpl] = (pv[tpl] ?? 0) + (node.taps ?? 0);
       }
     }
@@ -100,6 +107,7 @@ export function formatComposition(c: Composition): string {
 // Folder under assets/units/ for each deployable type's templates.
 export const TYPE_FOLDER: Record<Exclude<DeployType, "delay">, string> = {
   troop: "units/troops",
+  super_troop: "units/super_troops",
   spell: "units/spells",
   siege: "units/siege",
   hero: "units/heroes",

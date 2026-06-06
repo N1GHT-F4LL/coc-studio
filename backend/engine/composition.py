@@ -28,6 +28,10 @@ from dataclasses import dataclass, field
 # Types whose taps map 1:1 to "units to train", keyed by the section they live in.
 _COUNTED = ("troop", "spell", "siege")
 
+# Super troops occupy regular troop slots, so they're trained in the troop
+# section — fold them into "troop" when counting.
+_SECTION_ALIAS = {"super_troop": "troop"}
+
 
 def _iter_variant_slots(doc):
     """Yield, per variant, the flat list of unit-slot dicts.
@@ -83,6 +87,7 @@ def required_composition(doc) -> Composition:
         per_variant = {"troop": {}, "spell": {}, "siege": {}}
         for slot in slots:
             kind = (slot.get("type") or "").lower()
+            kind = _SECTION_ALIAS.get(kind, kind)
             tpl = slot.get("template")
             if not tpl:
                 continue
