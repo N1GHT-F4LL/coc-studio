@@ -18,9 +18,12 @@ interface Props {
   onRegion?: (region: number[]) => void;
   onPoint?: (x: number, y: number) => void;
   onLine?: (x1: number, y1: number, x2: number, y2: number) => void;
-  onCrop?: (region: number[]) => void;
+  // crop mode: region in device px + a data-URL preview cut from the live frame.
+  onCrop?: (region: number[], preview: string) => void;
   overlayPoints?: [number, number][];
   overlayLine?: [number, number, number, number] | null;
+  // A locked-in region (device px) to keep outlined after the drag ends.
+  committedRegion?: number[] | null;
   label?: string; // bar title (left)
   info?: string; // bar text (right); defaults to a pick/stream hint
 }
@@ -36,6 +39,7 @@ export function DeviceCanvas({
   onCrop,
   overlayPoints,
   overlayLine,
+  committedRegion,
   label = "Device",
   info,
 }: Props) {
@@ -70,6 +74,14 @@ export function DeviceCanvas({
       ctx.beginPath();
       ctx.arc(px, py, 7, 0, Math.PI * 2);
       ctx.fill();
+    }
+    // Locked-in crop region (kept outlined after the drag ends).
+    if (committedRegion && committedRegion.length === 4 && !drag) {
+      const [x1, y1, x2, y2] = committedRegion;
+      ctx.strokeStyle = "#2bd4a3";
+      ctx.fillStyle = "#2bd4a322";
+      ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
     }
     if (drag) {
       if (mode === "line") {
@@ -114,7 +126,7 @@ export function DeviceCanvas({
 
   // Redraw overlay when it changes (even between frames).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(redraw, [overlayPoints, overlayLine, drag]);
+  useEffect(redraw, [overlayPoints, overlayLine, drag, committedRegion]);
 
   const toOrig = (e: React.MouseEvent) => {
     const cv = canvasRef.current!;
@@ -154,10 +166,23 @@ export function DeviceCanvas({
     if (!s) return;
     if (mode === "line") {
       onLine?.(s.x, s.y, ox, oy);
-    } else if (mode === "region" || mode === "crop") {
+    } else if (mode === "region") {
+      onRegion?.([Math.min(s.x, ox), Math.min(s.y, oy), Math.max(s.x, ox), Math.max(s.y, oy)]);
+    } else if (mode === "crop") {
       const region = [Math.min(s.x, ox), Math.min(s.y, oy), Math.max(s.x, ox), Math.max(s.y, oy)];
-      if (mode === "crop" && (region[2] - region[0] < 2 || region[3] - region[1] < 2)) return;
-      (mode === "region" ? onRegion : onCrop)?.(region);
+      const [rx, ry, rx2, ry2] = region;
+      if (rx2 - rx < 2 || ry2 - ry < 2) return;
+      // Cut the region out of the last frame for a right-panel preview.
+      let preview = "";
+      const fr = lastFrame.current;
+      if (fr) {
+        const oc = document.createElement("canvas");
+        oc.width = rx2 - rx;
+        oc.height = ry2 - ry;
+        oc.getContext("2d")?.drawImage(fr, rx, ry, rx2 - rx, ry2 - ry, 0, 0, rx2 - rx, ry2 - ry);
+        preview = oc.toDataURL("image/png");
+      }
+      onCrop?.(region, preview);
     }
   };
 

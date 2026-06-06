@@ -39,6 +39,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
   // captured region is pending a name+folder before saving.
   const [mode, setMode] = useState<"idle" | "capture" | "replace">("idle");
   const [pendingRegion, setPendingRegion] = useState<number[] | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<string>(""); // data-URL of the crop
   const [newName, setNewName] = useState("");
   const [newFolder, setNewFolder] = useState("");
 
@@ -62,13 +63,18 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
     [assets, cat]
   );
 
+  const clearPending = () => {
+    setPendingRegion(null);
+    setPendingPreview("");
+  };
+
   const select = (key: string) => {
     setSelected(key);
     const [folder, name] = splitKey(key);
     setEditFolder(folder);
     setEditName(name);
     setMode("idle");
-    setPendingRegion(null);
+    clearPending();
   };
 
   // Warn (but don't block) when an asset is referenced by graphs/scenarios.
@@ -117,9 +123,11 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
     }
   };
 
-  // Crop captured → fill the save form. Capture = new asset; replace = same key.
-  const onCrop = (region: number[]) => {
+  // Crop captured → keep the region outlined + show a preview, fill the save
+  // form. Capture = new asset; replace = same key.
+  const onCrop = (region: number[], preview: string) => {
     setPendingRegion(region);
+    setPendingPreview(preview);
     if (mode === "replace" && selected) {
       const [folder, name] = splitKey(selected);
       setNewFolder(folder);
@@ -132,7 +140,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
     try {
       const res = await saveCrop(pendingRegion, newFolder, newName);
       onMessage(`Saved ${res.key} (${res.width}×${res.height}).`);
-      setPendingRegion(null);
+      clearPending();
       setMode("idle");
       if (mode !== "replace") setNewName("");
       await refresh();
@@ -173,14 +181,14 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
           {capturing ? (
             <>
               <span>{mode === "replace" ? `Replace ${selected}` : "Capture a new asset"} — drag a rectangle on the screen</span>
-              <button onClick={() => { setMode("idle"); setPendingRegion(null); }}>Cancel</button>
+              <button onClick={() => { setMode("idle"); clearPending(); }}>Cancel</button>
             </>
           ) : (
             <>
               <span>{shown.length} assets</span>
               <button
                 className="run"
-                onClick={() => { setMode("capture"); setPendingRegion(null); setNewName(""); }}
+                onClick={() => { setMode("capture"); clearPending(); setNewName(""); }}
               >
                 + Capture from device
               </button>
@@ -189,7 +197,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
         </div>
         {capturing ? (
           <div className="asset-capture-stage">
-            <DeviceCanvas mode="crop" onCrop={onCrop} label="Crop" />
+            <DeviceCanvas mode="crop" onCrop={onCrop} committedRegion={pendingRegion} label="Crop" />
           </div>
         ) : (
           <div className="asset-grid">
@@ -218,6 +226,9 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
             </div>
             {pendingRegion ? (
               <div className="asset-form">
+                {pendingPreview && (
+                  <img className="asset-preview" src={pendingPreview} alt="crop preview" />
+                )}
                 <div className="muted">region {pendingRegion.join(", ")}</div>
                 <label className="field">
                   <span>Category</span>
@@ -235,7 +246,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
                   <button className="run" disabled={!newName || !newFolder} onClick={doSaveCrop}>
                     Save asset
                   </button>
-                  <button onClick={() => { setMode("idle"); setPendingRegion(null); }}>Cancel</button>
+                  <button onClick={clearPending}>Redo crop</button>
                 </div>
               </div>
             ) : (
@@ -265,7 +276,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
             </label>
             <div className="field-row">
               <button onClick={doRename}>Rename / category</button>
-              <button onClick={() => { setMode("replace"); setPendingRegion(null); }}>Replace image</button>
+              <button onClick={() => { setMode("replace"); clearPending(); }}>Replace image</button>
             </div>
             <button className="danger" onClick={doDelete}>Delete asset</button>
           </>
