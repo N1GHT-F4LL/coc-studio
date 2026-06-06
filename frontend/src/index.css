@@ -6,6 +6,7 @@
   --text: #e6e9ee;
   --muted: #8b929c;
   --accent: #2b7de0;
+  --leader: #5b626d; /* port callout leader lines */
 }
 
 * { box-sizing: border-box; }
@@ -267,20 +268,32 @@ button.danger:hover { background: #3a2530; }
   position: absolute;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   white-space: nowrap;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%); /* centred: left = box centre */
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 3px 8px;
+  border-radius: 13px;
+  padding: 3px 11px 3px 9px;
   height: 24px;
   box-sizing: border-box;
   font-size: 11px;
   color: var(--text);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
-.callout-name { font-weight: 600; }
+/* slim kind-coloured accent bar on the leading edge — the only colour */
+.callout-box::before {
+  content: "";
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--kind, var(--muted));
+}
+/* Anchor the box by its node-facing edge so the horizontal leader lands on it:
+   left wing extends leftward (anchor right edge), right wing rightward. */
+.callout-box.callout-left { transform: translate(-100%, -50%); }
+.callout-box.callout-right { transform: translate(0, -50%); }
+.callout-name { font-weight: 600; letter-spacing: 0.2px; }
 .callout-kind { color: var(--muted); font-size: 10px; }
 .block-title { font-weight: 600; }
 .block-type { font-size: 11px; color: var(--muted); }

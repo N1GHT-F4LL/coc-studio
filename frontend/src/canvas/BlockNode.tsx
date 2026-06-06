@@ -143,39 +143,69 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
 export const BlockNode = memo(BlockNodeImpl);
 
 // --- port callouts ---------------------------------------------------------
-// Label boxes float off the edge the port lives on: input ports (top edge) get
-// callouts stacked ABOVE the node, output ports (bottom edge) get callouts
-// BELOW. Each box has an elbow leader (square marker at the box, dot at the
-// port) — like a video lower-third.
+// Modern callouts: pill labels arched over the node on the SAME side as the
+// ports — inputs (top edge) bow upward, outputs (bottom edge) downward. Ports
+// split left/right of centre; on each wing the box nearest the node centre sits
+// closest in (rank 0), and ranks step out along a convex arc: an even vertical
+// pitch (so boxes never overlap) with a horizontal offset that eases out (grows
+// fast low, then flattens) and is capped, so the lower boxes splay toward their
+// side while the upper boxes stand upright and hug — a canopy that wraps the
+// node instead of shooting straight out to its flanks. The cluster auto-sizes
+// to the port count. Each port joins its box with an elbow leader (diagonal
+// rib, then a short horizontal segment); ribs only travel away from the edge,
+// so they never cross the node body.
 import type { PortSpec } from "../blocks/types";
 
-const BOX_GAP = 30;   // vertical distance from node edge to the box row
-const BOX_H = 24;     // box height
-const BOX_VGAP = 6;   // vertical gap between stacked boxes in the same row
+const V0 = 50;     // vertical offset of the innermost box from the edge
+const VS = 34;     // vertical pitch per rank outward (>= box height, no overlap)
+const X0 = 56;     // horizontal offset of the innermost box from the node centre
+const XSPAN = 96;  // max extra horizontal offset (capped so boxes stay off the flank)
+const HSEG = 18;   // length of the horizontal leader segment into the box
 
-// Render one row of callouts off a single edge. `dir = -1` floats the boxes
-// above the node (for top/input ports), `dir = +1` below (bottom/output).
-function CalloutRow({
+// `dir = -1` floats the boxes above the node (top/input ports), `dir = +1`
+// below (bottom/output ports). cx is the node centre x in node-local coords.
+function CalloutFan({
   ports,
-  w,
+  cx,
   edgeY,
   dir,
 }: {
   ports: PortSpec[];
-  w: number;
+  cx: number; // node centre x
   edgeY: number; // node-local y of the port row (0 = top edge, h = bottom edge)
   dir: -1 | 1;
 }) {
+  const items = ports.map((port, i) => ({ port, px: ((i + 1) / (ports.length + 1)) * (cx * 2) }));
+
+  // A lone callout sits straight off the edge.
+  if (items.length === 1) {
+    return <Callout {...items[0]} py={edgeY} bx={cx} by={edgeY + dir * V0} sign={0} />;
+  }
+
+  // Rank each wing from the centre outward. Vertical pitch is even; the
+  // horizontal offset eases out via sin() so the arc is convex (hugs at the top,
+  // splays at the bottom) rather than a straight diagonal.
+  const place = (arr: typeof items, sign: -1 | 1) => {
+    const last = arr.length - 1;
+    return arr.map(({ port, px }, rank) => {
+      const t = last > 0 ? rank / last : 0; // 0 (innermost) .. 1 (outermost)
+      return {
+        port,
+        px,
+        sign,
+        bx: cx + sign * (X0 + XSPAN * Math.sin((t * Math.PI) / 2)),
+        by: edgeY + dir * (V0 + rank * VS),
+      };
+    });
+  };
+  const lefts = place(items.filter((it) => it.px < cx).sort((a, b) => b.px - a.px), -1);
+  const rights = place(items.filter((it) => it.px >= cx).sort((a, b) => a.px - b.px), 1);
+
   return (
     <>
-      {ports.map((port, i) => {
-        const px = ((i + 1) / (ports.length + 1)) * w;
-        // Stagger stacked boxes outward so neighbours don't overlap.
-        const by = edgeY + dir * (BOX_GAP + i * (BOX_H + BOX_VGAP));
-        return (
-          <Callout key={`${edgeY}-${port.name}`} port={port} px={px} py={edgeY} bx={px} by={by} />
-        );
-      })}
+      {[...lefts, ...rights].map(({ port, px, bx, by, sign }) => (
+        <Callout key={`${edgeY}-${port.name}`} port={port} py={edgeY} px={px} bx={bx} by={by} sign={sign} />
+      ))}
     </>
   );
 }
@@ -193,8 +223,8 @@ function PortCallouts({
 }) {
   return (
     <div className="port-callouts">
-      <CalloutRow ports={inputs} w={w} edgeY={0} dir={-1} />
-      <CalloutRow ports={outputs} w={w} edgeY={h} dir={1} />
+      <CalloutFan ports={inputs} cx={w / 2} edgeY={0} dir={-1} />
+      <CalloutFan ports={outputs} cx={w / 2} edgeY={h} dir={1} />
     </div>
   );
 }
@@ -205,24 +235,32 @@ function Callout({
   py,
   bx,
   by,
+  sign,
 }: {
   port: PortSpec;
   px: number; // port dot x
   py: number; // port dot y (edge)
-  bx: number; // box centre x
+  bx: number; // box inner-edge x (node-facing side)
   by: number; // box centre y (off the edge)
+  sign: -1 | 0 | 1; // which wing: -1 left, +1 right, 0 centred
 }) {
   const color = kindColor(port.kind);
-  // Straight leader from the box marker down/up to the port dot.
-  const pts = `${bx},${by} ${px},${py}`;
+  // Elbow leader: diagonal rib out from the port to a knee, then a horizontal
+  // segment into the box. `bx` is the box's inner edge (boxes are anchored by
+  // the side facing the node centre, see .callout-left/.callout-right), so the
+  // horizontal segment lands exactly on the box edge regardless of its width.
+  const kneeX = sign === 0 ? bx : bx - sign * HSEG;
+  const pts = `${px},${py} ${kneeX},${by} ${bx},${by}`;
   return (
     <>
       <svg className="callout-svg">
-        <polyline points={pts} fill="none" stroke="var(--border)" strokeWidth={1} />
-        <rect x={bx - 3} y={by - 3} width={6} height={6} fill={color} />
-        <circle cx={px} cy={py} r={3} fill={color} />
+        <polyline points={pts} fill="none" stroke="var(--leader)" strokeWidth={1.25} opacity={0.7} strokeLinejoin="round" />
+        <circle cx={px} cy={py} r={3.5} fill={color} stroke="var(--panel)" strokeWidth={1.5} />
       </svg>
-      <div className="callout-box" style={{ left: bx, top: by }}>
+      <div
+        className={`callout-box${sign < 0 ? " callout-left" : sign > 0 ? " callout-right" : ""}`}
+        style={{ left: bx, top: by, ["--kind" as string]: color }}
+      >
         <span className="callout-name">{port.name}</span>
         <span className="callout-kind">{port.kind}</span>
       </div>
