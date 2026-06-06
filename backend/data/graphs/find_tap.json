@@ -1,15 +1,36 @@
 {
   "name": "find_tap",
   "nodes": [
-    { "id": "find", "type": "find_template", "label": "Find Attack btn",
-      "x": 120, "y": 120,
-      "params": { "template": "buttons/home/btn_attack", "threshold": 0.7 },
-      "after": [], "data_in": {}, "on_error": null },
-    { "id": "tap", "type": "tap", "label": "Tap found coord",
-      "x": 120, "y": 300,
-      "params": {}, "after": [],
-      "data_in": { "coord": { "from": "find", "port": "coord" } },
-      "on_error": null }
+    {
+      "id": "find",
+      "type": "find_template",
+      "label": "Find Attack btn",
+      "x": 80,
+      "y": 235,
+      "params": {
+        "template": "buttons/home/btn_attack",
+        "threshold": 0.7
+      },
+      "after": [],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "tap",
+      "type": "tap",
+      "label": "Tap found coord",
+      "x": 80,
+      "y": 365,
+      "params": {},
+      "after": [],
+      "data_in": {
+        "coord": {
+          "from": "find",
+          "port": "coord"
+        }
+      },
+      "on_error": null
+    }
   ],
-  "meta": { "note": "M5 data edge: tap where find_template found the coord" }
+  "meta": {}
 }

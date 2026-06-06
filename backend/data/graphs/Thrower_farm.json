@@ -5,8 +5,8 @@
       "id": "home0",
       "type": "ensure_home",
       "label": "Ensure Home",
-      "x": 100,
-      "y": 40,
+      "x": 80,
+      "y": 300,
       "params": {
         "zoom_out": true,
         "timeout": 10
@@ -19,8 +19,8 @@
       "id": "collect",
       "type": "collect_resources",
       "label": "Collect Resources",
-      "x": 100,
-      "y": 180,
+      "x": 340,
+      "y": 300,
       "params": {},
       "after": [
         "home0"
@@ -32,8 +32,8 @@
       "id": "find",
       "type": "find_match",
       "label": "Find Match",
-      "x": 100,
-      "y": 320,
+      "x": 600,
+      "y": 300,
       "params": {},
       "after": [
         "collect"
@@ -45,8 +45,8 @@
       "id": "deploy",
       "type": "deploy",
       "label": "Deploy (Thrower)",
-      "x": 100,
-      "y": 460,
+      "x": 860,
+      "y": 300,
       "params": {
         "scenario": "Thrower"
       },
@@ -60,8 +60,8 @@
       "id": "home",
       "type": "return_home",
       "label": "Return Home",
-      "x": 100,
-      "y": 600,
+      "x": 1120,
+      "y": 300,
       "params": {},
       "after": [
         "deploy"
@@ -70,8 +70,5 @@
       "on_error": null
     }
   ],
-  "meta": {
-    "migrated_from": "Thrower",
-    "note": "M6 migrated scenario farm cycle"
-  }
+  "meta": {}
 }
