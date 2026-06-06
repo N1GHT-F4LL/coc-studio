@@ -29,7 +29,9 @@ Engine block-graph tổng quát + registry + executor, đã verify END-TO-END v�
   `context.py` (RuntimeContext), `graph.py` (Node/Graph + validate: dangling refs +
   Kahn cycle), `executor.py` (`run_graph` — vòng ready/completed/pending, **fail-stop**
   on_error→abort). Tổng quát hóa từ `_slot_deploy`.
-- `blocks/`: 15 block. CoC: collect_resources/find_match/deploy/return_home/
+- `blocks/`: 15 block (sau enrich lên **35** — `1eb67d8`/`2e7586e`: thêm logic/
+  util/read_loot/screen-state + param choices + "how to use" cho mỗi block, hiện
+  trên GUI; chia ra `{logic,util,ocr,vision,input}_blocks.py`). CoC: collect_resources/find_match/deploy/return_home/
   request_clan_troops (wrap `screens/`; var `match_found` gate deploy/return — cầu nối
   M5 if-edges). Primitive: wait_template/is_screen/find_template, tap/tap_template/
   swipe_line/pinch, read_number/loot_ge, delay.
@@ -198,6 +200,8 @@ block + helper trong `blocks/coc_blocks.py`. Branch `m2-engine-registry-executor
   (`diag_*.py`, `make_log_launcher_face.py`) đã xóa.
 
 ## UX: top control bar + scenario editor (đã verify browser thật)
+> Cập nhật sau: 2 tab `Editor`/`Scenario` giờ là 3 tab **Bot Builder /
+> Attack Plan / Device** (xem mục "Device tab" + "Bot Builder polish" cuối file).
 - **Top control bar** (`frontend/src/panels/TopBar.tsx`): gom điều khiển lên thanh
   trên cùng — tab `Editor`/`Scenario`, dropdown graph (load vào canvas), Save/New,
   ▶Run/■Stop (đã rời khỏi RunConsole dock), 2 đèn: device (xám/xanh, **click =
@@ -226,6 +230,42 @@ block + helper trong `blocks/coc_blocks.py`. Branch `m2-engine-registry-executor
     dropdown của ensure_troops/deploy block.
   - **Migrator giữ nguyên** (`scripts/migrate_scenario.py`) — vẫn import scenario
     tool cũ; editor là đường tạo/sửa mới. Không đụng engine/screens/composition.
+
+## Device tab + shared stream (đã verify browser thật)
+3 tab chính giờ là **Bot Builder / Attack Plan / Device** (`3bf0d9d` đổi nhãn
+cho rõ; trước là Editor/Scenario).
+- **Device tab** (`493d27e`, `775c1c5`): `frontend/src/panels/DevicePanel.tsx` —
+  scan emulator, chọn serial, connect/disconnect, xem live screen. **Connect ADB
+  giờ CHỈ ở tab Device** (các view khác không còn nút Connect).
+- **Single shared stream** (`36a873d`): trước 3 view (DevicePanel, DeviceView
+  dock, BattleCanvas) mỗi cái mở 1 WS `/ws/device` → 3 vòng adb screencap song
+  song = đúng thứ gây popup "Connection lost / Another device is connecting".
+  `frontend/src/device/DeviceStreamContext.tsx` (`DeviceStreamProvider`) giữ
+  ĐÚNG 1 WS, ref-count theo subscriber, broadcast mỗi frame đã decode; view dùng
+  `useDeviceFrames`/`useDeviceStream`. Offline → overlay "Mở tab Device".
+- **Device profile selector** (`dfcfa18`): chọn emulator/device profile trên top bar.
+- **Poll nhẹ** (`75e2554`): device-status poll 3s→8s + dừng khi tab ẩn (visibilitychange).
+
+## Bot Builder polish — horizontal layout + port callouts (đã verify browser thật)
+Chỉ đụng `frontend/src/canvas/BlockNode.tsx` + `frontend/src/index.css` (+ data/graphs
+re-save layout). KHÔNG đụng engine/screens/serialize contract — handleId vẫn encode
+flow/port/kind độc lập vị trí handle nên serialize không đổi.
+- **Horizontal flow** (`40ad5c5`, `bc6cccc`): control handle trái(in)/phải(out),
+  data handle trên(in)/dưới(out); nút **Auto-layout** xếp node trái→phải theo
+  longest control-edge chain (`graph/serialize.ts: layoutGraphNodes`).
+- **Data port ẩn mặc định** (`2cdb3f9`): chỉ hiện khi hover/selected/đã có edge
+  (giảm rối — phần lớn graph set literal ở panel).
+- **Port callouts** (`a9c0829`→`452f701`): hover node → mỗi data port hiện 1 pill
+  (tên + kind) nối bằng elbow leader (rib chéo + đoạn ngang). Input callout tỏa
+  LÊN, output tỏa XUỐNG. Bố trí **nửa vòng tròn gap-đều**: bước góc theo support
+  function của box (`W·|cos|+H·|sin|+GAP`), bán kính solve cho khít số port; góc
+  hông cap <90° (box thấp nhất nhích lên, không nằm phẳng); wing 1-box đặt ở
+  `SOLO_A` (node 1-port/bên không bị chevron). z-index cao + nâng node hover để
+  callout nổi trên node kế bên. Các hằng tinh chỉnh ở đầu khối callout trong
+  BlockNode.tsx (`A0/A_MAX/BW/BH/GAP/R_*/SOLO_A`).
+- **Lưu ý**: save graph từ UI **wipe `meta`** của graph JSON (note/scenario/
+  migrated_from). `data/graphs/*.json` re-save (`c4736b2`) mất meta — biết để
+  không tưởng là bug.
 
 ## Post-v1 (plan §Open, chưa làm)
 - Subroutine block (graph-as-block) đầy đủ — hiện loop dùng `graph_ref`.
