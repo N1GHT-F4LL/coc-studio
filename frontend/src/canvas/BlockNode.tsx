@@ -1,4 +1,4 @@
-import { memo, useContext, useState } from "react";
+import { memo, useContext, useLayoutEffect, useRef, useState } from "react";
 import { Handle, Position, useStore, type NodeProps } from "reactflow";
 import type { BlockSpec } from "../blocks/types";
 import { kindColor } from "./kindColors";
@@ -40,8 +40,23 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
   const showData = hovered || selected;
   const dataHidden = (hid: string) => !showData && !connectedHandles.has(hid);
 
+  // Measure the node box so the callout leaders can be drawn to scale.
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 160, h: 64 });
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setSize({ w: el.offsetWidth, h: el.offsetHeight });
+    });
+    ro.observe(el);
+    setSize({ w: el.offsetWidth, h: el.offsetHeight });
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div
+      ref={boxRef}
       className={`block-node${selected ? " selected" : ""}${
         runState ? ` run-${runState}` : ""
       }`}
@@ -54,13 +69,9 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
       <div className="block-title">{label || spec.label}</div>
       <div className="block-type">{spec.type}</div>
 
-      {/* data inputs along the top (hidden until hover/selected/connected).
-          On reveal, every port floats a note above it, staggered into tiers
-          (with a leader line) so all notes are visible at once without overlap. */}
+      {/* data input/output handle dots; the field name lives in the callout. */}
       {dataInputs.map((p, i) => {
         const hid = dataHandleId("in", p.name, p.kind);
-        const hide = dataHidden(hid);
-        const tier = 14 + i * 22; // px above the port for this note's tier
         return (
           <Handle
             key={`in-${p.name}`}
@@ -71,27 +82,14 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
             style={{
               left: hslot(i, dataInputs.length),
               background: kindColor(p.kind),
-              display: hide ? "none" : undefined,
+              display: dataHidden(hid) ? "none" : undefined,
             }}
-          >
-            {showData && (
-              <>
-                <span className="port-leader port-leader-in" style={{ height: tier }} />
-                <span className="port-note port-note-in" style={{ bottom: tier }}>
-                  <span className="port-note-dot" style={{ background: kindColor(p.kind) }} />
-                  {p.name} <span className="port-note-kind">{p.kind}</span>
-                </span>
-              </>
-            )}
-          </Handle>
+            title={`${p.label}: ${p.kind}`}
+          />
         );
       })}
-
-      {/* data outputs along the bottom */}
       {dataOutputs.map((p, i) => {
         const hid = dataHandleId("out", p.name, p.kind);
-        const hide = dataHidden(hid);
-        const tier = 14 + i * 22;
         return (
           <Handle
             key={`out-${p.name}`}
@@ -102,21 +100,18 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
             style={{
               left: hslot(i, dataOutputs.length),
               background: kindColor(p.kind),
-              display: hide ? "none" : undefined,
+              display: dataHidden(hid) ? "none" : undefined,
             }}
-          >
-            {showData && (
-              <>
-                <span className="port-leader port-leader-out" style={{ height: tier }} />
-                <span className="port-note port-note-out" style={{ top: tier }}>
-                  <span className="port-note-dot" style={{ background: kindColor(p.kind) }} />
-                  {p.name} <span className="port-note-kind">{p.kind}</span>
-                </span>
-              </>
-            )}
-          </Handle>
+            title={`${p.label}: ${p.kind}`}
+          />
         );
       })}
+
+      {/* Callout layer: on hover, input-port labels float above the node and
+          output-port labels below, each with an elbow leader to its port dot. */}
+      {showData && (dataInputs.length > 0 || dataOutputs.length > 0) && (
+        <PortCallouts w={size.w} h={size.h} inputs={dataInputs} outputs={dataOutputs} />
+      )}
 
 
       {/* control flow out (right): branch handles for Trigger outputs, else default */}
@@ -146,3 +141,91 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
 }
 
 export const BlockNode = memo(BlockNodeImpl);
+
+// --- port callouts ---------------------------------------------------------
+// Label boxes float off the edge the port lives on: input ports (top edge) get
+// callouts stacked ABOVE the node, output ports (bottom edge) get callouts
+// BELOW. Each box has an elbow leader (square marker at the box, dot at the
+// port) — like a video lower-third.
+import type { PortSpec } from "../blocks/types";
+
+const BOX_GAP = 30;   // vertical distance from node edge to the box row
+const BOX_H = 24;     // box height
+const BOX_VGAP = 6;   // vertical gap between stacked boxes in the same row
+
+// Render one row of callouts off a single edge. `dir = -1` floats the boxes
+// above the node (for top/input ports), `dir = +1` below (bottom/output).
+function CalloutRow({
+  ports,
+  w,
+  edgeY,
+  dir,
+}: {
+  ports: PortSpec[];
+  w: number;
+  edgeY: number; // node-local y of the port row (0 = top edge, h = bottom edge)
+  dir: -1 | 1;
+}) {
+  return (
+    <>
+      {ports.map((port, i) => {
+        const px = ((i + 1) / (ports.length + 1)) * w;
+        // Stagger stacked boxes outward so neighbours don't overlap.
+        const by = edgeY + dir * (BOX_GAP + i * (BOX_H + BOX_VGAP));
+        return (
+          <Callout key={`${edgeY}-${port.name}`} port={port} px={px} py={edgeY} bx={px} by={by} />
+        );
+      })}
+    </>
+  );
+}
+
+function PortCallouts({
+  w,
+  h,
+  inputs,
+  outputs,
+}: {
+  w: number;
+  h: number;
+  inputs: PortSpec[];
+  outputs: PortSpec[];
+}) {
+  return (
+    <div className="port-callouts">
+      <CalloutRow ports={inputs} w={w} edgeY={0} dir={-1} />
+      <CalloutRow ports={outputs} w={w} edgeY={h} dir={1} />
+    </div>
+  );
+}
+
+function Callout({
+  port,
+  px,
+  py,
+  bx,
+  by,
+}: {
+  port: PortSpec;
+  px: number; // port dot x
+  py: number; // port dot y (edge)
+  bx: number; // box centre x
+  by: number; // box centre y (off the edge)
+}) {
+  const color = kindColor(port.kind);
+  // Straight leader from the box marker down/up to the port dot.
+  const pts = `${bx},${by} ${px},${py}`;
+  return (
+    <>
+      <svg className="callout-svg">
+        <polyline points={pts} fill="none" stroke="var(--border)" strokeWidth={1} />
+        <rect x={bx - 3} y={by - 3} width={6} height={6} fill={color} />
+        <circle cx={px} cy={py} r={3} fill={color} />
+      </svg>
+      <div className="callout-box" style={{ left: bx, top: by }}>
+        <span className="callout-name">{port.name}</span>
+        <span className="callout-kind">{port.kind}</span>
+      </div>
+    </>
+  );
+}

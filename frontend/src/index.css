@@ -234,6 +234,9 @@ button.danger:hover { background: #3a2530; }
   min-width: 130px;
   text-align: center;
 }
+/* Elevate the hovered/selected node so its port callouts render above the
+   neighbouring nodes instead of being clipped behind them. */
+.react-flow__node:hover, .react-flow__node.selected { z-index: 1000 !important; }
 .block-node.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .block-node.run-running { border-color: #2b7de0; box-shadow: 0 0 0 2px #2b7de0, 0 0 14px #2b7de0aa; }
 .block-node.run-done { border-color: #1fa37a; box-shadow: 0 0 0 1px #1fa37a; }
@@ -255,41 +258,30 @@ button.danger:hover { background: #3a2530; }
   color: var(--muted);
   white-space: nowrap;
 }
-/* Per-port note: every revealed port floats a tag, staggered into tiers with a
-   thin leader line back to the handle, so all are readable at once. */
-.data-handle .port-note {
+/* Port callouts: label boxes floating above (inputs) / below (outputs) the
+   node with a leader to each port dot. Shown on node hover/select. The hovered
+   node is elevated (see .block-node:hover) so callouts clear neighbour nodes. */
+.port-callouts { position: absolute; inset: 0; pointer-events: none; z-index: 1000; }
+.callout-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.callout-box {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   white-space: nowrap;
+  transform: translate(-50%, -50%);
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 2px 7px;
+  border-radius: 4px;
+  padding: 3px 8px;
+  height: 24px;
+  box-sizing: border-box;
   font-size: 11px;
   color: var(--text);
-  pointer-events: none;
-  z-index: 20;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
 }
-.data-handle:hover .port-note { border-color: var(--accent); z-index: 21; }
-.port-note-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
-.port-note-kind { color: var(--muted); font-size: 10px; }
-
-/* Leader line from the handle up/down to its note tier. */
-.port-leader {
-  position: absolute;
-  left: 50%;
-  width: 1px;
-  background: var(--border);
-  pointer-events: none;
-  z-index: 19;
-}
-.port-leader-in { bottom: 100%; }
-.port-leader-out { top: 100%; }
+.callout-name { font-weight: 600; }
+.callout-kind { color: var(--muted); font-size: 10px; }
 .block-title { font-weight: 600; }
 .block-type { font-size: 11px; color: var(--muted); }
 .ctl-handle { width: 10px; height: 10px; background: #444b54; border: 1px solid #6b7280; }
