@@ -51,7 +51,7 @@ SECTIONS = {
 # off-screen units (the roster is a single long horizontal strip). Enough scrolls
 # to reach units far down the strip — e.g. super troops sit well past the regular
 # troops, so a handful of swipes never reached them.
-ROSTER_SWIPE = ((1400, 790), (300, 790))
+ROSTER_SWIPE = ((1250, 790), (650, 790))
 MAX_ROSTER_SCROLLS = 12
 
 # Empty spot to tap to collapse an open add-roster (above the palette, clear of
@@ -121,6 +121,7 @@ class TrainScreen(BaseScreen):
         if not cfg:
             return
         self.ui_manager.click(*cfg["panel"])
+        self._roster_offset = 0   # freshly opened roster sits at its start
         self.ui_manager._poll_sleep(0.8)
 
     def close_roster(self):
@@ -155,22 +156,45 @@ class TrainScreen(BaseScreen):
             return None
         return (int(xs.mean()) + x1, int(ys.mean()) + y1)
 
-    def train_unit(self, roster_template, count, tap_delay=0.2, threshold=0.7):
+    def train_unit(self, roster_template, count, tap_delay=0.2, threshold=0.7,
+                   fallback_template=None):
         """Find a troop's face in the bright roster and tap it ``count`` times.
 
-        ``roster_template`` is a ``units/roster/<name>`` face template. If the
-        troop isn't visible, the roster is scrolled and the search retried.
-        Returns the number of taps issued.
+        ``roster_template`` is a ``units/roster/<name>`` face template. When that
+        face hasn't been captured, fall back to ``fallback_template`` — the
+        deploy asset (``units/<folder>/<name>``) — so the roster is still
+        scrolled and matched against the original icon instead of bailing with
+        no scroll at all. The deploy asset carries count/level badges and a
+        different render, so it matches the bright roster less cleanly; we hold the
+        SAME threshold for it (NOT a lenient one) — lowering it just lets a badged
+        icon false-match a different troop on the first screen and tap that,
+        never scrolling to the real unit. If the fallback can't clear the bar the
+        whole strip is scrolled and "not found" is reported, which is the signal
+        to capture a dedicated roster face. Returns the number of taps issued.
         """
         count = int(count)
         name = roster_template.rsplit("/", 1)[-1]
         if count <= 0:
             return 0
-        if roster_template not in vision.cache:
-            logger.warning("[TRAIN] no face template %s — capture it with scripts/capture_face.py", roster_template)
-            return 0
 
-        loc = self._locate_in_roster(roster_template, threshold)
+        template, thr = roster_template, threshold
+        if template not in vision.cache:
+            if fallback_template and fallback_template in vision.cache:
+                # Badged deploy icon vs the roster's face render is ambiguous, so a
+                # LOOSE threshold false-matches a wrong troop on the first screen and
+                # stops there (never scrolling). Demand a STRICT match instead: the
+                # first screen won't clear it, so the whole strip is scrolled, and we
+                # only tap on a confident hit (else not-found -> capture a roster face).
+                logger.info("[TRAIN] no roster face %s — fallback to deploy asset %s at a strict "
+                            "threshold (will scroll the strip; capture a roster face if it misses).",
+                            roster_template, fallback_template)
+                template, thr = fallback_template, max(threshold, 0.8)
+            else:
+                logger.warning("[TRAIN] no face template %s (no deploy asset to fall back on) "
+                               "— capture it via the Assets tab.", roster_template)
+                return 0
+
+        loc = self._locate_in_roster(template, thr)
         if not loc:
             logger.warning("[TRAIN] %s not found in roster after scrolling — skipping.", name)
             return 0
@@ -189,10 +213,13 @@ class TrainScreen(BaseScreen):
     def _locate_in_roster(self, roster_template, threshold):
         """find_template the troop; scroll the roster up to MAX_ROSTER_SCROLLS if missing.
 
-        A section's roster opens fresh at its start each time we enter it (via
-        clear_section or open_roster), so scanning forward from there reaches
-        every unit — no rewind needed.
+        Each unit in a section is searched by a separate call, so the strip may be
+        scrolled FORWARD from finding a previous (later) unit — which leaves an
+        earlier unit off-screen behind us. Rewind to the strip's start first
+        (undoing the swipes we've tracked), then scan forward, so every search
+        starts from the front regardless of pick order.
         """
+        self._rewind_roster()
         for attempt in range(MAX_ROSTER_SCROLLS + 1):
             screen = self.ui_manager.get_screen()
             if screen is not None:
@@ -202,8 +229,23 @@ class TrainScreen(BaseScreen):
             if attempt < MAX_ROSTER_SCROLLS and not self.ui_manager._stopped():
                 (sx, sy), (ex, ey) = ROSTER_SWIPE
                 self.ui_manager.device.swipe([(sx, sy), (ex, ey)])
+                self._roster_offset = getattr(self, "_roster_offset", 0) + 1
                 self.ui_manager._poll_sleep(0.8)
         return None
+
+    def _rewind_roster(self):
+        """Scroll the roster back to its start, reversing the forward swipes taken
+        for a previous unit so the next search begins from the front."""
+        n = getattr(self, "_roster_offset", 0)
+        if n <= 0:
+            return
+        (sx, sy), (ex, ey) = ROSTER_SWIPE
+        for _ in range(n):
+            if self.ui_manager._stopped():
+                break
+            self.ui_manager.device.swipe([(ex, ey), (sx, sy)])   # reversed = scroll back
+            self.ui_manager._poll_sleep(0.8)
+        self._roster_offset = 0
 
     def back_home(self, max_taps=4):
         """Leave the army screen back to the village.

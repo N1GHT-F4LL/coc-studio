@@ -26,19 +26,32 @@ export function toVariant(nodes: RFNode[], edges: Edge[]): DeployNodeT[] {
 
 // Auto-layout (horizontal, suits a 16:9 screen): assign each node a level =
 // longest dependency chain from a root (via after-edges), lay levels out
-// left-to-right and stack siblings vertically. Every column is centred on the
-// same horizontal midline so chains read straight across and branches fan out
-// symmetrically above/below — no drift.
+// left-to-right and stack siblings vertically. Within each column, order nodes
+// by the BARYCENTRE of their neighbours (mean rank of preds going forward, of
+// succs going backward) and sweep a few times — the standard layered-graph
+// heuristic (Sugiyama) that pulls connected nodes onto the same row and so
+// minimises edge crossings. Every column is centred on the same midline so
+// chains read straight across and branches fan out symmetrically.
 const LAYOUT_X = 240; // horizontal gap between levels (columns)
 const LAYOUT_Y = 120; // vertical gap between siblings in a column
 const LAYOUT_X0 = 60;
 const LAYOUT_MID = 300; // y of the centre line each column is balanced around
+const LAYOUT_SWEEPS = 4; // down/up barycentre passes — converges quickly
 
 export function layoutNodes(nodes: RFNode[], edges: Edge[]): RFNode[] {
-  // preds[id] = nodes this one runs after (incoming edges).
+  // preds[id] = nodes this one runs after; succs[id] = nodes that run after it.
   const preds: Record<string, string[]> = {};
-  for (const n of nodes) preds[n.id] = [];
-  for (const e of edges) if (preds[e.target]) preds[e.target].push(e.source);
+  const succs: Record<string, string[]> = {};
+  for (const n of nodes) {
+    preds[n.id] = [];
+    succs[n.id] = [];
+  }
+  for (const e of edges) {
+    if (preds[e.target] && succs[e.source]) {
+      preds[e.target].push(e.source);
+      succs[e.source].push(e.target);
+    }
+  }
 
   // Longest-path level via memoised DFS (cycles guarded by a visiting set).
   const level: Record<string, number> = {};
@@ -55,21 +68,54 @@ export function layoutNodes(nodes: RFNode[], edges: Edge[]): RFNode[] {
   };
   for (const n of nodes) levelOf(n.id);
 
-  // Group by level (column); stack siblings vertically, centred on the midline.
-  const byLevel: Record<number, RFNode[]> = {};
-  for (const n of nodes) (byLevel[level[n.id]] ??= []).push(n);
+  // Columns by level, seeded in insertion order.
+  const maxLevel = nodes.reduce((m, n) => Math.max(m, level[n.id]), 0);
+  const cols: string[][] = Array.from({ length: maxLevel + 1 }, () => []);
+  for (const n of nodes) cols[level[n.id]].push(n.id);
 
-  return nodes.map((n) => {
-    const lv = level[n.id];
-    const col = byLevel[lv];
-    const idx = col.indexOf(n);
-    // Centre this column's siblings around LAYOUT_MID.
-    const y = LAYOUT_MID + (idx - (col.length - 1) / 2) * LAYOUT_Y;
-    return {
-      ...n,
-      position: { x: LAYOUT_X0 + lv * LAYOUT_X, y },
-    };
+  // rank[id] = current row index within its column (updated after each reorder).
+  const rank: Record<string, number> = {};
+  const reindex = () => cols.forEach((col) => col.forEach((id, i) => (rank[id] = i)));
+  reindex();
+
+  // Mean rank of a node's neighbours; null when it has none with a known rank.
+  const barycentre = (ids: string[]): number | null => {
+    const rs = ids.map((id) => rank[id]).filter((r) => r !== undefined);
+    return rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
+  };
+  // Stable sort by key; nodes with no neighbour (null key) keep their slot.
+  const orderBy = (col: string[], key: (id: string) => number | null): string[] =>
+    col
+      .map((id, i) => {
+        const k = key(id);
+        return { id, k: k === null ? i : k, i };
+      })
+      .sort((a, b) => a.k - b.k || a.i - b.i)
+      .map((w) => w.id);
+
+  for (let s = 0; s < LAYOUT_SWEEPS; s++) {
+    for (let l = 1; l <= maxLevel; l++) {
+      cols[l] = orderBy(cols[l], (id) => barycentre(preds[id]));
+      reindex();
+    }
+    for (let l = maxLevel - 1; l >= 0; l--) {
+      cols[l] = orderBy(cols[l], (id) => barycentre(succs[id]));
+      reindex();
+    }
+  }
+
+  // Position: column = level (x), row = final rank centred on the midline (y).
+  const pos: Record<string, { x: number; y: number }> = {};
+  cols.forEach((col, l) => {
+    col.forEach((id, idx) => {
+      pos[id] = {
+        x: LAYOUT_X0 + l * LAYOUT_X,
+        y: LAYOUT_MID + (idx - (col.length - 1) / 2) * LAYOUT_Y,
+      };
+    });
   });
+
+  return nodes.map((n) => ({ ...n, position: pos[n.id] }));
 }
 
 // variant.nodes -> React Flow canvas. Rebuilds after-edges; lays out nodes that

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
+  ReactFlowProvider,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -381,22 +382,24 @@ export function ScenarioEditor({
                   render nodes when shown. Node state lives above, so it
                   survives the remount. */}
               {active && (
-                <ReactFlow
-                  nodes={nodes}
-                  edges={edges}
-                  nodeTypes={nodeTypes}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
-                  onConnect={onConnect}
-                  onSelectionChange={onSelectionChange}
-                  onInit={(inst) => (rfRef.current = inst)}
-                  fitView
-                  deleteKeyCode={["Backspace", "Delete"]}
-                  proOptions={{ hideAttribution: true }}
-                >
-                  <Background />
-                  <Controls />
-                </ReactFlow>
+                <ReactFlowProvider>
+                  <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    nodeTypes={nodeTypes}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    onSelectionChange={onSelectionChange}
+                    onInit={(inst) => (rfRef.current = inst)}
+                    fitView
+                    deleteKeyCode={["Backspace", "Delete"]}
+                    proOptions={{ hideAttribution: true }}
+                  >
+                    <Background />
+                    <Controls />
+                  </ReactFlow>
+                </ReactFlowProvider>
               )}
             </div>
           )}

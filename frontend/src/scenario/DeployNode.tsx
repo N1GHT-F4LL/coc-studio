@@ -14,12 +14,15 @@ const TYPE_COLOR: Record<DeployType, string> = {
   siege: "#e0a32b",
   hero: "#d4356b",
   delay: "#6b7280",
+  surrender: "#b3402f",
 };
 
 function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
   const n = data.node;
   const color = TYPE_COLOR[n.type] ?? "#6b7280";
   const isDelay = n.type === "delay";
+  const isSurrender = n.type === "surrender";
+  const noTemplate = isDelay || isSurrender; // control nodes — render a badge, not a thumb
 
   return (
     <div
@@ -29,11 +32,11 @@ function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
       <Handle id="in" type="target" position={Position.Left} className="ctl-handle" />
 
       <div className="deploy-node-row">
-        {!isDelay && n.template ? (
+        {!noTemplate && n.template ? (
           <img className="deploy-thumb" src={thumbUrl(n.template)} alt="" />
         ) : (
           <span className="deploy-badge" style={{ background: color }}>
-            {n.type[0].toUpperCase()}
+            {isSurrender ? "⚑" : n.type[0].toUpperCase()}
           </span>
         )}
         <div className="deploy-node-text">
@@ -41,6 +44,8 @@ function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
           <div className="deploy-node-sub">
             {isDelay
               ? `delay ${n.seconds ?? 0}s`
+              : isSurrender
+              ? "surrender → exit"
               : `${(n.template || "—").split("/").pop()} ×${n.taps ?? 0} · ${n.strategy ?? "line"}`}
           </div>
         </div>

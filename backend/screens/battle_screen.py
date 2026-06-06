@@ -38,6 +38,23 @@ EXIT_BATTLE_TEMPLATES = (
     "buttons/battle/btn_end_battle",
 )
 
+# The mid-battle bail button changes label by deploy state: a white-flag
+# "Surrender" while troops are still being deployed, an "End Battle" once the
+# whole army is down. They sit in the same spot and both quit the attack, so the
+# surrender node accepts EITHER.
+SURRENDER_BUTTONS = (
+    "buttons/battle/btn_surrender",
+    "buttons/battle/btn_end_battle",
+)
+
+# Confirm dialog after the bail button: an "are you sure you want to end the
+# fight?" popup with Cancel + Okay. The clickable confirm is the green Okay
+# button (``btn_surrender_confirm`` is a crop of the whole popup, not a button,
+# so its centre lands on empty dialog space — don't tap that).
+SURRENDER_CONFIRMS = (
+    "buttons/battle/okay",
+)
+
 SLOT_ICON_SCALES = (0.50, 0.60, 0.70, 0.80, 0.90, 1.00, 1.10, 1.20)
 
 
@@ -73,6 +90,77 @@ class BattleScreen(BaseScreen):
     def tap_return_home(self, loc):
         self.ui_manager.click(*loc)
         logger.info("Tapped Return Home.")
+
+    def surrender(self, return_home=True):
+        """Give up the current attack: tap the surrender flag, confirm, then
+        (optionally) return to the village once the loot screen appears.
+
+        Backs the scenario ``surrender`` node — pair it with a ``delay`` node to
+        deploy a few troops, wait, then bail out (e.g. quick resource raids).
+
+        The bail button is a white-flag Surrender while troops are still being
+        deployed and an End Battle once the army is fully down, so we accept
+        either (``SURRENDER_BUTTONS``)."""
+        flag = self._wait_until_any_appears(
+            SURRENDER_BUTTONS, timeout=6, silent=True, use_orb_fallback=False)
+        if not flag:
+            logger.warning("[SURRENDER] no surrender/end-battle button found — battle may have already ended.")
+        else:
+            self.ui_manager.click(*flag)
+            self.ui_manager._poll_sleep(0.6)
+            # Both bail paths raise an "are you sure?" confirm (Surrender confirm
+            # or the end-early Okay). Several confirm templates can partially
+            # match the same dialog (both confirm buttons are green), so pick the
+            # HIGHEST-confidence one rather than first-found — otherwise we tap the
+            # wrong spot and the dialog stays up.
+            confirm = self._wait_for_best_confirm(SURRENDER_CONFIRMS, timeout=4)
+            if confirm:
+                self.ui_manager.click(*confirm)
+                logger.info("[SURRENDER] confirmed — tapped (%d,%d).", *confirm)
+                self.ui_manager._poll_sleep(1.0)
+            else:
+                logger.info("[SURRENDER] no confirm dialog — continuing.")
+        if return_home:
+            loc = self.wait_for_end(timeout=20)
+            if loc:
+                self.tap_return_home(loc)
+                self.ui_manager._poll_sleep(2)
+            else:
+                logger.warning("[SURRENDER] Return Home not seen after surrender.")
+        return True
+
+    def _wait_for_best_confirm(self, templates, timeout, threshold=0.7):
+        """Poll for a confirm dialog and return the centre of the HIGHEST-
+        confidence matching template.
+
+        ``_wait_until_any_appears`` returns the first template that clears the
+        threshold; when several confirm buttons look alike (two green buttons),
+        a weak partial match can win and we tap the wrong spot. Scoring every
+        candidate on each frame and taking the best makes the Okay button win on
+        the End-Battle dialog and the Surrender confirm win on the white-flag
+        dialog. Returns None if no candidate clears the threshold in time."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            screen = self.ui_manager.get_screen()
+            if screen is not None:
+                gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY) if screen.ndim == 3 else screen
+                best = None  # (score, (cx, cy), key)
+                for key in templates:
+                    tpl = vision.cache.get(key)
+                    if tpl is None:
+                        continue
+                    score, scaled, rmap = vision._find_best_scale(gray, tpl, threshold)
+                    if rmap is None or scaled is None or score < threshold:
+                        continue
+                    _, _, _, max_loc = cv2.minMaxLoc(rmap)
+                    bh, bw = scaled.shape[:2]
+                    if best is None or score > best[0]:
+                        best = (score, (int(max_loc[0] + bw // 2), int(max_loc[1] + bh // 2)), key)
+                if best:
+                    logger.info("[SURRENDER] confirm match %s conf=%.2f", best[2].rsplit("/", 1)[-1], best[0])
+                    return best[1]
+            self.ui_manager._poll_sleep(0.4)
+        return None
 
     def bail(self):
         """Best-effort recovery: tap Return Home if visible, then close popups."""
@@ -153,6 +241,14 @@ class BattleScreen(BaseScreen):
                         seconds = int(slot.get("seconds", 1))
                         logger.info(f"[DEPLOY] delay  {seconds}s")
                         self.ui_manager._poll_sleep(seconds)
+                        any_deployed = True
+                        continue
+
+                    if slot.get("type") == "surrender":
+                        logger.info("[DEPLOY] surrender -> exit battle")
+                        # Just end the fight + confirm; the graph's Return Home
+                        # block handles getting back to the village.
+                        self.surrender(return_home=False)
                         any_deployed = True
                         continue
 

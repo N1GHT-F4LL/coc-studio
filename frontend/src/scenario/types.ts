@@ -2,7 +2,14 @@
 // (backend/screens/battle_screen.py) and required_composition
 // (backend/engine/composition.py).
 
-export type DeployType = "troop" | "super_troop" | "spell" | "siege" | "hero" | "delay";
+export type DeployType =
+  | "troop"
+  | "super_troop"
+  | "spell"
+  | "siege"
+  | "hero"
+  | "delay"
+  | "surrender";
 export type Strategy = "line" | "points" | "delay";
 
 // One deploy slot. Fields depend on type/strategy:
@@ -47,7 +54,15 @@ export interface Composition {
   heroes: string[];
 }
 
-export const DEPLOY_TYPES: DeployType[] = ["troop", "super_troop", "spell", "siege", "hero", "delay"];
+export const DEPLOY_TYPES: DeployType[] = [
+  "troop",
+  "super_troop",
+  "spell",
+  "siege",
+  "hero",
+  "delay",
+  "surrender",
+];
 
 // Mirror of backend required_composition: per template, sum taps within a
 // variant, then take the MAX across variants (deploy picks one variant). Used
@@ -104,8 +119,9 @@ export function formatComposition(c: Composition): string {
   return `troops[${fmt(c.troops)}] spells[${fmt(c.spells)}] sieges[${fmt(c.sieges)}]`;
 }
 
-// Folder under assets/units/ for each deployable type's templates.
-export const TYPE_FOLDER: Record<Exclude<DeployType, "delay">, string> = {
+// Folder under assets/units/ for each deployable type's templates. delay and
+// surrender are control nodes with no template.
+export const TYPE_FOLDER: Record<Exclude<DeployType, "delay" | "surrender">, string> = {
   troop: "units/troops",
   super_troop: "units/super_troops",
   spell: "units/spells",

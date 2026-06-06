@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
+  ReactFlowProvider,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -324,23 +325,29 @@ export default function App() {
         <div className="center">
           <div className="canvas">
             <RunStateContext.Provider value={runner.runState}>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={nodeTypes}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                isValidConnection={isValidConnection}
-                onSelectionChange={onSelectionChange}
-                onInit={(inst) => (rfRef.current = inst)}
-                fitView
-                deleteKeyCode={["Backspace", "Delete"]}
-                proOptions={{ hideAttribution: true }}
-              >
-                <Background />
-                <Controls />
-              </ReactFlow>
+              {/* Own provider so this flow's store is isolated from the scenario
+                  editor's ReactFlow (both stay mounted across tabs; a shared
+                  store let the hidden flow clobber handle positions -> the
+                  visible flow couldn't make connections). */}
+              <ReactFlowProvider>
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  nodeTypes={nodeTypes}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onConnect={onConnect}
+                  isValidConnection={isValidConnection}
+                  onSelectionChange={onSelectionChange}
+                  onInit={(inst) => (rfRef.current = inst)}
+                  fitView
+                  deleteKeyCode={["Backspace", "Delete"]}
+                  proOptions={{ hideAttribution: true }}
+                >
+                  <Background />
+                  <Controls />
+                </ReactFlow>
+              </ReactFlowProvider>
             </RunStateContext.Provider>
           </div>
           <div className="dock">

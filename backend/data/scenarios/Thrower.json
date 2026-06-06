@@ -231,7 +231,7 @@
             "wait_hero"
           ],
           "template": "units/heroes/barbarian_king",
-          "taps": 1,
+          "taps": 0,
           "strategy": "points",
           "points": [
             [
@@ -290,7 +290,7 @@
             "wait_aq"
           ],
           "template": "units/heroes/archer_queen",
-          "taps": 1,
+          "taps": 0,
           "strategy": "points",
           "points": [
             [
@@ -368,7 +368,7 @@
             "rage"
           ],
           "template": "units/heroes/royal_champion",
-          "taps": 1,
+          "taps": 0,
           "strategy": "points",
           "points": [
             [
@@ -399,7 +399,7 @@
             "wait_gw"
           ],
           "template": "units/heroes/grand_warden",
-          "taps": 1,
+          "taps": 0,
           "strategy": "points",
           "points": [
             [

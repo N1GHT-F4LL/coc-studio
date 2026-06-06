@@ -251,11 +251,16 @@ class EnsureTroops(BlockSpec):
                 if ctx.stopped():
                     break
                 roster_tpl = "units/roster/" + template_key.rsplit("/", 1)[-1]
-                tapped = train.train_unit(roster_tpl, count, tap_delay=tap_delay, threshold=threshold)
+                # Prefer the dedicated roster face; fall back to the deploy asset
+                # (template_key) so a unit without a captured face still gets
+                # scrolled + matched instead of bailing early.
+                tapped = train.train_unit(roster_tpl, count, tap_delay=tap_delay,
+                                          threshold=threshold, fallback_template=template_key)
                 if tapped == 0 and "super_troops" in template_key:
                     ctx.logger.warning(
                         "[ensure_troops] %s trained 0 — a super troop only shows in the "
-                        "roster once BOOSTED in-game (and needs a units/roster/ face).",
+                        "roster once BOOSTED in-game; if it is boosted, capture a "
+                        "units/roster/ face via the Assets tab.",
                         template_key.rsplit("/", 1)[-1])
             train.close_roster()        # collapse before the next section
         train.back_home()               # X -> home (once, at the end)

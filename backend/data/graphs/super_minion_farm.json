@@ -1,0 +1,61 @@
+{
+  "name": "super_minion_farm",
+  "nodes": [
+    {
+      "id": "ensure_home_0",
+      "type": "ensure_home",
+      "label": "Ensure Home",
+      "x": 80,
+      "y": 300,
+      "params": {
+        "zoom_out": true,
+        "timeout": 10
+      },
+      "after": [],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "find_match_2",
+      "type": "find_match",
+      "label": "Find Match",
+      "x": 340,
+      "y": 300,
+      "params": {},
+      "after": [
+        "ensure_home_0"
+      ],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "deploy_7",
+      "type": "deploy",
+      "label": "Deploy Super Minion",
+      "x": 600,
+      "y": 300,
+      "params": {
+        "scenario": "supper_minion"
+      },
+      "after": [
+        "find_match_2"
+      ],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "return_home_8",
+      "type": "return_home",
+      "label": "Return Home",
+      "x": 860,
+      "y": 300,
+      "params": {},
+      "after": [
+        "deploy_7"
+      ],
+      "data_in": {},
+      "on_error": null
+    }
+  ],
+  "meta": {}
+}

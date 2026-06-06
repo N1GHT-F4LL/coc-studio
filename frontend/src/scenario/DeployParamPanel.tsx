@@ -35,10 +35,14 @@ export function DeployParamPanel({
   }
 
   const isDelay = node.type === "delay";
+  const isSurrender = node.type === "surrender";
+  const noTemplate = isDelay || isSurrender; // control nodes — no template/taps/strategy
   const set = (patch: Partial<DeployNodeT>) => onChange(node.id, patch);
 
   // Templates relevant to this unit type (e.g. units/troops/* for a troop).
-  const folder = isDelay ? null : TYPE_FOLDER[node.type as Exclude<DeployType, "delay">];
+  const folder = noTemplate
+    ? null
+    : TYPE_FOLDER[node.type as Exclude<DeployType, "delay" | "surrender">];
   const typeAssets = folder ? assets.filter((a) => a.startsWith(folder + "/")) : [];
 
   return (
@@ -59,12 +63,11 @@ export function DeployParamPanel({
           value={node.type}
           onChange={(e) => {
             const t = e.target.value as DeployType;
-            // Switching to/from delay flips the relevant fields.
-            set(
-              t === "delay"
-                ? { type: t, strategy: "delay", seconds: node.seconds ?? 1 }
-                : { type: t, strategy: node.strategy === "delay" ? "line" : node.strategy }
-            );
+            // Switching between control nodes (delay/surrender) and unit nodes
+            // flips the relevant fields.
+            if (t === "delay") set({ type: t, strategy: "delay", seconds: node.seconds ?? 1 });
+            else if (t === "surrender") set({ type: t, strategy: undefined });
+            else set({ type: t, strategy: node.strategy === "delay" ? "line" : node.strategy });
           }}
         >
           {DEPLOY_TYPES.map((t) => (
@@ -75,7 +78,13 @@ export function DeployParamPanel({
         </select>
       </label>
 
-      {isDelay ? (
+      {isSurrender ? (
+        <div className="block-desc">
+          Ends the attack: taps the surrender / end-battle button and confirms
+          (Okay). Returning home is left to the graph's Return Home block. Pair it
+          with a delay node to deploy, wait, then bail out.
+        </div>
+      ) : isDelay ? (
         <label className="field">
           <span>Seconds</span>
           <input
