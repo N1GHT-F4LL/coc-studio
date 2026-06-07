@@ -421,10 +421,11 @@ class BattleScreen(BaseScreen):
         troops that were never trained or planned, so they have NO template.
 
         Rather than matching known icons, sweep the bar by SLOT POSITION: split
-        the bar into fixed-pitch tiles and treat a tile with enough visual detail
-        (grayscale std, adaptive to the bar) as an occupied slot. For each
-        occupied slot, select it and spam-drop along the front; re-scan each round
-        and stop when no slot is occupied (bar clear) or the battle ends. The
+        the bar into fixed-pitch tiles and treat a tile that is still in COLOUR
+        (high mean saturation) as an available troop — a used-up slot greys out.
+        For each occupied slot, select it and spam-drop along the front; re-scan
+        each round and stop when no slot is colourful (bar done) or the battle
+        ends. The
         Return Home button is re-checked before every drop, so once the fight is
         over (bar gone) we never tap the loot/result screen. Returns True if it
         dropped anything."""
@@ -439,7 +440,7 @@ class BattleScreen(BaseScreen):
         tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
         select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
         humanize = bool(deploy_cfg.get("humanize", True))
-        std_floor = float(deploy_cfg.get("bar_occupancy_std", 8.0))
+        sat_floor = float(deploy_cfg.get("bar_color_sat", 45.0))
 
         dumped = False
         for rnd in range(max_rounds):
@@ -449,28 +450,30 @@ class BattleScreen(BaseScreen):
             if self._battle_ended(screen):
                 logger.info("[DUMP] battle ended / no bar — stopping.")
                 break
-            gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
-            h, w = gray.shape[:2]
+            hsv = cv2.cvtColor(screen, cv2.COLOR_BGR2HSV)
+            h, w = hsv.shape[:2]
 
-            # Occupied slots = tiles with detail (a troop icon), adaptive to the
-            # bar so it works regardless of brightness; a used/empty slot is flat.
-            stds, centers = [], []
+            # An available (not-yet-deployed) troop is in COLOUR; once its stock is
+            # used up the slot greys out. So occupied = high mean SATURATION,
+            # adaptive to the most-colourful tile on the bar. (A used/empty slot is
+            # grey → low saturation → skipped, which is also the stop condition.)
+            sats, centers = [], []
             for i in range(n_slots):
                 tx1 = max(0, min(w, bx1 + i * pitch))
                 tx2 = max(0, min(w, tx1 + pitch))
                 ty1 = max(0, min(h, by1)); ty2 = max(0, min(h, by2))
                 if tx2 - tx1 < 6 or ty2 - ty1 < 6:
                     continue
-                tile = gray[ty1:ty2, tx1:tx2]
+                tile = hsv[ty1:ty2, tx1:tx2, 1]   # saturation channel
                 if tile.size:
-                    stds.append(float(tile.std()))
+                    sats.append(float(tile.mean()))
                     centers.append((tx1 + tx2) // 2)
-            if not stds:
+            if not sats:
                 break
-            cutoff = max(std_floor, 0.45 * max(stds))
-            occupied = [c for c, s in zip(centers, stds) if s >= cutoff]
+            cutoff = max(sat_floor, 0.5 * max(sats))
+            occupied = [c for c, s in zip(centers, sats) if s >= cutoff]
             if not occupied:
-                logger.info("[DUMP] bar clear — all troops deployed.")
+                logger.info("[DUMP] bar clear — all colour (un-deployed) troops gone.")
                 break
 
             logger.info("[DUMP] round %d: %d occupied slot(s) — dumping (incl. event troops).",
