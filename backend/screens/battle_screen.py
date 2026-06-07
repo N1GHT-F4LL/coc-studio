@@ -19,7 +19,8 @@ def _draw_clicks(img, click_positions, colors, ox, oy, scale):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
 
 BATTLE_TIMEOUT = 180
-DEPLOY_TAP_INTERVAL = 0.15
+DEPLOY_TAP_INTERVAL = 0.15   # delay between successive drop taps of one unit
+DEPLOY_SELECT_DELAY = 0.3    # pause after tapping a unit on the bar, before dropping
 
 # Anchors that appear at some point during the attack phase.
 BATTLE_ANCHORS = (
@@ -208,6 +209,9 @@ class BattleScreen(BaseScreen):
         bar_crop = screen[by1:by2, bx1:bx2]
         bar_gray = None
         tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
+        # Pause after selecting a troop on the bar before dropping it. Charged
+        # once per node, so it dominates wall-clock on scenarios with many nodes.
+        select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
         bar_center_y = (by1 + by2) // 2
         any_deployed = False
         debug_clicks = []
@@ -297,7 +301,7 @@ class BattleScreen(BaseScreen):
 
                     debug_clicks.append((template_key, slot_cx, slot_cy))
                     self.ui_manager.click(slot_cx, slot_cy)
-                    self.ui_manager._poll_sleep(0.3)
+                    self.ui_manager._poll_sleep(select_delay)
                     if configured_taps > 0:
                         self._execute_slot_strategy(slot, deploy_cfg, configured_taps, tap_interval)
                     any_deployed = True

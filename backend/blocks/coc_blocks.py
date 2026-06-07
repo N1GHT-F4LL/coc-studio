@@ -356,7 +356,11 @@ class Deploy(BlockSpec):
     category = "CoC"
     # Empty scenario -> use settings active_scenario (AttackScreen.deploy path).
     # A scenario name -> run that migrated scenario (data/scenarios/<name>.json).
-    inputs = [Param("scenario", Kind.Text, default="", source="scenarios")]
+    inputs = [
+        Param("scenario", Kind.Text, default="", source="scenarios"),
+        Param("tap_interval", Kind.Number, default=0.08, label="Tap interval (s)"),
+        Param("select_delay", Kind.Number, default=0.2, label="Select delay (s)"),
+    ]
     outputs = [Port("deployed", Kind.Bool)]
 
     def run(self, ctx, inputs):
@@ -382,8 +386,18 @@ class Deploy(BlockSpec):
             doc, ctx.vars.get("chosen_variant"))
         deploy_cfg = dict(ctx.settings.get("attack", {}).get("deploy", {}))
         deploy_cfg["nodes"] = nodes
-        ctx.logger.info("[deploy] scenario=%s variant=%s nodes=%d",
-                        scenario, variant_name, len(nodes))
+        # Deploy-speed overrides (present param wins; absent keeps settings/defaults).
+        for key in ("tap_interval", "select_delay"):
+            v = inputs.get(key)
+            if v is None or v == "":
+                continue
+            try:
+                deploy_cfg[key] = max(0.0, float(v))
+            except (TypeError, ValueError):
+                ctx.logger.warning("[deploy] ignoring non-numeric %s=%r", key, v)
+        ctx.logger.info("[deploy] scenario=%s variant=%s nodes=%d tap=%.3fs select=%.3fs",
+                        scenario, variant_name, len(nodes),
+                        deploy_cfg.get("tap_interval", 0.15), deploy_cfg.get("select_delay", 0.3))
         battle.deploy_troops(deploy_cfg)
         return {"deployed": True}
 
