@@ -454,7 +454,8 @@ class BattleScreen(BaseScreen):
         tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
         select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
         humanize = bool(deploy_cfg.get("humanize", True))
-        sat_floor = float(deploy_cfg.get("bar_color_sat", 45.0))
+        sat_floor = float(deploy_cfg.get("bar_color_sat", 55.0))
+        sat_ratio = float(deploy_cfg.get("bar_color_ratio", 0.6))
 
         dumped = False
         prev_occupied = None
@@ -485,7 +486,10 @@ class BattleScreen(BaseScreen):
                     centers.append((tx1 + tx2) // 2)
             if not sats:
                 break
-            cutoff = max(sat_floor, 0.5 * max(sats))
+            # Threshold relative to the most-colourful tile, so the real troops
+            # always pass while duller (greyed/empty) slots are rejected. Raise
+            # bar_color_ratio / bar_color_sat if empty slots still false-match.
+            cutoff = max(sat_floor, sat_ratio * max(sats))
             occupied = [c for c, s in zip(centers, sats) if s >= cutoff]
             if not occupied:
                 logger.info("[DUMP] bar clear — all colour (un-deployed) troops gone.")
