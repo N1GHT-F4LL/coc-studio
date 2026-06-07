@@ -15,7 +15,7 @@
           "template": "units/super_troops/super_minion",
           "taps": 7,
           "strategy": "line",
-          "x": 303,
+          "x": 300,
           "y": 0,
           "x1": 161,
           "y1": 432,
@@ -116,8 +116,8 @@
           "y1": 352,
           "x2": 567,
           "y2": 352,
-          "x": 781,
-          "y": 243
+          "x": 780,
+          "y": 240
         },
         {
           "id": "n_7",
@@ -156,8 +156,8 @@
               247
             ]
           ],
-          "x": 67,
-          "y": 304
+          "x": 60,
+          "y": 300
         },
         {
           "id": "n_9",
@@ -313,14 +313,14 @@
           "label": "Delay",
           "type": "delay",
           "after": [
-            "n_18"
+            "n_24"
           ],
           "template": "",
           "taps": 1,
           "strategy": "delay",
           "seconds": 30,
-          "x": 1260,
-          "y": 360
+          "x": 1500,
+          "y": 300
         },
         {
           "id": "n_21",
@@ -331,7 +331,7 @@
           ],
           "template": "",
           "taps": 1,
-          "x": 1500,
+          "x": 1740,
           "y": 300
         },
         {
@@ -367,6 +367,18 @@
           "y2": 683,
           "x": 300,
           "y": 120
+        },
+        {
+          "id": "n_24",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "n_18"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1260,
+          "y": 360
         }
       ]
     }
