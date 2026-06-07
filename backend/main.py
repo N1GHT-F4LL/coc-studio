@@ -60,7 +60,12 @@ def main():
     if os.path.isdir(static_dir) and os.environ.get("COC_OPEN_BROWSER", "1") != "0":
         threading.Timer(1.0, _open_browser).start()
 
-    uvicorn.run(app, host=HOST, port=PORT, log_level="info", access_log=False)
+    # log_config=None: don't let uvicorn install its own loggers/format. Its
+    # loggers then propagate to the root handler (our ColorFormatter), so
+    # everything reads as one consistent "[INFO] ..." stream instead of mixing in
+    # uvicorn's "INFO:" lines.
+    uvicorn.run(app, host=HOST, port=PORT, log_level="info",
+                access_log=False, log_config=None)
 
 
 if __name__ == "__main__":
