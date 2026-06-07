@@ -1,7 +1,9 @@
 from .base_screen import BaseScreen
 from core.vision import vision
 import logging
+import math
 import os
+import random
 import time
 import cv2
 from datetime import datetime
@@ -335,20 +337,48 @@ class BattleScreen(BaseScreen):
         except Exception as e:
             logger.debug(f"[DEPLOY] Bar debug save failed: {e}")
 
-    def _tap_line(self, x1, y1, x2, y2, taps, interval):
-        """Tap `taps` evenly-spaced points along the line from (x1,y1) to (x2,y2).
-        taps=1 → single tap at the midpoint; taps>1 → endpoints included."""
+    def _drop_delay(self, interval, humanize):
+        """Inter-drop pause. Humanized = jittered around ``interval`` (mean ≈ it)
+        so taps aren't metronomic; otherwise the exact interval."""
+        if humanize and interval > 0:
+            return max(0.0, interval * random.uniform(0.55, 1.5))
+        return interval
+
+    def _tap_line(self, x1, y1, x2, y2, taps, interval, humanize=True):
+        """Drop `taps` units along the line (x1,y1)->(x2,y2).
+
+        taps=1 → midpoint; taps>1 → endpoints included. With ``humanize`` each
+        drop is nudged along the line (uneven spacing) and a little off it
+        (perpendicular wander), and the inter-drop delay is jittered — so a line
+        deploy doesn't look like a perfectly even, ruler-straight robot stamp.
+        ``UIManager.click`` already adds its own small per-tap jitter on top.
+        """
         if taps == 1:
             self.ui_manager.click((x1 + x2) // 2, (y1 + y2) // 2)
-            self.ui_manager._poll_sleep(interval)
-        else:
-            for i in range(taps):
-                t = i / (taps - 1)
-                self.ui_manager.click(int(x1 + (x2 - x1) * t), int(y1 + (y2 - y1) * t))
-                self.ui_manager._poll_sleep(interval)
+            self.ui_manager._poll_sleep(self._drop_delay(interval, humanize))
+            return
+
+        dx, dy = (x2 - x1), (y2 - y1)
+        dist = math.hypot(dx, dy) or 1.0
+        ux, uy = dx / dist, dy / dist        # along-line unit vector
+        px, py = -uy, ux                     # perpendicular unit vector
+        spacing = dist / (taps - 1)
+        along_amp = spacing * 0.35           # up to ~1/3 of a gap of uneven spacing
+        perp_amp = min(spacing * 0.5, 22.0)  # gentle off-line wander, capped
+        for i in range(taps):
+            t = i / (taps - 1)
+            bx, by = x1 + dx * t, y1 + dy * t
+            if humanize:
+                a = random.uniform(-along_amp, along_amp)
+                p = random.uniform(-perp_amp, perp_amp)
+                bx += ux * a + px * p
+                by += uy * a + py * p
+            self.ui_manager.click(int(round(bx)), int(round(by)))
+            self.ui_manager._poll_sleep(self._drop_delay(interval, humanize))
 
     def _execute_slot_strategy(self, slot_cfg, deploy_cfg, taps, tap_interval):
         strategy = slot_cfg.get("strategy", "line")
+        humanize = bool(deploy_cfg.get("humanize", True))
 
         if strategy == "points":
             pts = slot_cfg.get("points", [])
@@ -358,7 +388,7 @@ class BattleScreen(BaseScreen):
                 for i in range(taps):
                     pt = pts[i % len(pts)]
                     self.ui_manager.click(int(pt[0]), int(pt[1]))
-                    self.ui_manager._poll_sleep(tap_interval)
+                    self.ui_manager._poll_sleep(self._drop_delay(tap_interval, humanize))
         else:
             # Support old {y, x_start, x_end} format as horizontal-line fallback.
             def_y = int(deploy_cfg.get("battlefield_y", 750))
@@ -366,5 +396,5 @@ class BattleScreen(BaseScreen):
             y1 = int(slot_cfg.get("y1", slot_cfg.get("y", def_y)))
             x2 = int(slot_cfg.get("x2", slot_cfg.get("x_end",   deploy_cfg.get("battlefield_x_end",  1300))))
             y2 = int(slot_cfg.get("y2", slot_cfg.get("y", def_y)))
-            self._tap_line(x1, y1, x2, y2, taps, tap_interval)
+            self._tap_line(x1, y1, x2, y2, taps, tap_interval, humanize=humanize)
 

@@ -368,6 +368,7 @@ class Deploy(BlockSpec):
         Param("scenario", Kind.Text, default="", source="scenarios"),
         Param("tap_interval", Kind.Number, default=0.08, label="Tap interval (s)"),
         Param("select_delay", Kind.Number, default=0.2, label="Select delay (s)"),
+        Param("humanize", Kind.Bool, default=True, label="Humanize drops"),
     ]
     outputs = [Port("deployed", Kind.Bool)]
 
@@ -403,6 +404,8 @@ class Deploy(BlockSpec):
                 deploy_cfg[key] = max(0.0, float(v))
             except (TypeError, ValueError):
                 ctx.logger.warning("[deploy] ignoring non-numeric %s=%r", key, v)
+        if "humanize" in inputs and inputs.get("humanize") is not None:
+            deploy_cfg["humanize"] = bool(inputs.get("humanize"))
         ctx.logger.info("[deploy] scenario=%s variant=%s nodes=%d tap=%.3fs select=%.3fs",
                         scenario, variant_name, len(nodes),
                         deploy_cfg.get("tap_interval", 0.15), deploy_cfg.get("select_delay", 0.3))
