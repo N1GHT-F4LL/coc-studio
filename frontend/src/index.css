@@ -29,6 +29,21 @@ body {
   padding: 8px 12px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  /* Stay a single row: controls must not be squeezed below their text (which
+     wraps "Bot Builder" -> two lines and doubles the bar height). Scroll
+     horizontally instead if the window is genuinely too narrow. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+/* Fixed-size, never-wrapping controls so the bar height can't grow. */
+.toolbar strong,
+.toolbar .mode-tabs,
+.toolbar button,
+.toolbar select,
+.toolbar input,
+.toolbar label {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .toolbar strong { margin-right: 8px; }
 .toolbar .status {
