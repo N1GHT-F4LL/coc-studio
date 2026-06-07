@@ -51,7 +51,9 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [graphName, setGraphName] = useState("untitled");
   const [savedGraphs, setSavedGraphs] = useState<string[]>([]);
-  const [status, setStatus] = useState("");
+  // Status messages are no longer shown in the top bar; setStatus is kept as a
+  // harmless sink so the existing handlers don't each need editing.
+  const [, setStatus] = useState("");
   const [assets, setAssets] = useState<string[]>([]);
   const [scenarios, setScenarios] = useState<string[]>([]);
   const [device, setDevice] = useState<DeviceStatus | null>(null);
@@ -320,7 +322,6 @@ export default function App() {
         onRun={onRun}
         onStop={runner.stop}
         device={device}
-        message={status}
       />
 
       <DeviceStreamProvider

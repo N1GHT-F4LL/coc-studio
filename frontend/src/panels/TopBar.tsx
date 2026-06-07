@@ -17,7 +17,6 @@ interface Props {
   onRun: () => void;
   onStop: () => void;
   device: DeviceStatus | null;
-  message: string; // free-text status line
 }
 
 // Maps the runner status to a bot-light dot class + label.
@@ -52,7 +51,6 @@ export function TopBar({
   onRun,
   onStop,
   device,
-  message,
 }: Props) {
   const bot = botLight(running, status);
   const devOn = !!device?.connected;
@@ -156,7 +154,6 @@ export function TopBar({
           <span className={`dot ${bot.cls}`} />
           {bot.label}
         </span>
-        {message && <span className="status">{message}</span>}
       </div>
     </header>
   );

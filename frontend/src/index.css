@@ -30,10 +30,10 @@ body {
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   /* Stay a single row: controls must not be squeezed below their text (which
-     wraps "Bot Builder" -> two lines and doubles the bar height). Scroll
-     horizontally instead if the window is genuinely too narrow. */
+     wraps "Bot Builder" -> two lines and doubles the bar height). Clip any
+     genuine overflow rather than showing a horizontal scrollbar. */
   flex-wrap: nowrap;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 /* Fixed-size, never-wrapping controls so the bar height can't grow. */
 .toolbar strong,
@@ -46,13 +46,6 @@ body {
   white-space: nowrap;
 }
 .toolbar strong { margin-right: 8px; }
-.toolbar .status {
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 280px;
-}
 .toolbar-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
 
 /* Status lights cluster, pushed to the right edge of the top bar. */
