@@ -478,9 +478,18 @@ class BattleScreen(BaseScreen):
                 tx1 = max(0, min(w, bx1 + i * pitch))
                 tx2 = max(0, min(w, tx1 + pitch))
                 ty1 = max(0, min(h, by1)); ty2 = max(0, min(h, by2))
-                if tx2 - tx1 < 6 or ty2 - ty1 < 6:
+                tw_, th_ = tx2 - tx1, ty2 - ty1
+                if tw_ < 6 or th_ < 6:
                     continue
-                tile = hsv[ty1:ty2, tx1:tx2, 1]   # saturation channel
+                # Sample only the lower-central BODY of the tile for colour. The
+                # top strip holds the level badge and — for a spent hero — its
+                # HEALTH BAR (still green/red), which would keep a greyed hero
+                # looking "colourful" and false-match it as an available troop.
+                sx1 = tx1 + int(tw_ * 0.20); sx2 = tx2 - int(tw_ * 0.20)
+                sy1 = ty1 + int(th_ * 0.45); sy2 = ty2 - int(th_ * 0.05)
+                if sx2 - sx1 < 4 or sy2 - sy1 < 4:
+                    sx1, sy1, sx2, sy2 = tx1, ty1, tx2, ty2
+                tile = hsv[sy1:sy2, sx1:sx2, 1]   # saturation channel, body only
                 if tile.size:
                     sats.append(float(tile.mean()))
                     centers.append((tx1 + tx2) // 2)
