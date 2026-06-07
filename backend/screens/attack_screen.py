@@ -153,9 +153,10 @@ class AttackScreen(BaseScreen):
             self._bail()
             return False
         skips = 0
+        scout_settle = float(attack_cfg.get("scout_settle", 1.0))
         while skips <= MAX_SKIP:
             # Ensure scout UI has settled before OCR.
-            self.ui_manager._poll_sleep(1.0)
+            self.ui_manager._poll_sleep(scout_settle)
 
             screen = self.ui_manager.get_screen()
             if screen is None:
@@ -254,7 +255,8 @@ class AttackScreen(BaseScreen):
             return False
 
         battle.tap_return_home(loc)
-        self.ui_manager._poll_sleep(3)
+        settle = float(self.settings.get("attack", {}).get("return_settle", 3))
+        self.ui_manager._poll_sleep(settle)
         self.close_popups()
         return True
 

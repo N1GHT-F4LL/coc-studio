@@ -323,6 +323,7 @@ class FindMatch(BlockSpec):
         Param("min_gold", Kind.Number, default=0, label="Min gold"),
         Param("min_elixir", Kind.Number, default=0, label="Min elixir"),
         Param("min_dark_elixir", Kind.Number, default=0, label="Min dark elixir"),
+        Param("scout_delay", Kind.Number, default=1.0, label="Scout settle (s)"),
     ]
     outputs = [Port("found", Kind.Bool)]
 
@@ -340,7 +341,14 @@ class FindMatch(BlockSpec):
                 farm[key] = int(v)
             except (TypeError, ValueError):
                 ctx.logger.warning("[find_match] ignoring non-numeric %s=%r", key, v)
-        settings = {**ctx.settings, "farm": farm}
+        attack = dict(ctx.settings.get("attack", {}))
+        sd = inputs.get("scout_delay")
+        if sd not in (None, ""):
+            try:
+                attack["scout_settle"] = max(0.0, float(sd))
+            except (TypeError, ValueError):
+                ctx.logger.warning("[find_match] ignoring non-numeric scout_delay=%r", sd)
+        settings = {**ctx.settings, "farm": farm, "attack": attack}
         ctx.logger.info(
             "[find_match] loot thresholds gold>=%s elixir>=%s dark>=%s",
             farm.get("min_gold", 0), farm.get("min_elixir", 0), farm.get("min_dark_elixir", 0),
@@ -406,14 +414,23 @@ class Deploy(BlockSpec):
 class ReturnHome(BlockSpec):
     label = "Return Home"
     category = "CoC"
-    inputs = []
+    inputs = [Param("settle_delay", Kind.Number, default=3, label="Settle delay (s)")]
     outputs = []
 
     def run(self, ctx, inputs):
         if not ctx.vars.get("match_found"):
             ctx.logger.info("[return_home] no match held — skipping.")
             return {}
-        AttackScreen(ctx.ui_manager, ctx.settings).return_home()
+        settings = ctx.settings
+        v = inputs.get("settle_delay")
+        if v not in (None, ""):
+            try:
+                attack = dict(ctx.settings.get("attack", {}))
+                attack["return_settle"] = max(0.0, float(v))
+                settings = {**ctx.settings, "attack": attack}
+            except (TypeError, ValueError):
+                ctx.logger.warning("[return_home] ignoring non-numeric settle_delay=%r", v)
+        AttackScreen(ctx.ui_manager, settings).return_home()
         return {}
 
 
