@@ -53,7 +53,7 @@ export function RunConsole({ running, status, logs, vars, onClear }: Props) {
         </div>
         <div className="run-vars">
           <div className="run-vars-title">vars</div>
-          {varEntries.length === 0 && <div className="muted">—</div>}
+          {varEntries.length === 0 && <div className="muted">-</div>}
           {varEntries.map(([k, v]) => (
             <div key={k} className="var-row">
               <span className="var-key">{k}</span>

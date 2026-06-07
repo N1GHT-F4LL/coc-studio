@@ -28,7 +28,7 @@ function SourceSelect({
 }) {
   return (
     <select id={id} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
-      <option value="">— select —</option>
+      <option value="">- select -</option>
       {options.map((o) => (
         <option key={o} value={o}>
           {o}
@@ -89,7 +89,7 @@ function Field({
       <label className="field" htmlFor={id}>
         <span>{p.label}</span>
         <select id={id} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
-          <option value="">— select asset —</option>
+          <option value="">- select asset -</option>
           {assets.map((a) => (
             <option key={a} value={a}>
               {a}

@@ -46,7 +46,7 @@ function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
               ? `delay ${n.seconds ?? 0}s`
               : isSurrender
               ? "surrender → exit"
-              : `${(n.template || "—").split("/").pop()} ×${n.taps ?? 0} · ${n.strategy ?? "line"}`}
+              : `${(n.template || "-").split("/").pop()} ×${n.taps ?? 0} · ${n.strategy ?? "line"}`}
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import type { DeviceStatus } from "../api/client";
 
-export type AppMode = "editor" | "scenario" | "asset" | "device";
+export type AppMode = "editor" | "scenario" | "asset" | "device" | "about";
 
 interface Props {
   mode: AppMode;
@@ -58,7 +58,7 @@ export function TopBar({
   const devOn = !!device?.connected;
   const devTitle = device
     ? `device ${device.connected ? "connected" : "not connected"}` +
-      (device.serial ? ` — ${device.serial}` : "") +
+      (device.serial ? ` - ${device.serial}` : "") +
       "\nClick to open the Device tab"
     : "Click to open the Device tab";
 
@@ -84,7 +84,7 @@ export function TopBar({
         <button
           className={mode === "asset" ? "active" : ""}
           onClick={() => onMode("asset")}
-          title="Manage template assets — capture, rename, replace, delete"
+          title="Manage template assets - capture, rename, replace, delete"
         >
           Assets
         </button>
@@ -94,6 +94,13 @@ export function TopBar({
           title="Connect & manage the emulator / device"
         >
           Device
+        </button>
+        <button
+          className={mode === "about" ? "active" : ""}
+          onClick={() => onMode("about")}
+          title="About coc-studio"
+        >
+          About
         </button>
       </div>
 

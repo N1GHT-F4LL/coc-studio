@@ -102,7 +102,7 @@ export function DeployParamPanel({
               value={node.template ?? ""}
               onChange={(e) => set({ template: e.target.value })}
             >
-              <option value="">— select unit —</option>
+              <option value="">- select unit -</option>
               {typeAssets.map((a) => (
                 <option key={a} value={a}>
                   {a.split("/").pop()}

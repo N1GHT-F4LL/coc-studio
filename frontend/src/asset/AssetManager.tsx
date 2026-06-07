@@ -180,7 +180,7 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
         <div className="asset-grid-bar">
           {capturing ? (
             <>
-              <span>{mode === "replace" ? `Replace ${selected}` : "Capture a new asset"} — drag a rectangle on the screen</span>
+              <span>{mode === "replace" ? `Replace ${selected}` : "Capture a new asset"} - drag a rectangle on the screen</span>
               <button onClick={() => { setMode("idle"); clearPending(); }}>Cancel</button>
             </>
           ) : (

@@ -351,7 +351,7 @@ export function ScenarioEditor({
             <>
               <div className="asset-grid-bar">
                 <span>
-                  Pick {pick.mode} for {pickNode?.label ?? pick.id} —{" "}
+                  Pick {pick.mode} for {pickNode?.label ?? pick.id} -{" "}
                   {pick.mode === "points" ? "click to add a point" : "drag to set the line"}
                 </span>
                 <button onClick={() => setPick(null)}>Done</button>

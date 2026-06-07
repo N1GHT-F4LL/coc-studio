@@ -19,15 +19,15 @@ const REASON_TEXT: Record<string, string> = {
   already_connected: "Connected.",
   not_connected: "Not connected.",
   disconnected: "Disconnected.",
-  adb_unavailable: "adb not found in PATH — install Android platform-tools.",
-  device_unreachable: "Device unreachable — check the emulator is running and the serial is correct.",
-  device_setup_failed: "Bootstrap failed — try Scan / Launch / a different profile.",
+  adb_unavailable: "adb not found in PATH - install Android platform-tools.",
+  device_unreachable: "Device unreachable - check the emulator is running and the serial is correct.",
+  device_setup_failed: "Bootstrap failed - try Scan / Launch / a different profile.",
 };
 
 const STATE_TEXT: Record<string, string> = {
   device: "ready",
-  offline: "offline — Scan again or restart the emulator",
-  unauthorized: "unauthorized — unlock the device, accept the RSA prompt",
+  offline: "offline - Scan again or restart the emulator",
+  unauthorized: "unauthorized - unlock the device, accept the RSA prompt",
 };
 
 interface Props {
@@ -130,8 +130,8 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
       if (ready.length === 0) {
         onMessage(
           hasEmulator
-            ? "No device yet — click Launch emulator then try again."
-            : "No adb device found — check the emulator / endpoint."
+            ? "No device yet - click Launch emulator then try again."
+            : "No adb device found - check the emulator / endpoint."
         );
         return;
       }
@@ -266,7 +266,7 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
           {device?.profile ? <span className="muted">· {device.profile}</span> : null}
           {device?.reason && REASON_TEXT[device.reason] ? (
             <span className={`device-reason${connected ? "" : " warn"}`}>
-              — {REASON_TEXT[device.reason]}
+              - {REASON_TEXT[device.reason]}
             </span>
           ) : null}
         </div>

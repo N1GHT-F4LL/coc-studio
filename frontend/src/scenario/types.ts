@@ -115,7 +115,7 @@ export function formatComposition(c: Composition): string {
   const fmt = (d: Record<string, number>) =>
     Object.entries(d)
       .map(([t, n]) => `${t.split("/").pop()}×${n}`)
-      .join(", ") || "—";
+      .join(", ") || "-";
   return `troops[${fmt(c.troops)}] spells[${fmt(c.spells)}] sieges[${fmt(c.sieges)}]`;
 }
 

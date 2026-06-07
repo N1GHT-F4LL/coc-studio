@@ -37,6 +37,7 @@ import { TopBar, type AppMode } from "./panels/TopBar";
 import { ScenarioEditor } from "./scenario/ScenarioEditor";
 import { AssetManager } from "./asset/AssetManager";
 import { DevicePanel } from "./panels/DevicePanel";
+import { About } from "./about/About";
 import { DeviceStreamProvider } from "./device/DeviceStreamContext";
 import { RunStateContext } from "./run/RunStateContext";
 import { useRunner } from "./run/useRunner";
@@ -246,7 +247,7 @@ export default function App() {
 
   const onRun = useCallback(() => {
     if (nodes.length === 0) {
-      setStatus("Nothing to run — add some blocks first.");
+      setStatus("Nothing to run - add some blocks first.");
       return;
     }
     setStatus("");
@@ -319,6 +320,7 @@ export default function App() {
       {mode === "device" && (
         <DevicePanel device={device} onStatus={setDevice} onMessage={setStatus} />
       )}
+      {mode === "about" && <About />}
 
       <div className="body" style={mode !== "editor" ? { display: "none" } : undefined}>
         <Palette blocks={blocks} onAdd={addBlock} />

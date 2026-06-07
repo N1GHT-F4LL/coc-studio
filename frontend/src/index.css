@@ -123,7 +123,25 @@ button:hover { border-color: var(--accent); }
 .palette-item { display: block; width: 100%; text-align: left; margin-bottom: 4px; }
 
 .center { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.canvas { flex: 1; min-width: 0; min-height: 0; }
+.canvas { flex: 1; min-width: 0; min-height: 0; position: relative; }
+
+/* Faint centred logo watermark behind the flow canvases (Bot Builder +
+   Attack Plan). Sits below the ReactFlow content (z-index 0, later DOM paints
+   over it) and never intercepts clicks. */
+.canvas::before,
+.scenario-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/logo.png") center / min(42%, 380px) no-repeat;
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+}
+/* Keep the ReactFlow surface above the watermark so nodes/edges stay crisp and
+   clickable (the pane is transparent, so the faint logo still shows through). */
+.canvas > div,
+.scenario-canvas > div { position: relative; z-index: 1; }
 .right {
   display: flex;
   flex-direction: column;
@@ -397,3 +415,40 @@ button.danger:hover { background: #3a2530; }
 .asset-capture-stage { flex: 1; min-height: 0; display: flex; background: #14171c; }
 .asset-capture-stage .device-view { flex: 1; min-height: 0; }
 .asset-capture-stage .device-stage { background: #14171c; }
+
+/* --- About tab --- */
+.about-tab { flex: 1; min-height: 0; overflow-y: auto; display: flex; justify-content: center; padding: 40px 24px; }
+.about-card {
+  width: 100%; max-width: 1040px; display: flex; flex-direction: column; gap: 28px;
+}
+/* Hero: logo on the left, name + tagline + intro on the right, so the row uses
+   the full width instead of a narrow centred column. */
+.about-hero {
+  display: flex; align-items: center; gap: 32px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px 32px;
+}
+.about-logo { width: 132px; height: 132px; object-fit: contain; flex: 0 0 auto; }
+.about-hero-text { min-width: 0; }
+.about-title { margin: 0; font-size: 32px; letter-spacing: 0.5px; }
+.about-tagline { margin: 4px 0 0; color: var(--accent); font-size: 15px; }
+.about-lead { margin: 12px 0 0; color: #c2c8d0; line-height: 1.7; }
+.about-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;
+}
+.about-feature {
+  background: var(--panel); border: 1px solid var(--border); border-left: 2px solid var(--accent);
+  border-radius: 8px; padding: 14px 16px;
+}
+.about-feature-title { font-weight: 600; margin-bottom: 6px; }
+.about-feature-body { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.about-tech {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 13px; color: var(--muted);
+}
+.about-tech-label { text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; color: var(--accent); }
+.about-footer {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding-top: 18px; border-top: 1px solid var(--border); font-size: 12px;
+}
+@media (max-width: 680px) {
+  .about-hero { flex-direction: column; text-align: center; }
+}
