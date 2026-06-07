@@ -468,7 +468,11 @@ class BattleScreen(BaseScreen):
         # colourful troop reads lower than a bright greyed hero. Tunable below.
         sat_min = float(deploy_cfg.get("dump_sat_min", 60.0))   # px S>=this = coloured
         val_min = float(deploy_cfg.get("dump_val_min", 50.0))   # ...and not near-black
-        frac_thr = float(deploy_cfg.get("dump_color_frac", 0.18))  # >=this fraction = occupied
+        # Measured fractions: real available troop body >=0.43; spent hero
+        # (pet+health) <=0.41; empty slot showing the map background ~0.21; a
+        # used-up troop <=0.15. So the threshold sits at 0.42 — above heroes/
+        # background, below the dimmest real troop. Calibrate from logged values.
+        frac_thr = float(deploy_cfg.get("dump_color_frac", 0.42))   # >=this fraction = occupied
 
         dumped = False
         prev_occupied = None
