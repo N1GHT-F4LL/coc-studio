@@ -454,6 +454,15 @@ class BattleScreen(BaseScreen):
             screen = self.ui_manager.get_screen()
             if screen is None:
                 break
+            # Battle over? Once Return Home shows, the deploy bar is gone — stop
+            # before troop templates false-match the loot/result screen and we
+            # start tapping random spots on it.
+            rh = RETURN_HOME_TEMPLATES[0]
+            if rh in vision.cache and vision.find_template(
+                screen, rh, threshold=0.7, use_orb_fallback=False
+            ):
+                logger.info("[DUMP] battle ended (Return Home shown) — stopping dump.")
+                break
             h, w = screen.shape[:2]
             cx1 = max(0, min(w - 1, bx1)); cx2 = max(1, min(w, bx2))
             cy1 = max(0, min(h - 1, by1)); cy2 = max(1, min(h, by2))
