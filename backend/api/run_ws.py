@@ -107,6 +107,9 @@ async def run_ws(ws: WebSocket):
         send_task.cancel()
         try:
             await send_task
-        except Exception:
+        except (asyncio.CancelledError, Exception):
+            # cancel() raises CancelledError inside the awaiting q.get(); it is a
+            # BaseException (not Exception), so catch it explicitly or it escapes
+            # to uvicorn as "Exception in ASGI application".
             pass
         controller.unsubscribe(q)
