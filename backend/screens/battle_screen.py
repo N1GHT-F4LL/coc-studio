@@ -454,8 +454,11 @@ class BattleScreen(BaseScreen):
         tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
         select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
         humanize = bool(deploy_cfg.get("humanize", True))
-        sat_floor = float(deploy_cfg.get("bar_color_sat", 55.0))
-        sat_ratio = float(deploy_cfg.get("bar_color_ratio", 0.6))
+        # An AVAILABLE unit tile is BRIGHT; a used/spent one (incl. a spent hero)
+        # is dimmed by a dark overlay. So gate on brightness (HSV Value), not
+        # colour — a spent hero's portrait keeps colour but goes dim.
+        bright_floor = float(deploy_cfg.get("bar_bright_v", 120.0))
+        bright_ratio = float(deploy_cfg.get("bar_bright_ratio", 0.75))
 
         dumped = False
         prev_occupied = None
@@ -469,11 +472,7 @@ class BattleScreen(BaseScreen):
             hsv = cv2.cvtColor(screen, cv2.COLOR_BGR2HSV)
             h, w = hsv.shape[:2]
 
-            # An available (not-yet-deployed) troop is in COLOUR; once its stock is
-            # used up the slot greys out. So occupied = high mean SATURATION,
-            # adaptive to the most-colourful tile on the bar. (A used/empty slot is
-            # grey → low saturation → skipped, which is also the stop condition.)
-            sats, centers = [], []
+            vals, centers = [], []
             for i in range(n_slots):
                 tx1 = max(0, min(w, bx1 + i * pitch))
                 tx2 = max(0, min(w, tx1 + pitch))
@@ -481,27 +480,29 @@ class BattleScreen(BaseScreen):
                 tw_, th_ = tx2 - tx1, ty2 - ty1
                 if tw_ < 6 or th_ < 6:
                     continue
-                # Sample only the lower-central BODY of the tile for colour. The
-                # top strip holds the level badge and — for a spent hero — its
-                # HEALTH BAR (still green/red), which would keep a greyed hero
-                # looking "colourful" and false-match it as an available troop.
+                # Sample only the lower-central BODY of the tile. The top strip
+                # holds the level badge and — for a spent hero — its HEALTH BAR
+                # (a bright green/red bar) which would otherwise keep the tile
+                # looking bright.
                 sx1 = tx1 + int(tw_ * 0.20); sx2 = tx2 - int(tw_ * 0.20)
                 sy1 = ty1 + int(th_ * 0.45); sy2 = ty2 - int(th_ * 0.05)
                 if sx2 - sx1 < 4 or sy2 - sy1 < 4:
                     sx1, sy1, sx2, sy2 = tx1, ty1, tx2, ty2
-                tile = hsv[sy1:sy2, sx1:sx2, 1]   # saturation channel, body only
+                tile = hsv[sy1:sy2, sx1:sx2, 2]   # Value (brightness), body only
                 if tile.size:
-                    sats.append(float(tile.mean()))
+                    vals.append(float(tile.mean()))
                     centers.append((tx1 + tx2) // 2)
-            if not sats:
+            if not vals:
                 break
-            # Threshold relative to the most-colourful tile, so the real troops
-            # always pass while duller (greyed/empty) slots are rejected. Raise
-            # bar_color_ratio / bar_color_sat if empty slots still false-match.
-            cutoff = max(sat_floor, sat_ratio * max(sats))
-            occupied = [c for c, s in zip(centers, sats) if s >= cutoff]
+            # Bright tile = available unit. Absolute floor so an all-dim bar (every
+            # unit spent) matches NOTHING; the relative term only kicks in when a
+            # genuinely bright tile is present. Tune bar_bright_v / bar_bright_ratio.
+            cutoff = max(bright_floor, bright_ratio * max(vals))
+            occupied = [c for c, v in zip(centers, vals) if v >= cutoff]
+            logger.info("[DUMP] slot brightness=%s cutoff=%.0f -> %d available",
+                        [round(v) for v in vals], cutoff, len(occupied))
             if not occupied:
-                logger.info("[DUMP] bar clear — all colour (un-deployed) troops gone.")
+                logger.info("[DUMP] no bright (available) units left — done.")
                 break
 
             # No progress: a dump round didn't reduce the colour slots, so the rest
