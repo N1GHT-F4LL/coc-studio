@@ -1,19 +1,21 @@
-"""WebSocket /ws/run — realtime graph debugger.
+"""WebSocket /ws/run — realtime graph debugger + reattach.
 
 Protocol (client -> server JSON):
-  {"cmd":"start", "graph": {...}}   start a run
+  {"cmd":"start", "graph": {...}}   start a run (if none is active)
   {"cmd":"stop"}                    cooperatively stop the active run
 
-Server -> client JSON events (stream): the executor's run-events verbatim
-(``node`` running/done/error, ``done`` status) plus ``log`` (forwarded logging)
-and a final ``vars`` snapshot.
+Server -> client JSON events:
+  {"type":"snapshot", ...}          sent immediately on connect — the current run
+                                    state (running/status/graph/nodes/vars/logs)
+                                    so a (re)connecting client rebuilds its view.
+  then the live event stream verbatim (``started``/``node``/``log``/``vars``/``done``).
 
-The run executes in a worker thread (blocking ADB/vision I/O); events cross back
-to the event loop through a thread-safe asyncio.Queue. Reuses
-``run_api.setup_and_run`` + the shared single-run ``controller`` so REST and WS
-runs can't overlap.
+The run lives in the shared ``RunHub`` (api/run_api.controller), independent of
+any WS connection: the worker thread publishes into the hub, which buffers state
+and fans events out to every connected client. **Disconnecting does NOT stop the
+run** — the client just unsubscribes; reopening the web reattaches via snapshot.
+Only an explicit {"cmd":"stop"} (or backend exit) ends a run.
 """
-import asyncio
 import logging
 import threading
 
@@ -25,113 +27,86 @@ from api.run_api import controller, setup_and_run
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_SENTINEL = object()  # marks end-of-run on the queue
 
+async def _start_run(ws: WebSocket, graph_dict):
+    """Validate + begin a run, then drive it on a worker thread (publishing into
+    the hub). Errors (bad graph / already running) go only to the requester."""
+    errors = (
+        Graph.from_dict(graph_dict).validate()
+        if isinstance(graph_dict, dict)
+        else ["missing 'graph'"]
+    )
+    if errors:
+        await ws.send_json({"type": "done", "status": "invalid", "error": "; ".join(errors)})
+        return
 
-async def _listen_stop(ws: WebSocket, stop_event):
-    """While a run is active, watch for {cmd:stop} / disconnect -> cooperative stop."""
-    try:
-        while True:
-            msg = await ws.receive_json()
-            if msg.get("cmd") == "stop":
-                stop_event.set()
-    except WebSocketDisconnect:
-        stop_event.set()  # client vanished mid-run -> stop it
-    except Exception:
-        stop_event.set()
+    stop_event = controller.begin(graph_dict)
+    if stop_event is None:
+        await ws.send_json(
+            {"type": "done", "status": "busy", "error": "a run is already in progress"}
+        )
+        return
 
-
-async def _run_streaming(ws: WebSocket, loop, graph_dict, stop_event):
-    queue: asyncio.Queue = asyncio.Queue()
-
-    def emit(ev):
-        # Called from the worker thread — hop back onto the event loop safely.
-        loop.call_soon_threadsafe(queue.put_nowait, ev)
+    controller.publish({"type": "started"})
 
     def worker():
         try:
             _status, run_vars = setup_and_run(
-                graph_dict, emit, stop_event, stream_logs=True
+                graph_dict, controller.publish, stop_event, stream_logs=True
             )
-            emit({"type": "vars", "vars": run_vars})
+            controller.publish({"type": "vars", "vars": run_vars})
         except Exception as e:  # defensive — setup_and_run already guards GraphError
             logger.exception("run worker crashed")
-            emit({"type": "done", "status": "error", "error": str(e)})
+            controller.publish({"type": "done", "status": "error", "error": str(e)})
         finally:
             controller.end()
-            loop.call_soon_threadsafe(queue.put_nowait, _SENTINEL)
 
     threading.Thread(target=worker, daemon=True, name="graph-run").start()
-    await ws.send_json({"type": "started"})
-
-    stopper = asyncio.create_task(_listen_stop(ws, stop_event))
-    disconnected = False
-    try:
-        while True:
-            ev = await queue.get()
-            if ev is _SENTINEL:
-                break
-            if not disconnected:
-                try:
-                    await ws.send_json(ev)
-                except Exception:
-                    disconnected = True
-                    stop_event.set()  # keep draining so the worker can finish
-    finally:
-        # Await the stopper's cancellation so it has released ws.receive_json()
-        # before the outer loop resumes receiving — otherwise two coroutines
-        # briefly recv() the same socket ("cannot call recv while another
-        # coroutine is already waiting for the next message").
-        stopper.cancel()
-        try:
-            await stopper
-        except (asyncio.CancelledError, Exception):
-            pass
 
 
 @router.websocket("/ws/run")
 async def run_ws(ws: WebSocket):
+    import asyncio
+
     await ws.accept()
     loop = asyncio.get_running_loop()
-    logger.info("Run debugger client connected")
+    controller.set_loop(loop)
+    q = controller.subscribe()
+    logger.info("Run client connected")
+
+    # Rebuild the client's view from the current run state before live events.
+    await ws.send_json(controller.snapshot())
+
+    async def sender():
+        """Forward fanned-out events from the hub to this client."""
+        try:
+            while True:
+                ev = await q.get()
+                await ws.send_json(ev)
+        except Exception:
+            pass  # socket closing — receiver loop handles teardown
+
+    send_task = asyncio.create_task(sender())
     try:
         while True:
             msg = await ws.receive_json()
             cmd = msg.get("cmd")
             if cmd == "stop":
                 controller.stop()
-                continue
-            if cmd != "start":
+            elif cmd == "start":
+                await _start_run(ws, msg.get("graph"))
+            else:
                 await ws.send_json({"type": "error", "error": f"unknown cmd: {cmd!r}"})
-                continue
-
-            graph_dict = msg.get("graph")
-            errors = (
-                Graph.from_dict(graph_dict).validate()
-                if isinstance(graph_dict, dict)
-                else ["missing 'graph'"]
-            )
-            if errors:
-                await ws.send_json(
-                    {"type": "done", "status": "invalid", "error": "; ".join(errors)}
-                )
-                continue
-
-            stop_event = controller.begin()
-            if stop_event is None:
-                await ws.send_json(
-                    {"type": "done", "status": "busy",
-                     "error": "a run is already in progress"}
-                )
-                continue
-
-            await _run_streaming(ws, loop, graph_dict, stop_event)
     except WebSocketDisconnect:
-        logger.info("Run debugger client disconnected")
-        controller.stop()
+        # Client vanished — DO NOT stop the run. It keeps going server-side; a
+        # future client reattaches via snapshot.
+        logger.info("Run client disconnected (run continues)")
     except Exception as e:  # pragma: no cover - defensive
-        logger.warning("Run debugger error: %s", e)
+        logger.warning("Run ws error: %s", e)
+    finally:
+        send_task.cancel()
         try:
-            await ws.close()
+            await send_task
         except Exception:
             pass
+        controller.unsubscribe(q)

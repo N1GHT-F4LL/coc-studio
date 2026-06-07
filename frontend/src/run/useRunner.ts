@@ -29,12 +29,47 @@ const initial: RunnerState = {
   vars: {},
 };
 
-// Owns the /ws/run socket and folds the event stream into render state.
-export function useRunner() {
+interface Opts {
+  // Invoked when we (re)attach to an already-running run that carries its graph,
+  // so the editor can load it and show live node highlights.
+  onAttachGraph?: (graph: GraphDoc) => void;
+}
+
+// Owns the /ws/run socket and folds the event stream into render state. The
+// socket is opened on mount (not just on Run) so a reload reattaches to a run
+// still in progress server-side: the server replies with a "snapshot" event
+// that rebuilds logs/vars/status/node-state and (if running) the graph.
+export function useRunner(opts: Opts = {}) {
   const [state, setState] = useState<RunnerState>(initial);
   const wsRef = useRef<WebSocket | null>(null);
+  const closedRef = useRef(false); // true once intentionally torn down (unmount)
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attachRef = useRef(opts.onAttachGraph);
+  attachRef.current = opts.onAttachGraph;
 
   const handle = useCallback((ev: any) => {
+    if (ev.type === "snapshot") {
+      const runState = new Map<string, NodeRunState>();
+      for (const [id, st] of Object.entries(ev.nodes ?? {})) {
+        runState.set(id, st as NodeRunState);
+      }
+      setState((s) => ({
+        ...s,
+        running: !!ev.running,
+        status: ev.status ?? "",
+        runState,
+        vars: ev.vars ?? {},
+        logs: (ev.logs ?? [])
+          .map((l: any) => ({ level: l.level, name: l.name, msg: l.msg }))
+          .slice(-MAX_LOGS),
+      }));
+      // Reattach: load the running graph so node highlights line up.
+      if (ev.running && ev.graph && attachRef.current) {
+        attachRef.current(ev.graph as GraphDoc);
+      }
+      return;
+    }
+
     setState((s) => {
       switch (ev.type) {
         case "started":
@@ -77,23 +112,60 @@ export function useRunner() {
     });
   }, []);
 
+  // Open (or reuse) the shared socket; auto-reconnect so a dropped/restarted
+  // backend re-attaches and replays a fresh snapshot.
+  const connect = useCallback((): WebSocket => {
+    const cur = wsRef.current;
+    if (cur && (cur.readyState === WebSocket.OPEN || cur.readyState === WebSocket.CONNECTING)) {
+      return cur;
+    }
+    const ws = new WebSocket(wsUrl("/ws/run"));
+    wsRef.current = ws;
+    ws.onopen = () => setState((s) => ({ ...s, connected: true }));
+    ws.onmessage = (e) => handle(JSON.parse(e.data));
+    ws.onclose = () => {
+      wsRef.current = null;
+      setState((s) => ({ ...s, connected: false }));
+      if (!closedRef.current && retryRef.current === null) {
+        retryRef.current = setTimeout(() => {
+          retryRef.current = null;
+          connect();
+        }, 1500);
+      }
+    };
+    ws.onerror = () => {
+      /* onclose fires next; reconnect handled there */
+    };
+    return ws;
+  }, [handle]);
+
+  useEffect(() => {
+    closedRef.current = false;
+    connect();
+    return () => {
+      closedRef.current = true;
+      if (retryRef.current !== null) {
+        clearTimeout(retryRef.current);
+        retryRef.current = null;
+      }
+      wsRef.current?.close();
+    };
+  }, [connect]);
+
   const start = useCallback(
     (graph: GraphDoc) => {
-      wsRef.current?.close();
-      setState({ ...initial, connected: true, running: true, status: "connecting" });
-      const ws = new WebSocket(wsUrl("/ws/run"));
-      wsRef.current = ws;
-      ws.onopen = () => ws.send(JSON.stringify({ cmd: "start", graph }));
-      ws.onmessage = (e) => handle(JSON.parse(e.data));
-      ws.onclose = () =>
-        setState((s) => ({ ...s, connected: false, running: false }));
-      ws.onerror = () =>
-        setState((s) => ({
-          ...s,
-          status: s.status === "connecting" ? "ws error (backend up?)" : s.status,
-        }));
+      // Fresh run: clear the previous run's logs/state but keep the connection.
+      setState((s) => ({ ...initial, connected: s.connected, running: true, status: "connecting" }));
+      const payload = JSON.stringify({ cmd: "start", graph });
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(payload);
+      } else {
+        const w = connect();
+        w.addEventListener("open", () => w.send(payload), { once: true });
+      }
     },
-    [handle]
+    [connect]
   );
 
   const stop = useCallback(() => {
@@ -104,8 +176,6 @@ export function useRunner() {
     () => setState((s) => ({ ...s, logs: [], runState: new Map(), vars: {} })),
     []
   );
-
-  useEffect(() => () => wsRef.current?.close(), []);
 
   return { ...state, start, stop, clear };
 }

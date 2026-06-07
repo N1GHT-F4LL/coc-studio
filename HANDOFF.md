@@ -267,6 +267,81 @@ flow/port/kind độc lập vị trí handle nên serialize không đổi.
   migrated_from). `data/graphs/*.json` re-save (`c4736b2`) mất meta — biết để
   không tưởng là bug.
 
+## Assets tab + shared pick/crop module + i18n (đã verify browser thật)
+- **Asset manager tab** (`6362fec`): `frontend/src/asset/AssetManager.tsx` — tab thứ 3
+  trên top bar, CRUD asset đầy đủ (duyệt theo category, capture từ device, rename/đổi
+  category, replace ảnh, delete) + cảnh báo orphan (`GET /api/assets/usage/{rel}`).
+  **Bỏ Device dock** khỏi Bot Builder (dock chỉ còn Run console) + bỏ nút Pick ở ParamPanel.
+  Backend `assets_api.py` thêm `DELETE /{rel}`, `POST /move`, `GET /usage/{rel}` (đồng bộ
+  `vision.cache`: pop rel + stem nếu stem trỏ đúng ảnh đó).
+- **Shared DeviceCanvas** (`frontend/src/device/DeviceCanvas.tsx`): gom pick/crop dùng
+  chung (mode coord/region/points/line/crop) cho Asset (crop) + Attack Plan (pick deploy).
+  `BattleCanvas` refactor dùng nó; `DeviceView.tsx` đã xóa.
+- **Capture preview** (`299a737`): crop xong giữ khung + hiện preview data-URL + "Redo crop";
+  capture chiếm trọn vùng giữa (`.asset-capture-stage`) cho dễ ngắm.
+- **i18n** (`72bb82e`): dịch toàn bộ chuỗi UI tiếng Việt còn sót sang tiếng Anh.
+- **Roster category** (`33478fc`): thêm `"Roster (train faces)" -> units/roster` vào
+  `CAT_TO_FOLDER` để capture face train qua tab Assets.
+
+## Attack Plan: super_troop + surrender node + pick lại trên device
+- **super_troop deploy type** (`92a3a7e`): `DeployType` thêm `super_troop`
+  (`TYPE_FOLDER.super_troop=units/super_troops`); `composition.py` `_SECTION_ALIAS`
+  gộp super troop vào bucket troop (chiếm slot lính thường). Train + deploy chung section.
+- **Pick coords on device** (`a5d5fd6`) tích hợp lại vào Attack Plan qua DeviceCanvas; **bỏ
+  battle view** cũ (`c40fcf2`).
+- **Surrender / End-Battle node** (`b91fb9f`): `surrender` là deploy-node control (như
+  `delay`, không template). Backend `BattleScreen.surrender()` + nhánh trong `_slot_deploy`:
+  tap **`btn_surrender` HOẶC `btn_end_battle`** (`SURRENDER_BUTTONS` — thả dở vs thả hết)
+  → confirm bằng nút **`okay`** (chọn match confidence cao nhất qua `_wait_for_best_confirm`;
+  `btn_surrender_confirm` là ảnh cả popup nên KHÔNG tap). **Không tự về home** —
+  `surrender(return_home=False)`, để block Return Home của graph lo. Assets cần:
+  `buttons/battle/{btn_surrender,btn_end_battle,okay}`.
+- **Train: train đúng variant sẽ deploy** (`80125af`): `scenario_store.pick_variant` +
+  `variant_nodes_by_name` — ensure_troops pick 1 variant, lưu `ctx.vars["chosen_variant"]`,
+  deploy dùng lại đúng variant đó (trước: train MAX mọi variant, deploy pick random → lệch).
+  Cảnh báo khi 2 template trùng stem (đụng roster face) + hint super troop.
+- **Train: roster fallback + rewind** (`b91fb9f`): `train_unit(roster_template, ...,
+  fallback_template)` — không có `units/roster/<name>` face thì fallback ảnh deploy gốc ở
+  **ngưỡng nghiêm (max(thr,0.8))** để vẫn cuộn hết strip mà không false-match (hạ ngưỡng
+  từng làm train nhầm lính). `_locate_in_roster` **tua về đầu** (`_rewind_roster`, đếm
+  `_roster_offset` swipe đã làm) trước mỗi lần tìm → chọn lính thứ tự nào cũng được.
+  `ROSTER_SWIPE` rút ngắn (1250→650). Super troop chỉ hiện trong roster khi **đã boost**.
+
+## Fix: ReactFlow store chung giữa 2 canvas (`b91fb9f`) — không nối được node
+Bot Builder + Attack Plan đều giữ ReactFlow mounted khi chuyển tab; **không bọc
+`ReactFlowProvider` riêng → chung 1 store**. Flow ẩn (size 0) báo handle ở (0,0) → ghi đè
+store → flow đang xem **kéo nối không trúng**. Fix: bọc **mỗi** `<ReactFlow>` trong
+`<ReactFlowProvider>` riêng ([App.tsx], [ScenarioEditor.tsx]). Auto-layout Attack Plan
+đổi sang **barycentre/Sugiyama** (giảm cắt nhau) trong `scenario/serialize.ts`.
+
+## Branding + About (`7b5132f`)
+- favicon + `logo.png` (`frontend/public/` → copy vào build root). Watermark logo mờ
+  (opacity 0.05, dưới ReactFlow, `pointer-events:none`) giữa canvas Bot Builder + Attack Plan.
+- Tab **About** (`frontend/src/about/About.tsx`): hero ngang (logo + giới thiệu) + lưới 4
+  feature + tech stack + version + credit "n1ghtf4ll". `AppMode` thêm `"about"`.
+- Thay em-dash (—) → hyphen (-) trong text hiển thị (giữ comment nguyên).
+
+## Run-state bền qua reload web (reattach) — XONG (verify e2e device thật + websockets)
+Trước: run-state nằm hết ở client; đóng/F5 web mất sạch, và **đóng WS thì run BỊ DỪNG**.
+Giờ: run sống server-side độc lập WS; mở lại web **reattach** qua snapshot. In-memory
+(sống qua reload web, KHÔNG qua restart backend — "không tắt tool").
+- `api/run_api.py`: `RunController` → **RunHub** (vẫn export tên `controller`): buffer
+  `running/status/error/graph/node_states/vars/logs(deque 500)` + pub-sub
+  (`subscribe/unsubscribe/publish` fan-out qua `loop.call_soon_threadsafe`) + `snapshot()`.
+  `begin(graph)` lưu graph + reset buffer (single-run guard giữ nguyên). `POST /api/run`
+  cũng qua hub (emit = append + publish).
+- `api/run_ws.py`: connect → `snapshot` ngay → 2 task song song (**sender** drain queue →
+  ws; **receiver** đọc cmd). `start`/`stop` như cũ. **Disconnect CHỈ unsubscribe — KHÔNG
+  stop run** (đảo hành vi cũ). Chỉ `cmd:stop`/tắt backend mới dừng.
+- `frontend/src/run/useRunner.ts`: mở WS **khi mount** (attach) + auto-reconnect; xử lý
+  `snapshot` (dựng lại logs/vars/status/runState, nếu `running && graph` → `onAttachGraph`);
+  start/stop tái dùng socket. `App.tsx`: `onAttachGraph` → nạp graph đang chạy lên canvas
+  (đợi blocks load). `RunStateContext` thêm state `"skipped"`.
+- **Verify:** build tsc+vite pass · engine 38/38 · RunHub unit (snapshot/fanout/busy/done) ·
+  **e2e qua `websockets`**: client start run → **disconnect giữa chừng → run vẫn chạy tới
+  `ok`** → client mới reattach nhận snapshot có `graph.name`+`nodes`+status. (Lưu ý:
+  `httpx` chưa cài → không dùng starlette TestClient; test WS bằng lib `websockets`.)
+
 ## Post-v1 (plan §Open, chưa làm)
 - Subroutine block (graph-as-block) đầy đủ — hiện loop dùng `graph_ref`.
 - minitouch/scrcpy HID cho swipe mượt; đóng gói desktop app.

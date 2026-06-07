@@ -24,7 +24,7 @@ import {
   deviceStatus,
   type DeviceStatus,
 } from "./api/client";
-import type { BlockSpec } from "./blocks/types";
+import type { BlockSpec, GraphDoc } from "./blocks/types";
 import { BlockNode, type BlockNodeData } from "./canvas/BlockNode";
 import { parseHandle } from "./canvas/handleId";
 import { kindColor } from "./canvas/kindColors";
@@ -56,7 +56,10 @@ export default function App() {
   const [scenarios, setScenarios] = useState<string[]>([]);
   const [device, setDevice] = useState<DeviceStatus | null>(null);
   const [mode, setMode] = useState<AppMode>("editor");
-  const runner = useRunner();
+  // Graph handed back when we reattach to a run still in progress (set from the
+  // WS snapshot); adopted into the canvas once blocks are loaded (effect below).
+  const [attachDoc, setAttachDoc] = useState<GraphDoc | null>(null);
+  const runner = useRunner({ onAttachGraph: setAttachDoc });
 
   const refreshDevice = useCallback(
     () => deviceStatus().then(setDevice).catch(() => setDevice(null)),
@@ -107,6 +110,23 @@ export default function App() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [refreshDevice]);
+
+  // Adopt a reattached run's graph onto the canvas, but only once blocks are
+  // loaded (fromGraphDoc needs the specs to resolve node types).
+  useEffect(() => {
+    if (!attachDoc || blocks.length === 0) return;
+    const { nodes: ns, edges: es } = fromGraphDoc(attachDoc, specByType);
+    for (const n of ns) {
+      const m = /_(\d+)$/.exec(n.id);
+      if (m) idSeq.current = Math.max(idSeq.current, Number(m[1]) + 1);
+    }
+    setNodes(ns);
+    setEdges(es);
+    if (attachDoc.name) setGraphName(attachDoc.name);
+    setSelectedId(null);
+    setMode("editor"); // surface the running graph
+    setAttachDoc(null);
+  }, [attachDoc, blocks, specByType, setNodes, setEdges]);
 
   const refreshAssets = () => fetchAssets().then(setAssets).catch(() => setAssets([]));
 
