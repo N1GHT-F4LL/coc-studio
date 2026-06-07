@@ -15,6 +15,14 @@ DEFAULT_MATCH_SCALES = (1.0, 0.75, 1.25, 0.5, 1.5, 0.6, 0.85)
 class Vision:
     def __init__(self):
         self.cache = {}
+        # Learned button locations: (template_name, screen_h, screen_w) ->
+        # (cx, cy, th, tw). find_template confirms a cached button by matching a
+        # small ROI around it (fast) before falling back to a full-screen search,
+        # so static UI buttons aren't re-detected over the whole frame every time.
+        # Behaviour is unchanged — the same template match still gates the result,
+        # the cache only narrows WHERE we look first.
+        self._loc_cache = {}
+        self.coord_cache_enabled = True
         # Resized template arrays keyed by (id(template), target_h, target_w).
         # Templates are long-lived objects in self.cache, so id() is stable.
         self._resize_cache = {}
@@ -80,6 +88,26 @@ class Vision:
 
         template = self.cache[template_name]
         screen_gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY) if screen.ndim == 3 else screen
+        sh, sw = screen_gray.shape[:2]
+        ckey = (template_name, sh, sw)
+
+        # --- ROI-first: confirm a previously-learned location cheaply ---
+        if self.coord_cache_enabled:
+            cached = self._loc_cache.get(ckey)
+            if cached is not None:
+                cx, cy, th, tw = cached
+                rx1 = max(0, cx - tw); rx2 = min(sw, cx + tw)
+                ry1 = max(0, cy - th); ry2 = min(sh, cy + th)
+                roi = screen_gray[ry1:ry2, rx1:rx2]
+                if roi.shape[0] >= 8 and roi.shape[1] >= 8:
+                    bv, bs, rm = self._find_best_scale(roi, template, threshold, scales)
+                    if rm is not None and bv >= threshold:
+                        _, _, _, ml = cv2.minMaxLoc(rm)
+                        bh, bw = bs.shape[:2]
+                        loc = (ml[0] + bw // 2 + rx1, ml[1] + bh // 2 + ry1)
+                        self._loc_cache[ckey] = (loc[0], loc[1], bh, bw)
+                        return loc
+                # ROI miss → the button moved / isn't here: fall back to full search.
 
         best_val, best_scaled, result_map = self._find_best_scale(
             screen_gray, template, threshold, scales
@@ -88,7 +116,10 @@ class Vision:
         if result_map is not None and best_val >= threshold:
             _, _, _, max_loc = cv2.minMaxLoc(result_map)
             bh, bw = best_scaled.shape[:2]
-            return (max_loc[0] + bw // 2, max_loc[1] + bh // 2)
+            loc = (max_loc[0] + bw // 2, max_loc[1] + bh // 2)
+            if self.coord_cache_enabled:
+                self._loc_cache[ckey] = (loc[0], loc[1], bh, bw)  # learn for next time
+            return loc
 
         if use_orb_fallback:
             logger.debug(
@@ -100,6 +131,41 @@ class Vision:
                 return orb_match
 
         return None
+
+    # ------------------------------------------------------------------
+    # Learned-location persistence (per screen resolution). Optional: keeps
+    # button coords across restarts so the very first lookup each session is
+    # also an ROI confirm, not a full-screen search.
+    # ------------------------------------------------------------------
+    def load_coords(self, path):
+        import json
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return
+        loaded = 0
+        for res, entries in (data or {}).items():
+            try:
+                w, h = (int(v) for v in res.split("x"))
+            except (ValueError, AttributeError):
+                continue
+            for name, v in (entries or {}).items():
+                if isinstance(v, (list, tuple)) and len(v) == 4:
+                    self._loc_cache[(name, h, w)] = tuple(int(n) for n in v)
+                    loaded += 1
+        logger.info("Loaded %d learned button coords from %s", loaded, path)
+
+    def save_coords(self, path):
+        import json
+        out = {}
+        for (name, h, w), v in self._loc_cache.items():
+            out.setdefault(f"{w}x{h}", {})[name] = list(v)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(out, f, indent=1)
+        except OSError as e:
+            logger.debug("Could not save coords to %s: %s", path, e)
 
     def find_all_matches(self, screen_color, template_name, threshold=0.7, min_distance=40):
         """Return (cx, cy) centers for all non-overlapping matches above threshold (NMS)."""

@@ -11,9 +11,12 @@ The realtime ``/ws/run`` debugger (api/run_ws.py) reuses ``setup_and_run`` +
 import asyncio
 import collections
 import logging
+import os
 import threading
 
 from fastapi import APIRouter, Body, HTTPException
+
+import app_paths
 
 import blocks  # noqa: F401  -- side effect: populate engine.registry.REGISTRY
 from core.vision import vision
@@ -132,6 +135,9 @@ class RunHub:
 # Exported as ``controller`` for backward-compat with existing imports.
 controller = RunHub()
 
+# Learned button coordinates persist here between runs (per screen resolution).
+COORDS_PATH = os.path.join(app_paths.DATA_DIR, "coord_cache.json")
+
 
 @router.get("/blocks")
 def get_blocks():
@@ -174,6 +180,11 @@ def setup_and_run(graph_dict, emit, stop_event, stream_logs=False):
         return "error", {}
     manager.ensure_ocr()
 
+    # Seed learned button coords once per process so the first lookups this
+    # session are ROI confirms, not full-screen searches.
+    if not vision._loc_cache:
+        vision.load_coords(COORDS_PATH)
+
     # Wire cooperative stop into the existing poll loops, like run_bot does.
     manager.ui_manager.stop_event = stop_event
 
@@ -204,6 +215,10 @@ def setup_and_run(graph_dict, emit, stop_event, stream_logs=False):
         manager.ui_manager.stop_event = None
         if log_handler is not None:
             logging.getLogger().removeHandler(log_handler)
+        try:
+            vision.save_coords(COORDS_PATH)   # persist anything learned this run
+        except Exception:
+            pass
     return status, ctx.vars
 
 

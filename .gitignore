@@ -20,6 +20,7 @@ backend/static/
 backend/logs/
 logs/
 backend/_calib/
+backend/data/coord_cache.json
 
 # OS
 .DS_Store

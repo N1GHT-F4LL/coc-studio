@@ -342,6 +342,23 @@ Giờ: run sống server-side độc lập WS; mở lại web **reattach** qua s
   `ok`** → client mới reattach nhận snapshot có `graph.name`+`nodes`+status. (Lưu ý:
   `httpx` chưa cài → không dùng starlette TestClient; test WS bằng lib `websockets`.)
 
+## Learned button coords — ROI-verify cache (verify synthetic + e2e)
+Để bot khỏi match toàn màn mỗi lần định vị 1 button (layout CoC cố định theo độ
+phân giải), `core/vision.find_template` giờ **học toạ độ** + xác nhận lại bằng ROI:
+- `Vision._loc_cache[(template, h, w)] = (cx, cy, th, tw)`. Lần đầu match full-screen
+  → lưu. Lần sau **match 1 ROI nhỏ quanh toạ độ nhớ** (nhanh) → trúng thì trả luôn;
+  trượt (button dời/không có) → **fallback full-search** + học lại. Behavior-preserving:
+  vẫn template-match xác nhận button hiện (KHÔNG tap mù) → giữ fail-stop. Cờ tắt:
+  `vision.coord_cache_enabled=False`.
+- **Phủ toàn flow** vì mọi screen (kể cả attack_screen frozen) + scan_all/wait_until_appears
+  đều đi qua `find_template` — chỉ sửa 1 choke point, không đụng screens.
+- **Persist**: `vision.load_coords/save_coords(path)` JSON keyed `"WxH"`; `run_api.setup_and_run`
+  load (1 lần/process) đầu run + save cuối run. File `backend/data/coord_cache.json`
+  (gitignored — data học theo máy).
+- **Lưu ý deviation**: đây là sửa ADDITIVE trong `core/vision.py` (không còn verbatim
+  tuyệt đối) — chỉ tối ưu *chỗ tìm*, không đổi kết quả match; theo yêu cầu user.
+- find_all_matches KHÔNG cache (đếm nhiều icon). Chỉ find_template (1 match) được cache.
+
 ## Post-v1 (plan §Open, chưa làm)
 - Subroutine block (graph-as-block) đầy đủ — hiện loop dùng `graph_ref`.
 - minitouch/scrcpy HID cho swipe mượt; đóng gói desktop app.
