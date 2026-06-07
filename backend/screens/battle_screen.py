@@ -265,8 +265,14 @@ class BattleScreen(BaseScreen):
                         # spots (points + line endpoints from the other nodes) so
                         # leftovers land on already-valid tiles, not a default
                         # line that may sit on the base.
+                        # Gather drop spots from TROOP/SPELL nodes only. Skip
+                        # siege/hero spots: tapping the field where a deployed siege
+                        # is walking can trigger/​destroy it, and we don't want to
+                        # dump leftovers onto that lane.
                         drops = []
                         for nn in nodes:
+                            if nn.get("type") in ("siege", "hero"):
+                                continue
                             for p in nn.get("points") or []:
                                 if isinstance(p, (list, tuple)) and len(p) == 2:
                                     drops.append((int(p[0]), int(p[1])))
@@ -455,10 +461,13 @@ class BattleScreen(BaseScreen):
         select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
         humanize = bool(deploy_cfg.get("humanize", True))
         # An AVAILABLE unit tile is BRIGHT; a used/spent one (incl. a spent hero)
-        # is dimmed by a dark overlay. So gate on brightness (HSV Value), not
-        # colour — a spent hero's portrait keeps colour but goes dim.
-        bright_floor = float(deploy_cfg.get("bar_bright_v", 120.0))
-        bright_ratio = float(deploy_cfg.get("bar_bright_ratio", 0.75))
+        # is dimmed by a dark overlay. Gate on brightness (HSV Value), not colour.
+        # Use an ABSOLUTE floor by default (ratio 0): a relative cutoff drifts down
+        # as bright troops deploy, then suddenly admits dim heroes/spent slots and
+        # tapping the field on those can hit already-deployed units (e.g. destroy a
+        # deployed siege). Calibrate bar_bright_v from the logged per-slot values.
+        bright_floor = float(deploy_cfg.get("bar_bright_v", 150.0))
+        bright_ratio = float(deploy_cfg.get("bar_bright_ratio", 0.0))
 
         dumped = False
         prev_occupied = None
