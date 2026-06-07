@@ -318,11 +318,34 @@ class CollectResources(BlockSpec):
 class FindMatch(BlockSpec):
     label = "Find Match"
     category = "CoC"
-    inputs = []
+    # description: see blocks/__init__.py DESCRIPTIONS (single source of copy).
+    inputs = [
+        Param("min_gold", Kind.Number, default=0, label="Min gold"),
+        Param("min_elixir", Kind.Number, default=0, label="Min elixir"),
+        Param("min_dark_elixir", Kind.Number, default=0, label="Min dark elixir"),
+    ]
     outputs = [Port("found", Kind.Bool)]
 
     def run(self, ctx, inputs):
-        found = AttackScreen(ctx.ui_manager, ctx.settings).find_match()
+        # Block params override the loot thresholds in settings.json's "farm"
+        # section (the screens layer reads them from there). A param that's absent
+        # (old graph saved before these fields existed) leaves the settings value
+        # intact; a present param — including 0 — wins.
+        farm = dict(ctx.settings.get("farm", {}))
+        for key in ("min_gold", "min_elixir", "min_dark_elixir"):
+            v = inputs.get(key)
+            if v is None or v == "":
+                continue
+            try:
+                farm[key] = int(v)
+            except (TypeError, ValueError):
+                ctx.logger.warning("[find_match] ignoring non-numeric %s=%r", key, v)
+        settings = {**ctx.settings, "farm": farm}
+        ctx.logger.info(
+            "[find_match] loot thresholds gold>=%s elixir>=%s dark>=%s",
+            farm.get("min_gold", 0), farm.get("min_elixir", 0), farm.get("min_dark_elixir", 0),
+        )
+        found = AttackScreen(ctx.ui_manager, settings).find_match()
         ctx.vars["match_found"] = bool(found)
         return {"found": bool(found)}
 
