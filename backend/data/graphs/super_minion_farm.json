@@ -19,11 +19,11 @@
       "id": "find_match_2",
       "type": "find_match",
       "label": "Find Match",
-      "x": 340,
+      "x": 600,
       "y": 300,
       "params": {},
       "after": [
-        "ensure_home_0"
+        "collect_resources_10"
       ],
       "data_in": {},
       "on_error": null
@@ -32,7 +32,7 @@
       "id": "deploy_7",
       "type": "deploy",
       "label": "Deploy Super Minion",
-      "x": 600,
+      "x": 860,
       "y": 300,
       "params": {
         "scenario": "supper_minion"
@@ -47,11 +47,24 @@
       "id": "return_home_8",
       "type": "return_home",
       "label": "Return Home",
-      "x": 860,
+      "x": 1120,
       "y": 300,
       "params": {},
       "after": [
         "deploy_7"
+      ],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "collect_resources_10",
+      "type": "collect_resources",
+      "label": "Collect Resources",
+      "x": 340,
+      "y": 300,
+      "params": {},
+      "after": [
+        "ensure_home_0"
       ],
       "data_in": {},
       "on_error": null
