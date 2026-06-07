@@ -460,14 +460,15 @@ class BattleScreen(BaseScreen):
         tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
         select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
         humanize = bool(deploy_cfg.get("humanize", True))
-        # An AVAILABLE unit tile is BRIGHT; a used/spent one (incl. a spent hero)
-        # is dimmed by a dark overlay. Gate on brightness (HSV Value), not colour.
-        # Use an ABSOLUTE floor by default (ratio 0): a relative cutoff drifts down
-        # as bright troops deploy, then suddenly admits dim heroes/spent slots and
-        # tapping the field on those can hit already-deployed units (e.g. destroy a
-        # deployed siege). Calibrate bar_bright_v from the logged per-slot values.
-        bright_floor = float(deploy_cfg.get("bar_bright_v", 150.0))
-        bright_ratio = float(deploy_cfg.get("bar_bright_ratio", 0.0))
+        # Occupancy by COLOUR-FRACTION: how much of the tile body is non-grey
+        # (coloured) pixels. An available troop icon has lots of saturated pixels
+        # even when the icon is dark (e.g. a dark-blue super minion); a used (x0)
+        # slot or a spent/greyed hero is mostly grey -> few coloured pixels. This
+        # separates better than mean saturation/brightness, where a dark-but-
+        # colourful troop reads lower than a bright greyed hero. Tunable below.
+        sat_min = float(deploy_cfg.get("dump_sat_min", 60.0))   # px S>=this = coloured
+        val_min = float(deploy_cfg.get("dump_val_min", 50.0))   # ...and not near-black
+        frac_thr = float(deploy_cfg.get("dump_color_frac", 0.18))  # >=this fraction = occupied
 
         dumped = False
         prev_occupied = None
@@ -481,7 +482,7 @@ class BattleScreen(BaseScreen):
             hsv = cv2.cvtColor(screen, cv2.COLOR_BGR2HSV)
             h, w = hsv.shape[:2]
 
-            vals, centers = [], []
+            fracs, centers = [], []
             for i in range(n_slots):
                 tx1 = max(0, min(w, bx1 + i * pitch))
                 tx2 = max(0, min(w, tx1 + pitch))
@@ -491,27 +492,23 @@ class BattleScreen(BaseScreen):
                     continue
                 # Sample only the lower-central BODY of the tile. The top strip
                 # holds the level badge and — for a spent hero — its HEALTH BAR
-                # (a bright green/red bar) which would otherwise keep the tile
-                # looking bright.
+                # (a bright green/red bar) which would otherwise add colour.
                 sx1 = tx1 + int(tw_ * 0.20); sx2 = tx2 - int(tw_ * 0.20)
                 sy1 = ty1 + int(th_ * 0.45); sy2 = ty2 - int(th_ * 0.05)
                 if sx2 - sx1 < 4 or sy2 - sy1 < 4:
                     sx1, sy1, sx2, sy2 = tx1, ty1, tx2, ty2
-                tile = hsv[sy1:sy2, sx1:sx2, 2]   # Value (brightness), body only
-                if tile.size:
-                    vals.append(float(tile.mean()))
+                body = hsv[sy1:sy2, sx1:sx2]
+                if body.size:
+                    coloured = (body[:, :, 1] >= sat_min) & (body[:, :, 2] >= val_min)
+                    fracs.append(float(coloured.mean()))   # fraction of non-grey px
                     centers.append((tx1 + tx2) // 2)
-            if not vals:
+            if not fracs:
                 break
-            # Bright tile = available unit. Absolute floor so an all-dim bar (every
-            # unit spent) matches NOTHING; the relative term only kicks in when a
-            # genuinely bright tile is present. Tune bar_bright_v / bar_bright_ratio.
-            cutoff = max(bright_floor, bright_ratio * max(vals))
-            occupied = [c for c, v in zip(centers, vals) if v >= cutoff]
-            logger.info("[DUMP] slot brightness=%s cutoff=%.0f -> %d available",
-                        [round(v) for v in vals], cutoff, len(occupied))
+            occupied = [c for c, f in zip(centers, fracs) if f >= frac_thr]
+            logger.info("[DUMP] colour-fraction=%s thr=%.2f -> %d available",
+                        [round(f, 2) for f in fracs], frac_thr, len(occupied))
             if not occupied:
-                logger.info("[DUMP] no bright (available) units left — done.")
+                logger.info("[DUMP] no coloured (available) units left — done.")
                 break
 
             # No progress: a dump round didn't reduce the colour slots, so the rest
