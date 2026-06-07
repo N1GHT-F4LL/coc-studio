@@ -259,15 +259,11 @@ class BattleScreen(BaseScreen):
                         continue
 
                     if slot.get("type") == "ensure_deployed":
-                        # Drop whatever troops the planned nodes didn't use. The
-                        # templates to look for are the variant's own unit icons.
-                        tpls = []
-                        for nn in nodes:
-                            t = nn.get("template")
-                            if t and t not in tpls:
-                                tpls.append(t)
-                        logger.info("[DEPLOY] ensure_deployed -> dump leftover troops (%d type(s))", len(tpls))
-                        self.dump_remaining(deploy_cfg, tpls)
+                        # Drop whatever is LEFT on the bar — including event troops
+                        # that have no template (dump_remaining sweeps by slot
+                        # position, not by known icon).
+                        logger.info("[DEPLOY] ensure_deployed -> dump leftover troops")
+                        self.dump_remaining(deploy_cfg)
                         any_deployed = True
                         continue
 
@@ -411,88 +407,83 @@ class BattleScreen(BaseScreen):
             y2 = int(slot_cfg.get("y2", slot_cfg.get("y", def_y)))
             self._tap_line(x1, y1, x2, y2, taps, tap_interval, humanize=humanize)
 
-    def _find_unit_on_bar(self, bar_gray, template_key, bx1, by1, threshold):
-        """Locate a unit's icon in the (already-cropped) deploy bar; None if absent."""
-        template = vision.cache.get(template_key)
-        if template is None:
-            return None
-        score, scaled, rmap = vision._find_best_scale(
-            bar_gray, template, threshold=threshold, scales=SLOT_ICON_SCALES
+    def _battle_ended(self, screen):
+        """True once the deploy phase is over (Return Home shown / no screen)."""
+        if screen is None:
+            return True
+        rh = RETURN_HOME_TEMPLATES[0]
+        return rh in vision.cache and bool(
+            vision.find_template(screen, rh, threshold=0.7, use_orb_fallback=False)
         )
-        if rmap is None or scaled is None or score < threshold:
-            return None
-        _, _, _, ml = cv2.minMaxLoc(rmap)
-        th, tw = scaled.shape[:2]
-        return (int(ml[0] + tw // 2 + bx1), int(ml[1] + th // 2 + by1))
 
-    def dump_remaining(self, deploy_cfg, templates, max_rounds=5, taps_per_round=10):
-        """Deploy whatever troops are LEFT after the planned drops.
+    def dump_remaining(self, deploy_cfg, max_rounds=4, taps_per_slot=6):
+        """Deploy EVERYTHING still on the troop bar — including event/temporary
+        troops that were never trained or planned, so they have NO template.
 
-        A unit's icon stays on the deploy bar only while you still have that
-        unit, so a bright match = troops remain ("chưa xả hết"). Each round we
-        re-scan the bar for the given templates, select every type still present
-        and spam-drop it along the front; we stop as soon as the bar is clear
-        (all used) or after ``max_rounds``. Re-scanning each round is the
-        detection — no over-tapping an empty bar. Returns True if anything was
-        dumped."""
-        if not templates:
-            return False
-
+        Rather than matching known icons, sweep the bar by SLOT POSITION: split
+        the bar into fixed-pitch tiles and treat a tile with enough visual detail
+        (grayscale std, adaptive to the bar) as an occupied slot. For each
+        occupied slot, select it and spam-drop along the front; re-scan each round
+        and stop when no slot is occupied (bar clear) or the battle ends. The
+        Return Home button is re-checked before every drop, so once the fight is
+        over (bar gone) we never tap the loot/result screen. Returns True if it
+        dropped anything."""
         bx1, by1, bx2, by2 = [int(v) for v in deploy_cfg.get("troop_bar_region", [200, 855, 1400, 910])]
+        bar_cy = (by1 + by2) // 2
+        pitch = max(8, int(deploy_cfg.get("bar_slot_pitch", 95)))
+        n_slots = max(1, (bx2 - bx1) // pitch)
+
         def_y = int(deploy_cfg.get("battlefield_y", 750))
         x1 = int(deploy_cfg.get("battlefield_x_start", 300))
         x2 = int(deploy_cfg.get("battlefield_x_end", 1300))
         tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
         select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
         humanize = bool(deploy_cfg.get("humanize", True))
-        threshold = float(deploy_cfg.get("dump_threshold", 0.5))
+        std_floor = float(deploy_cfg.get("bar_occupancy_std", 8.0))
 
         dumped = False
         for rnd in range(max_rounds):
             if self.ui_manager._stopped():
                 break
             screen = self.ui_manager.get_screen()
-            if screen is None:
+            if self._battle_ended(screen):
+                logger.info("[DUMP] battle ended / no bar — stopping.")
                 break
-            # Battle over? Once Return Home shows, the deploy bar is gone — stop
-            # before troop templates false-match the loot/result screen and we
-            # start tapping random spots on it.
-            rh = RETURN_HOME_TEMPLATES[0]
-            if rh in vision.cache and vision.find_template(
-                screen, rh, threshold=0.7, use_orb_fallback=False
-            ):
-                logger.info("[DUMP] battle ended (Return Home shown) — stopping dump.")
-                break
-            h, w = screen.shape[:2]
-            cx1 = max(0, min(w - 1, bx1)); cx2 = max(1, min(w, bx2))
-            cy1 = max(0, min(h - 1, by1)); cy2 = max(1, min(h, by2))
-            if cx2 <= cx1 or cy2 <= cy1:
-                break
-            bar_gray = cv2.cvtColor(screen[cy1:cy2, cx1:cx2], cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
+            h, w = gray.shape[:2]
 
-            present = []
-            seen = set()
-            for key in templates:
-                if key in seen:
+            # Occupied slots = tiles with detail (a troop icon), adaptive to the
+            # bar so it works regardless of brightness; a used/empty slot is flat.
+            stds, centers = [], []
+            for i in range(n_slots):
+                tx1 = max(0, min(w, bx1 + i * pitch))
+                tx2 = max(0, min(w, tx1 + pitch))
+                ty1 = max(0, min(h, by1)); ty2 = max(0, min(h, by2))
+                if tx2 - tx1 < 6 or ty2 - ty1 < 6:
                     continue
-                seen.add(key)
-                loc = self._find_unit_on_bar(bar_gray, key, cx1, cy1, threshold)
-                if loc:
-                    present.append((key, loc))
-
-            if not present:
-                if rnd == 0:
-                    logger.info("[DUMP] bar already clear — all troops deployed.")
+                tile = gray[ty1:ty2, tx1:tx2]
+                if tile.size:
+                    stds.append(float(tile.std()))
+                    centers.append((tx1 + tx2) // 2)
+            if not stds:
+                break
+            cutoff = max(std_floor, 0.45 * max(stds))
+            occupied = [c for c, s in zip(centers, stds) if s >= cutoff]
+            if not occupied:
+                logger.info("[DUMP] bar clear — all troops deployed.")
                 break
 
-            names = ", ".join(k.rsplit("/", 1)[-1] for k, _ in present)
-            logger.info("[DUMP] round %d: %d type(s) left (%s) — dumping.", rnd + 1, len(present), names)
-            for key, (scx, scy) in present:
+            logger.info("[DUMP] round %d: %d occupied slot(s) — dumping (incl. event troops).",
+                        rnd + 1, len(occupied))
+            for sx in occupied:
                 if self.ui_manager._stopped():
-                    break
-                self.ui_manager.click(scx, scy)          # select the unit on the bar
+                    return dumped
+                if self._battle_ended(self.ui_manager.get_screen()):
+                    logger.info("[DUMP] battle ended mid-dump — stopping.")
+                    return dumped
+                self.ui_manager.click(sx, bar_cy)        # select whatever sits in this slot
                 self.ui_manager._poll_sleep(select_delay)
-                self._tap_line(x1, def_y, x2, def_y, taps_per_round, tap_interval, humanize=humanize)
+                self._tap_line(x1, def_y, x2, def_y, taps_per_slot, tap_interval, humanize=humanize)
                 dumped = True
 
         if dumped:
