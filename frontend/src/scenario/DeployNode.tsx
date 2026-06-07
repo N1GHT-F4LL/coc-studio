@@ -15,6 +15,7 @@ const TYPE_COLOR: Record<DeployType, string> = {
   hero: "#d4356b",
   delay: "#6b7280",
   surrender: "#b3402f",
+  ensure_deployed: "#2f8fb3",
 };
 
 function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
@@ -22,7 +23,8 @@ function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
   const color = TYPE_COLOR[n.type] ?? "#6b7280";
   const isDelay = n.type === "delay";
   const isSurrender = n.type === "surrender";
-  const noTemplate = isDelay || isSurrender; // control nodes — render a badge, not a thumb
+  const isEnsure = n.type === "ensure_deployed";
+  const noTemplate = isDelay || isSurrender || isEnsure; // control nodes — badge, not a thumb
 
   return (
     <div
@@ -36,7 +38,7 @@ function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
           <img className="deploy-thumb" src={thumbUrl(n.template)} alt="" />
         ) : (
           <span className="deploy-badge" style={{ background: color }}>
-            {isSurrender ? "⚑" : n.type[0].toUpperCase()}
+            {isSurrender ? "⚑" : isEnsure ? "⇩" : n.type[0].toUpperCase()}
           </span>
         )}
         <div className="deploy-node-text">
@@ -46,6 +48,8 @@ function DeployNodeImpl({ data, selected }: NodeProps<DeployNodeData>) {
               ? `delay ${n.seconds ?? 0}s`
               : isSurrender
               ? "surrender → exit"
+              : isEnsure
+              ? "dump leftover troops"
               : `${(n.template || "-").split("/").pop()} ×${n.taps ?? 0} · ${n.strategy ?? "line"}`}
           </div>
         </div>

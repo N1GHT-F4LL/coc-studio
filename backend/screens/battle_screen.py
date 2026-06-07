@@ -258,6 +258,19 @@ class BattleScreen(BaseScreen):
                         any_deployed = True
                         continue
 
+                    if slot.get("type") == "ensure_deployed":
+                        # Drop whatever troops the planned nodes didn't use. The
+                        # templates to look for are the variant's own unit icons.
+                        tpls = []
+                        for nn in nodes:
+                            t = nn.get("template")
+                            if t and t not in tpls:
+                                tpls.append(t)
+                        logger.info("[DEPLOY] ensure_deployed -> dump leftover troops (%d type(s))", len(tpls))
+                        self.dump_remaining(deploy_cfg, tpls)
+                        any_deployed = True
+                        continue
+
                     template_key = slot.get("template", "")
                     name = template_key.split("/")[-1] if "/" in template_key else template_key
                     configured_taps = int(slot.get("taps", 5))
@@ -397,4 +410,83 @@ class BattleScreen(BaseScreen):
             x2 = int(slot_cfg.get("x2", slot_cfg.get("x_end",   deploy_cfg.get("battlefield_x_end",  1300))))
             y2 = int(slot_cfg.get("y2", slot_cfg.get("y", def_y)))
             self._tap_line(x1, y1, x2, y2, taps, tap_interval, humanize=humanize)
+
+    def _find_unit_on_bar(self, bar_gray, template_key, bx1, by1, threshold):
+        """Locate a unit's icon in the (already-cropped) deploy bar; None if absent."""
+        template = vision.cache.get(template_key)
+        if template is None:
+            return None
+        score, scaled, rmap = vision._find_best_scale(
+            bar_gray, template, threshold=threshold, scales=SLOT_ICON_SCALES
+        )
+        if rmap is None or scaled is None or score < threshold:
+            return None
+        _, _, _, ml = cv2.minMaxLoc(rmap)
+        th, tw = scaled.shape[:2]
+        return (int(ml[0] + tw // 2 + bx1), int(ml[1] + th // 2 + by1))
+
+    def dump_remaining(self, deploy_cfg, templates, max_rounds=5, taps_per_round=10):
+        """Deploy whatever troops are LEFT after the planned drops.
+
+        A unit's icon stays on the deploy bar only while you still have that
+        unit, so a bright match = troops remain ("chưa xả hết"). Each round we
+        re-scan the bar for the given templates, select every type still present
+        and spam-drop it along the front; we stop as soon as the bar is clear
+        (all used) or after ``max_rounds``. Re-scanning each round is the
+        detection — no over-tapping an empty bar. Returns True if anything was
+        dumped."""
+        if not templates:
+            return False
+
+        bx1, by1, bx2, by2 = [int(v) for v in deploy_cfg.get("troop_bar_region", [200, 855, 1400, 910])]
+        def_y = int(deploy_cfg.get("battlefield_y", 750))
+        x1 = int(deploy_cfg.get("battlefield_x_start", 300))
+        x2 = int(deploy_cfg.get("battlefield_x_end", 1300))
+        tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
+        select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
+        humanize = bool(deploy_cfg.get("humanize", True))
+        threshold = float(deploy_cfg.get("dump_threshold", 0.5))
+
+        dumped = False
+        for rnd in range(max_rounds):
+            if self.ui_manager._stopped():
+                break
+            screen = self.ui_manager.get_screen()
+            if screen is None:
+                break
+            h, w = screen.shape[:2]
+            cx1 = max(0, min(w - 1, bx1)); cx2 = max(1, min(w, bx2))
+            cy1 = max(0, min(h - 1, by1)); cy2 = max(1, min(h, by2))
+            if cx2 <= cx1 or cy2 <= cy1:
+                break
+            bar_gray = cv2.cvtColor(screen[cy1:cy2, cx1:cx2], cv2.COLOR_BGR2GRAY)
+
+            present = []
+            seen = set()
+            for key in templates:
+                if key in seen:
+                    continue
+                seen.add(key)
+                loc = self._find_unit_on_bar(bar_gray, key, cx1, cy1, threshold)
+                if loc:
+                    present.append((key, loc))
+
+            if not present:
+                if rnd == 0:
+                    logger.info("[DUMP] bar already clear — all troops deployed.")
+                break
+
+            names = ", ".join(k.rsplit("/", 1)[-1] for k, _ in present)
+            logger.info("[DUMP] round %d: %d type(s) left (%s) — dumping.", rnd + 1, len(present), names)
+            for key, (scx, scy) in present:
+                if self.ui_manager._stopped():
+                    break
+                self.ui_manager.click(scx, scy)          # select the unit on the bar
+                self.ui_manager._poll_sleep(select_delay)
+                self._tap_line(x1, def_y, x2, def_y, taps_per_round, tap_interval, humanize=humanize)
+                dumped = True
+
+        if dumped:
+            logger.info("[DUMP] leftover troops dumped.")
+        return dumped
 

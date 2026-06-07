@@ -9,7 +9,8 @@ export type DeployType =
   | "siege"
   | "hero"
   | "delay"
-  | "surrender";
+  | "surrender"
+  | "ensure_deployed";
 export type Strategy = "line" | "points" | "delay";
 
 // One deploy slot. Fields depend on type/strategy:
@@ -62,6 +63,7 @@ export const DEPLOY_TYPES: DeployType[] = [
   "hero",
   "delay",
   "surrender",
+  "ensure_deployed",
 ];
 
 // Mirror of backend required_composition: per template, sum taps within a
@@ -119,9 +121,12 @@ export function formatComposition(c: Composition): string {
   return `troops[${fmt(c.troops)}] spells[${fmt(c.spells)}] sieges[${fmt(c.sieges)}]`;
 }
 
-// Folder under assets/units/ for each deployable type's templates. delay and
-// surrender are control nodes with no template.
-export const TYPE_FOLDER: Record<Exclude<DeployType, "delay" | "surrender">, string> = {
+// Folder under assets/units/ for each deployable type's templates. delay,
+// surrender and ensure_deployed are control nodes with no template.
+export const TYPE_FOLDER: Record<
+  Exclude<DeployType, "delay" | "surrender" | "ensure_deployed">,
+  string
+> = {
   troop: "units/troops",
   super_troop: "units/super_troops",
   spell: "units/spells",

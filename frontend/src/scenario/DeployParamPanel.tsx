@@ -36,13 +36,14 @@ export function DeployParamPanel({
 
   const isDelay = node.type === "delay";
   const isSurrender = node.type === "surrender";
-  const noTemplate = isDelay || isSurrender; // control nodes — no template/taps/strategy
+  const isEnsure = node.type === "ensure_deployed";
+  const noTemplate = isDelay || isSurrender || isEnsure; // control nodes — no template/taps/strategy
   const set = (patch: Partial<DeployNodeT>) => onChange(node.id, patch);
 
   // Templates relevant to this unit type (e.g. units/troops/* for a troop).
   const folder = noTemplate
     ? null
-    : TYPE_FOLDER[node.type as Exclude<DeployType, "delay" | "surrender">];
+    : TYPE_FOLDER[node.type as Exclude<DeployType, "delay" | "surrender" | "ensure_deployed">];
   const typeAssets = folder ? assets.filter((a) => a.startsWith(folder + "/")) : [];
 
   return (
@@ -66,7 +67,7 @@ export function DeployParamPanel({
             // Switching between control nodes (delay/surrender) and unit nodes
             // flips the relevant fields.
             if (t === "delay") set({ type: t, strategy: "delay", seconds: node.seconds ?? 1 });
-            else if (t === "surrender") set({ type: t, strategy: undefined });
+            else if (t === "surrender" || t === "ensure_deployed") set({ type: t, strategy: undefined });
             else set({ type: t, strategy: node.strategy === "delay" ? "line" : node.strategy });
           }}
         >
@@ -78,7 +79,14 @@ export function DeployParamPanel({
         </select>
       </label>
 
-      {isSurrender ? (
+      {isEnsure ? (
+        <div className="block-desc">
+          Deploys any troops the planned drops left over: re-scans the troop bar
+          and dumps every unit still on it along the front, until the bar is
+          clear. Place it after your drops (before a surrender node). No effect if
+          everything was already deployed.
+        </div>
+      ) : isSurrender ? (
         <div className="block-desc">
           Ends the attack: taps the surrender / end-battle button and confirms
           (Okay). Returning home is left to the graph's Return Home block. Pair it
