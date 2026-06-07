@@ -457,6 +457,7 @@ class BattleScreen(BaseScreen):
         sat_floor = float(deploy_cfg.get("bar_color_sat", 45.0))
 
         dumped = False
+        prev_occupied = None
         for rnd in range(max_rounds):
             if self.ui_manager._stopped():
                 break
@@ -489,6 +490,15 @@ class BattleScreen(BaseScreen):
             if not occupied:
                 logger.info("[DUMP] bar clear — all colour (un-deployed) troops gone.")
                 break
+
+            # No progress: a dump round didn't reduce the colour slots, so the rest
+            # won't deploy (heroes whose portrait stays colourful, or no valid drop
+            # spot). Stop instead of re-tapping them every round.
+            if prev_occupied is not None and len(occupied) >= prev_occupied:
+                logger.info("[DUMP] %d slot(s) still colour after a round — stopping (heroes / undeployable here).",
+                            len(occupied))
+                break
+            prev_occupied = len(occupied)
 
             logger.info("[DUMP] round %d: %d occupied slot(s) — dumping (incl. event troops).",
                         rnd + 1, len(occupied))
