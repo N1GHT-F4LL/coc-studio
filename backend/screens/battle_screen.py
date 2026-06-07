@@ -261,9 +261,23 @@ class BattleScreen(BaseScreen):
                     if slot.get("type") == "ensure_deployed":
                         # Drop whatever is LEFT on the bar — including event troops
                         # that have no template (dump_remaining sweeps by slot
-                        # position, not by known icon).
-                        logger.info("[DEPLOY] ensure_deployed -> dump leftover troops")
-                        self.dump_remaining(deploy_cfg)
+                        # position, not by known icon). Reuse the planned drop
+                        # spots (points + line endpoints from the other nodes) so
+                        # leftovers land on already-valid tiles, not a default
+                        # line that may sit on the base.
+                        drops = []
+                        for nn in nodes:
+                            for p in nn.get("points") or []:
+                                if isinstance(p, (list, tuple)) and len(p) == 2:
+                                    drops.append((int(p[0]), int(p[1])))
+                            if all(nn.get(k) is not None for k in ("x1", "y1", "x2", "y2")):
+                                x1n, y1n, x2n, y2n = (int(nn["x1"]), int(nn["y1"]),
+                                                      int(nn["x2"]), int(nn["y2"]))
+                                drops += [(x1n, y1n), (x2n, y2n),
+                                          ((x1n + x2n) // 2, (y1n + y2n) // 2)]
+                        logger.info("[DEPLOY] ensure_deployed -> dump leftover troops (%d drop spot(s))",
+                                    len(drops))
+                        self.dump_remaining(deploy_cfg, drop_points=drops or None)
                         any_deployed = True
                         continue
 
@@ -416,7 +430,7 @@ class BattleScreen(BaseScreen):
             vision.find_template(screen, rh, threshold=0.7, use_orb_fallback=False)
         )
 
-    def dump_remaining(self, deploy_cfg, max_rounds=4, taps_per_slot=6):
+    def dump_remaining(self, deploy_cfg, drop_points=None, max_rounds=4, taps_per_slot=6):
         """Deploy EVERYTHING still on the troop bar — including event/temporary
         troops that were never trained or planned, so they have NO template.
 
@@ -486,7 +500,17 @@ class BattleScreen(BaseScreen):
                     return dumped
                 self.ui_manager.click(sx, bar_cy)        # select whatever sits in this slot
                 self.ui_manager._poll_sleep(select_delay)
-                self._tap_line(x1, def_y, x2, def_y, taps_per_slot, tap_interval, humanize=humanize)
+                # Drop onto the SAME spots the planned deploy used (already valid
+                # for this base) if we were given them; else fall back to a line
+                # across the front. A central default line can land on the base
+                # (red zone) and silently fail to deploy.
+                if drop_points:
+                    for k in range(taps_per_slot):
+                        px, py = drop_points[k % len(drop_points)]
+                        self.ui_manager.click(int(px), int(py))
+                        self.ui_manager._poll_sleep(self._drop_delay(tap_interval, humanize))
+                else:
+                    self._tap_line(x1, def_y, x2, def_y, taps_per_slot, tap_interval, humanize=humanize)
                 dumped = True
 
         if dumped:
