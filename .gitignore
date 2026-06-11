@@ -17,6 +17,7 @@ frontend/dist/
 backend/static/
 
 # Runtime artifacts
+tools/
 backend/logs/
 logs/
 backend/_calib/

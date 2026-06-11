@@ -14,6 +14,7 @@
   First run (or after deleting .venv / node_modules, or editing
   backend\requirements.txt): everything is installed automatically. The easyocr
   dependency pulls in torch, so the first pip install downloads several GB.
+  If adb is not on PATH, Android platform-tools is downloaded into tools\.
 
 .NOTES
   Prerequisites: Python 3 and Node.js LTS on PATH. If either is missing the
@@ -98,6 +99,43 @@ if (-not $installed) {
         exit 1
     }
     Set-Content -Path $stamp -Value $reqHash -Encoding ascii
+}
+
+# --- Bootstrap: adb (Android platform-tools) on first run ------------------
+# The backend resolves adb via settings.json "adb_path", else PATH (see
+# core/device.py). If neither has it, download Google's official platform-tools
+# zip into tools\platform-tools and prepend it to PATH for this process - the
+# backend inherits that PATH, so no settings change is needed.
+$adbDir = Join-Path $root "tools\platform-tools"
+$adbExe = Join-Path $adbDir "adb.exe"
+$settingsAdb = ""
+$settingsFile = Join-Path $backend "data\settings.json"
+if (Test-Path $settingsFile) {
+    try { $settingsAdb = (Get-Content $settingsFile -Raw | ConvertFrom-Json).device.adb_path } catch {}
+}
+$adbConfigured = $settingsAdb -and (Test-Path $settingsAdb)
+if (-not $adbConfigured -and -not (Get-Command adb -ErrorAction SilentlyContinue)) {
+    if (-not (Test-Path $adbExe)) {
+        Write-Host "==> adb not found - downloading Android platform-tools (first run)..." -ForegroundColor Cyan
+        $zip = Join-Path $env:TEMP "platform-tools-coc-studio.zip"
+        try {
+            # Official Google link (latest), per developer.android.com/tools/releases/platform-tools
+            Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" `
+                -OutFile $zip -UseBasicParsing
+            Expand-Archive -Path $zip -DestinationPath (Join-Path $root "tools") -Force
+            Remove-Item $zip -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Error "adb download failed ($($_.Exception.Message)) - install platform-tools manually from https://developer.android.com/tools/releases/platform-tools and either add adb to PATH or set device.adb_path in backend\data\settings.json, then re-run .\start.ps1"
+            exit 1
+        }
+        if (-not (Test-Path $adbExe)) {
+            Write-Error "platform-tools zip did not contain adb.exe at $adbExe - install manually from https://developer.android.com/tools/releases/platform-tools"
+            exit 1
+        }
+    }
+    $env:Path = "$adbDir;$env:Path"
+    Write-Host "==> Using bundled adb: $adbExe" -ForegroundColor Cyan
 }
 
 # --- Bootstrap: install frontend deps on first run -------------------------
