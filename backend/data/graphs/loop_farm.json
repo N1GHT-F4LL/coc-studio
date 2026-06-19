@@ -5,7 +5,7 @@
       "id": "loop",
       "type": "loop_n",
       "label": "Farm forever (50 cycles)",
-      "x": 600,
+      "x": 860,
       "y": 300,
       "params": {
         "graph_ref": "farm_cycle",
@@ -59,8 +59,8 @@
       "id": "if_troops_ready_13",
       "type": "if",
       "label": "If Troops Ready",
-      "x": 560,
-      "y": 180,
+      "x": 600,
+      "y": 300,
       "params": {},
       "after": [],
       "data_in": {
