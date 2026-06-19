@@ -51,8 +51,15 @@ SECTIONS = {
 # off-screen units (the roster is a single long horizontal strip). Enough scrolls
 # to reach units far down the strip — e.g. super troops sit well past the regular
 # troops, so a handful of swipes never reached them.
-ROSTER_SWIPE = ((1250, 790), (650, 790))
-MAX_ROSTER_SCROLLS = 12
+ROSTER_SWIPE_LEFT = ((1250, 790), (650, 790))
+ROSTER_SWIPE_RIGHT = ((650, 790), (1250, 790))
+ROSTER_SEARCH_STEPS = (
+    ROSTER_SWIPE_RIGHT,
+    ROSTER_SWIPE_RIGHT,
+    ROSTER_SWIPE_LEFT,
+    ROSTER_SWIPE_LEFT,
+)
+ROSTER_REWIND_STEPS = 2
 
 # Empty spot to tap to collapse an open add-roster (above the palette, clear of
 # every section box and button). Returns to the My Army overview without leaving
@@ -121,7 +128,7 @@ class TrainScreen(BaseScreen):
         if not cfg:
             return
         self.ui_manager.click(*cfg["panel"])
-        self._roster_offset = 0   # freshly opened roster sits at its start
+        self._roster_offset = 0   # track local search movement after opening
         self.ui_manager._poll_sleep(0.8)
 
     def close_roster(self):
@@ -211,41 +218,44 @@ class TrainScreen(BaseScreen):
         return done
 
     def _locate_in_roster(self, roster_template, threshold):
-        """find_template the troop; scroll the roster up to MAX_ROSTER_SCROLLS if missing.
+        """Find a troop around the current roster position.
 
-        Each unit in a section is searched by a separate call, so the strip may be
-        scrolled FORWARD from finding a previous (later) unit — which leaves an
-        earlier unit off-screen behind us. Rewind to the strip's start first
-        (undoing the swipes we've tracked), then scan forward, so every search
-        starts from the front regardless of pick order.
+        Check current, swipe right twice, then swipe left twice, checking after
+        every move. This avoids getting stuck when the strip is already offset.
         """
         self._rewind_roster()
-        for attempt in range(MAX_ROSTER_SCROLLS + 1):
+        for attempt in range(len(ROSTER_SEARCH_STEPS) + 1):
             screen = self.ui_manager.get_screen()
             if screen is not None:
                 loc = vision.find_template(screen, roster_template, threshold=threshold, use_orb_fallback=False)
                 if loc:
                     return loc
-            if attempt < MAX_ROSTER_SCROLLS and not self.ui_manager._stopped():
-                (sx, sy), (ex, ey) = ROSTER_SWIPE
+            if attempt < len(ROSTER_SEARCH_STEPS) and not self.ui_manager._stopped():
+                (sx, sy), (ex, ey) = ROSTER_SEARCH_STEPS[attempt]
                 self.ui_manager.device.swipe([(sx, sy), (ex, ey)])
-                self._roster_offset = getattr(self, "_roster_offset", 0) + 1
+                if ROSTER_SEARCH_STEPS[attempt] == ROSTER_SWIPE_LEFT:
+                    self._roster_offset += 1
+                else:
+                    self._roster_offset -= 1
                 self.ui_manager._poll_sleep(0.8)
         return None
 
     def _rewind_roster(self):
-        """Scroll the roster back to its start, reversing the forward swipes taken
-        for a previous unit so the next search begins from the front."""
-        n = getattr(self, "_roster_offset", 0)
-        if n <= 0:
-            return
-        (sx, sy), (ex, ey) = ROSTER_SWIPE
+        """Return near the roster start before each unit search.
+
+        Only undo movement we caused, capped to two swipes. The search itself
+        still scans locally right twice then left twice.
+        """
+        offset = getattr(self, "_roster_offset", 0)
+        n = min(abs(offset), ROSTER_REWIND_STEPS)
+        rewind_swipe = ROSTER_SWIPE_RIGHT if offset > 0 else ROSTER_SWIPE_LEFT
         for _ in range(n):
             if self.ui_manager._stopped():
                 break
-            self.ui_manager.device.swipe([(ex, ey), (sx, sy)])   # reversed = scroll back
+            (sx, sy), (ex, ey) = rewind_swipe
+            self.ui_manager.device.swipe([(sx, sy), (ex, ey)])
             self.ui_manager._poll_sleep(0.8)
-        self._roster_offset = 0
+            self._roster_offset += -1 if offset > 0 else 1
 
     def back_home(self, max_taps=4):
         """Leave the army screen back to the village.
