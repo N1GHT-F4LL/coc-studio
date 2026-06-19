@@ -1,4 +1,4 @@
-import { memo, useContext, useLayoutEffect, useRef, useState } from "react";
+import { memo, useContext, useState } from "react";
 import { Handle, Position, useStore, type NodeProps } from "reactflow";
 import type { BlockSpec } from "../blocks/types";
 import { kindColor } from "./kindColors";
@@ -13,8 +13,9 @@ export interface BlockNodeData {
 
 // Vertical position for the i-th port handle among n, as a CSS top %.
 const slot = (i: number, n: number) => `${((i + 1) / (n + 1)) * 100}%`;
-// Horizontal position for the i-th branch handle among n, as a CSS left %.
-const hslot = (i: number, n: number) => `${((i + 1) / (n + 1)) * 100}%`;
+// Data ports share the left/right edge with control flow, so keep them below
+// the midpoint control handle instead of stacking on the top/bottom edge.
+const dataSlot = (i: number, n: number) => `${50 + ((i + 1) / (n + 1)) * 42}%`;
 
 function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
   const { spec, label } = data;
@@ -40,23 +41,8 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
   const showData = hovered || selected;
   const dataHidden = (hid: string) => !showData && !connectedHandles.has(hid);
 
-  // Measure the node box so the callout leaders can be drawn to scale.
-  const boxRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 160, h: 64 });
-  useLayoutEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setSize({ w: el.offsetWidth, h: el.offsetHeight });
-    });
-    ro.observe(el);
-    setSize({ w: el.offsetWidth, h: el.offsetHeight });
-    return () => ro.disconnect();
-  }, []);
-
   return (
     <div
-      ref={boxRef}
       className={`block-node${selected ? " selected" : ""}${
         runState ? ` run-${runState}` : ""
       }`}
@@ -77,10 +63,10 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
             key={`in-${p.name}`}
             id={hid}
             type="target"
-            position={Position.Top}
+            position={Position.Left}
             className="data-handle"
             style={{
-              left: hslot(i, dataInputs.length),
+              top: dataSlot(i, dataInputs.length),
               background: kindColor(p.kind),
               display: dataHidden(hid) ? "none" : undefined,
             }}
@@ -95,10 +81,10 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
             key={`out-${p.name}`}
             id={hid}
             type="source"
-            position={Position.Bottom}
+            position={Position.Right}
             className="data-handle"
             style={{
-              left: hslot(i, dataOutputs.length),
+              top: dataSlot(i, dataOutputs.length),
               background: kindColor(p.kind),
               display: dataHidden(hid) ? "none" : undefined,
             }}
@@ -107,10 +93,9 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
         );
       })}
 
-      {/* Callout layer: on hover, input-port labels float above the node and
-          output-port labels below, each with an elbow leader to its port dot. */}
+      {/* Data ports reveal as side dots on hover/selection. */}
       {showData && (dataInputs.length > 0 || dataOutputs.length > 0) && (
-        <PortCallouts w={size.w} h={size.h} inputs={dataInputs} outputs={dataOutputs} />
+        <PortCallouts w={160} h={64} inputs={dataInputs} outputs={dataOutputs} />
       )}
 
 

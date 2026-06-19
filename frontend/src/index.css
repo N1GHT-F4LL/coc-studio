@@ -295,7 +295,7 @@ button.danger:hover { background: #3a2530; }
 /* Port callouts: label boxes floating above (inputs) / below (outputs) the
    node with a leader to each port dot. Shown on node hover/select. The hovered
    node is elevated (see .block-node:hover) so callouts clear neighbour nodes. */
-.port-callouts { position: absolute; inset: 0; pointer-events: none; z-index: 1000; }
+.port-callouts { display: none; }
 .callout-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .callout-box {
   position: absolute;

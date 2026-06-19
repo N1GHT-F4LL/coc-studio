@@ -80,24 +80,23 @@ export function fromGraphDoc(
   return { nodes, edges };
 }
 
-// Auto-layout the block graph horizontally (suits a 16:9 screen): control flow
-// runs left-to-right, so a node's level = longest control-edge chain from a root
-// and becomes its column; siblings in a column stack vertically, centred on a
-// midline. Data edges are ignored for levelling so the control spine stays
-// straight.
+// Auto-layout the block graph horizontally (suits a 16:9 screen): every runtime
+// dependency (control or data) pushes the target to the next column. This keeps
+// gate nodes like `if(cond <- ensure_troops.ready)` to the right of the node
+// producing their input instead of floating as roots.
 const G_X = 260; // horizontal gap between levels (columns)
 const G_Y = 130; // vertical gap between siblings in a column
 const G_X0 = 80;
 const G_MID = 300; // y midline each column is balanced around
 
 export function layoutGraphNodes(nodes: RFNode[], edges: Edge[]): RFNode[] {
-  // Control-edge predecessors only (handle ids start with "ctl").
+  // Runtime predecessors: control + data edges both impose execution order.
   const preds: Record<string, string[]> = {};
   for (const n of nodes) preds[n.id] = [];
   for (const e of edges) {
-    const isControl =
-      (e.sourceHandle?.startsWith("ctl") ?? false) || (e.targetHandle?.startsWith("ctl") ?? false);
-    if (isControl && preds[e.target]) preds[e.target].push(e.source);
+    const src = parseHandle(e.sourceHandle);
+    const dst = parseHandle(e.targetHandle);
+    if (src && dst && preds[e.target]) preds[e.target].push(e.source);
   }
 
   const level: Record<string, number> = {};
