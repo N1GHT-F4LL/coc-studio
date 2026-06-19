@@ -19,8 +19,10 @@ Flow that was reverse-engineered on a live TH18 device (see scripts/*calib):
 Capture the ``units/roster/<name>`` face templates with scripts/capture_face.py.
 """
 import logging
+import os
 
 from .base_screen import BaseScreen
+import app_paths
 from core.vision import vision
 
 logger = logging.getLogger(__name__)
@@ -184,6 +186,10 @@ class TrainScreen(BaseScreen):
         if count <= 0:
             return 0
 
+        self._ensure_asset_cached(roster_template)
+        if fallback_template:
+            self._ensure_asset_cached(fallback_template)
+
         template, thr = roster_template, threshold
         if template not in vision.cache:
             if fallback_template and fallback_template in vision.cache:
@@ -216,6 +222,23 @@ class TrainScreen(BaseScreen):
             done += 1
         logger.info("[TRAIN] %s ×%d (requested %d) at (%d,%d)", name, done, count, cx, cy)
         return done
+
+    def _ensure_asset_cached(self, key):
+        """Hot-load an asset if it was added after backend startup."""
+        if key in vision.cache:
+            return
+        path = os.path.join(app_paths.ASSETS_DIR, *key.split("/")) + ".png"
+        if not os.path.isfile(path):
+            return
+        import cv2
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            return
+        stem = key.rsplit("/", 1)[-1]
+        if stem not in vision.cache:
+            vision.cache[stem] = img
+        vision.cache[key] = img
+        logger.info("[TRAIN] hot-loaded asset %s", key)
 
     def _locate_in_roster(self, roster_template, threshold):
         """Find a troop around the current roster position.

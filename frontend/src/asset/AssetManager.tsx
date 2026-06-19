@@ -188,7 +188,12 @@ export function AssetManager({ onMessage, onAssetsChanged }: Props) {
               <span>{shown.length} assets</span>
               <button
                 className="run"
-                onClick={() => { setMode("capture"); clearPending(); setNewName(""); }}
+                onClick={() => {
+                  setMode("capture");
+                  clearPending();
+                  setNewName("");
+                  if (cat) setNewFolder(cat);
+                }}
               >
                 + Capture from device
               </button>
