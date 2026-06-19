@@ -35,7 +35,7 @@
       "x": 600,
       "y": 300,
       "params": {
-        "min_gold": 500000,
+        "min_gold": 0,
         "min_elixir": 500000,
         "min_dark_elixir": null
       },

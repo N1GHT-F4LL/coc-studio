@@ -18,6 +18,7 @@ backend/static/
 
 # Runtime artifacts
 tools/
+_probe/
 backend/logs/
 logs/
 backend/_calib/

@@ -238,6 +238,7 @@ class EnsureTroops(BlockSpec):
             ctx.vars["troops_ready"] = False
             return {"ready": False}
         reached_all = True              # could we open the army for every section?
+        trained_all = True              # did every requested unit receive all taps?
         for kind, items in sections:
             if not items or ctx.stopped():
                 continue
@@ -256,6 +257,12 @@ class EnsureTroops(BlockSpec):
                 # scrolled + matched instead of bailing early.
                 tapped = train.train_unit(roster_tpl, count, tap_delay=tap_delay,
                                           threshold=threshold, fallback_template=template_key)
+                if tapped < int(count):
+                    trained_all = False
+                    ctx.logger.warning(
+                        "[ensure_troops] %s trained %d/%d - army is not ready; "
+                        "capture units/roster/%s if template matching missed it.",
+                        template_key, tapped, int(count), template_key.rsplit("/", 1)[-1])
                 if tapped == 0 and "super_troops" in template_key:
                     ctx.logger.warning(
                         "[ensure_troops] %s trained 0 — a super troop only shows in the "
@@ -267,7 +274,7 @@ class EnsureTroops(BlockSpec):
 
         # A fixed/no wait_ready can't observe training, so don't claim readiness
         # if a section never reached the army screen (e.g. a persistent popup).
-        ready = self._wait_ready(ctx, inputs) and reached_all
+        ready = self._wait_ready(ctx, inputs) and reached_all and trained_all
         ctx.vars["troops_ready"] = ready
         return {"ready": ready}
 

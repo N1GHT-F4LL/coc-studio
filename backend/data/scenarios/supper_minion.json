@@ -318,9 +318,9 @@
           "template": "",
           "taps": 1,
           "strategy": "delay",
-          "seconds": 10,
+          "seconds": 30,
           "x": 1500,
-          "y": 300
+          "y": 360
         },
         {
           "id": "n_21",
@@ -379,6 +379,29 @@
           "taps": 1,
           "x": 1260,
           "y": 360
+        },
+        {
+          "id": "n_25",
+          "label": "MECHA",
+          "type": "troop",
+          "after": [
+            "n_19"
+          ],
+          "template": "units/troops/m_e_c_h_a",
+          "taps": 1,
+          "strategy": "points",
+          "x1": 173,
+          "y1": 411,
+          "x2": 173,
+          "y2": 411,
+          "points": [
+            [
+              180,
+              432
+            ]
+          ],
+          "x": 1500,
+          "y": 240
         }
       ]
     }
