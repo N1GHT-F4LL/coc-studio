@@ -51,13 +51,14 @@ SECTIONS = {
 # off-screen units (the roster is a single long horizontal strip). Enough scrolls
 # to reach units far down the strip — e.g. super troops sit well past the regular
 # troops, so a handful of swipes never reached them.
+# Finger swipes inside the horizontal roster.
 ROSTER_SWIPE_LEFT = ((1250, 790), (650, 790))
 ROSTER_SWIPE_RIGHT = ((650, 790), (1250, 790))
 ROSTER_SEARCH_STEPS = (
-    ROSTER_SWIPE_RIGHT,
-    ROSTER_SWIPE_RIGHT,
     ROSTER_SWIPE_LEFT,
     ROSTER_SWIPE_LEFT,
+    ROSTER_SWIPE_RIGHT,
+    ROSTER_SWIPE_RIGHT,
 )
 ROSTER_REWIND_STEPS = 2
 
@@ -128,7 +129,6 @@ class TrainScreen(BaseScreen):
         if not cfg:
             return
         self.ui_manager.click(*cfg["panel"])
-        self._roster_offset = 0   # track local search movement after opening
         self.ui_manager._poll_sleep(0.8)
 
     def close_roster(self):
@@ -220,8 +220,9 @@ class TrainScreen(BaseScreen):
     def _locate_in_roster(self, roster_template, threshold):
         """Find a troop around the current roster position.
 
-        Check current, swipe right twice, then swipe left twice, checking after
-        every move. This avoids getting stuck when the strip is already offset.
+        Rewind first, then check current, swipe left twice, then swipe right
+        twice, checking after every move. This avoids carrying stale scroll
+        position from the previous unit into the next detection.
         """
         self._rewind_roster()
         for attempt in range(len(ROSTER_SEARCH_STEPS) + 1):
@@ -233,29 +234,17 @@ class TrainScreen(BaseScreen):
             if attempt < len(ROSTER_SEARCH_STEPS) and not self.ui_manager._stopped():
                 (sx, sy), (ex, ey) = ROSTER_SEARCH_STEPS[attempt]
                 self.ui_manager.device.swipe([(sx, sy), (ex, ey)])
-                if ROSTER_SEARCH_STEPS[attempt] == ROSTER_SWIPE_LEFT:
-                    self._roster_offset += 1
-                else:
-                    self._roster_offset -= 1
                 self.ui_manager._poll_sleep(0.8)
         return None
 
     def _rewind_roster(self):
-        """Return near the roster start before each unit search.
-
-        Only undo movement we caused, capped to two swipes. The search itself
-        still scans locally right twice then left twice.
-        """
-        offset = getattr(self, "_roster_offset", 0)
-        n = min(abs(offset), ROSTER_REWIND_STEPS)
-        rewind_swipe = ROSTER_SWIPE_RIGHT if offset > 0 else ROSTER_SWIPE_LEFT
-        for _ in range(n):
+        """Return near the roster start before each unit search."""
+        for _ in range(ROSTER_REWIND_STEPS):
             if self.ui_manager._stopped():
                 break
-            (sx, sy), (ex, ey) = rewind_swipe
+            (sx, sy), (ex, ey) = ROSTER_SWIPE_RIGHT
             self.ui_manager.device.swipe([(sx, sy), (ex, ey)])
             self.ui_manager._poll_sleep(0.8)
-            self._roster_offset += -1 if offset > 0 else 1
 
     def back_home(self, max_taps=4):
         """Leave the army screen back to the village.
