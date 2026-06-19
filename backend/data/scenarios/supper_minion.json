@@ -30,7 +30,7 @@
             "n_8"
           ],
           "template": "units/super_troops/super_minion",
-          "taps": 8,
+          "taps": 7,
           "strategy": "line",
           "x1": 982,
           "y1": 72,
@@ -299,7 +299,7 @@
             "n_7"
           ],
           "template": "units/troops/archer",
-          "taps": 4,
+          "taps": 6,
           "strategy": "line",
           "x1": 590,
           "y1": 95,

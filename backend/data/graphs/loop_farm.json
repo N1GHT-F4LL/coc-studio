@@ -12,7 +12,10 @@
         "times": 50
       },
       "after": [
-        "ensure_troops_12"
+        {
+          "from": "if_troops_ready_13",
+          "branch": "then"
+        }
       ],
       "data_in": {},
       "on_error": null
@@ -50,6 +53,22 @@
         "ensure_home_11"
       ],
       "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "if_troops_ready_13",
+      "type": "if",
+      "label": "If Troops Ready",
+      "x": 560,
+      "y": 180,
+      "params": {},
+      "after": [],
+      "data_in": {
+        "cond": {
+          "from": "ensure_troops_12",
+          "port": "ready"
+        }
+      },
       "on_error": null
     }
   ],
