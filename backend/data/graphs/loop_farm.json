@@ -5,17 +5,14 @@
       "id": "loop",
       "type": "loop_n",
       "label": "Farm forever (50 cycles)",
-      "x": 860,
+      "x": 600,
       "y": 300,
       "params": {
         "graph_ref": "farm_cycle",
         "times": 50
       },
       "after": [
-        {
-          "from": "if_troops_ready_13",
-          "branch": "then"
-        }
+        "ensure_troops_12"
       ],
       "data_in": {},
       "on_error": null
@@ -53,22 +50,6 @@
         "ensure_home_11"
       ],
       "data_in": {},
-      "on_error": null
-    },
-    {
-      "id": "if_troops_ready_13",
-      "type": "if",
-      "label": "If Troops Ready",
-      "x": 600,
-      "y": 300,
-      "params": {},
-      "after": [],
-      "data_in": {
-        "cond": {
-          "from": "ensure_troops_12",
-          "port": "ready"
-        }
-      },
       "on_error": null
     }
   ],
