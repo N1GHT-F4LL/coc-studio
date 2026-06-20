@@ -31,6 +31,15 @@ import scenario_store
 _RECONNECT_BUTTONS = ("icons/status/reload_game", "icons/status/reload_connection")
 
 
+def _param_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in ("0", "false", "no", "off", "")
+    return bool(value)
+
 def dismiss_reconnect_popup(ui, logger=None, settle=8.0):
     """Tap any visible reconnect popup's reload button. Returns True if it acted.
 
@@ -376,6 +385,7 @@ class Deploy(BlockSpec):
         Param("tap_interval", Kind.Number, default=0.08, label="Tap interval (s)"),
         Param("select_delay", Kind.Number, default=0.2, label="Select delay (s)"),
         Param("humanize", Kind.Bool, default=True, label="Humanize drops"),
+        Param("deploy_event_troops", Kind.Bool, default=True, label="Deploy event troops"),
     ]
     outputs = [Port("deployed", Kind.Bool)]
 
@@ -412,11 +422,15 @@ class Deploy(BlockSpec):
             except (TypeError, ValueError):
                 ctx.logger.warning("[deploy] ignoring non-numeric %s=%r", key, v)
         if "humanize" in inputs and inputs.get("humanize") is not None:
-            deploy_cfg["humanize"] = bool(inputs.get("humanize"))
+            deploy_cfg["humanize"] = _param_bool(inputs.get("humanize"), True)
         ctx.logger.info("[deploy] scenario=%s variant=%s nodes=%d tap=%.3fs select=%.3fs",
                         scenario, variant_name, len(nodes),
                         deploy_cfg.get("tap_interval", 0.15), deploy_cfg.get("select_delay", 0.3))
         battle.deploy_troops(deploy_cfg)
+        if _param_bool(inputs.get("deploy_event_troops"), True):
+            drops = battle.collect_drop_points(nodes)
+            ctx.logger.info("[deploy] event troop dump enabled -> %d drop spot(s)", len(drops))
+            battle.dump_remaining(deploy_cfg, drop_points=drops or None)
         return {"deployed": True}
 
 

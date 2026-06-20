@@ -25,9 +25,8 @@ To test locally:
 ollama pull moondream
 ```
 
-Then set `local_ai.enabled=true`, restart backend, add the `VLM Tap
-(experimental)` block, and use a concrete target such as `green Attack button`
-or `Return Home button`.
+Then set `local_ai.enabled=true` and restart backend. Keep this as a diagnostic
+API only; do not add local-AI actions to the normal bot graph.
 
 You can test against the current connected device without editing a graph:
 
@@ -73,7 +72,8 @@ Invoke-RestMethod http://127.0.0.1:8000/api/ai/troop-bar `
   -Body '{"threshold":0.48}'
 ```
 
-Graph test: add `Recognize Troop Bar` while on the battle screen. It returns:
+Device tab test: open `4 - Troop bar`, click `Scan troop bar` while on the
+battle screen. The API returns:
 
 - `detected`: any slot matched,
 - `count`: number of visible slots matched,
@@ -94,8 +94,8 @@ Invoke-RestMethod http://127.0.0.1:8000/api/ai/troop-bar/capture `
 ```
 
 This saves a full screenshot, bar crop, overlay, and `meta.json` under
-`backend/data/troop_samples/` (gitignored). The graph block `Capture Troop
-Sample` does the same from a running graph.
+`backend/data/troop_samples/` (gitignored). The Device tab `Capture sample`
+button does the same without adding diagnostic nodes to the bot graph.
 
 After collecting samples, export a weak-label YOLO dataset for review/training:
 

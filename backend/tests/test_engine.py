@@ -3,7 +3,7 @@
 Verifies the generic executor: topo-order, run-events, cycle guard, and the
 fail-stop error model (a raising block aborts the run; later nodes don't run).
 
-Run from backend/:  ..\.venv\Scripts\python.exe tests\test_engine.py
+Run from backend/:  ..\\.venv\\Scripts\\python.exe tests\\test_engine.py
 """
 import logging
 import os
@@ -92,10 +92,22 @@ def _node(nid, after=None, on_error=None, params=None, type="delay"):
 
 def test_registry_specs():
     print("\n[registry] /api/blocks specs")
-    specs = {s["type"] for s in all_specs()}
+    all_block_specs = all_specs()
+    specs = {s["type"] for s in all_block_specs}
     for t in ("collect_resources", "find_match", "deploy", "return_home",
               "wait_template", "tap", "read_number", "delay"):
         check(t in specs, f"block registered: {t}")
+    deploy = next((s for s in all_block_specs if s["type"] == "deploy"), None)
+    deploy_inputs = {p["name"]: p for p in (deploy or {}).get("inputs", [])}
+    check(deploy_inputs.get("deploy_event_troops", {}).get("default") is True,
+          "deploy exposes enabled event troop dump")
+
+def test_deploy_bool_params():
+    print("\n[deploy] bool param parsing")
+    from blocks.coc_blocks import _param_bool
+    check(_param_bool("false", True) is False, "string false disables bool param")
+    check(_param_bool("0", True) is False, "string 0 disables bool param")
+    check(_param_bool(None, True) is True, "missing bool uses default")
 
 
 def test_topo_order():
@@ -254,6 +266,7 @@ def test_skip_propagation():
 
 if __name__ == "__main__":
     test_registry_specs()
+    test_deploy_bool_params()
     test_topo_order()
     test_cycle_guard()
     test_unknown_type()

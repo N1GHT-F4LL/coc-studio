@@ -269,18 +269,7 @@ class BattleScreen(BaseScreen):
                         # siege/hero spots: tapping the field where a deployed siege
                         # is walking can trigger/​destroy it, and we don't want to
                         # dump leftovers onto that lane.
-                        drops = []
-                        for nn in nodes:
-                            if nn.get("type") in ("siege", "hero"):
-                                continue
-                            for p in nn.get("points") or []:
-                                if isinstance(p, (list, tuple)) and len(p) == 2:
-                                    drops.append((int(p[0]), int(p[1])))
-                            if all(nn.get(k) is not None for k in ("x1", "y1", "x2", "y2")):
-                                x1n, y1n, x2n, y2n = (int(nn["x1"]), int(nn["y1"]),
-                                                      int(nn["x2"]), int(nn["y2"]))
-                                drops += [(x1n, y1n), (x2n, y2n),
-                                          ((x1n + x2n) // 2, (y1n + y2n) // 2)]
+                        drops = self.collect_drop_points(nodes)
                         logger.info("[DEPLOY] ensure_deployed -> dump leftover troops (%d drop spot(s))",
                                     len(drops))
                         self.dump_remaining(deploy_cfg, drop_points=drops or None)
@@ -343,6 +332,25 @@ class BattleScreen(BaseScreen):
 
         self._save_bar_debug(screen, bar_crop, by1, by2, bx1, bx2, debug_clicks)
         return any_deployed
+
+    def collect_drop_points(self, nodes):
+        """Drop spots reused by leftover/event troop dumping.
+
+        Only troop/spell nodes are used. Siege/hero taps can be unsafe because
+        selecting or tapping near them after deployment may trigger abilities.
+        """
+        drops = []
+        for nn in nodes or []:
+            if nn.get("type") in ("siege", "hero"):
+                continue
+            for p in nn.get("points") or []:
+                if isinstance(p, (list, tuple)) and len(p) == 2:
+                    drops.append((int(p[0]), int(p[1])))
+            if all(nn.get(k) is not None for k in ("x1", "y1", "x2", "y2")):
+                x1n, y1n, x2n, y2n = (int(nn["x1"]), int(nn["y1"]),
+                                      int(nn["x2"]), int(nn["y2"]))
+                drops += [(x1n, y1n), (x2n, y2n), ((x1n + x2n) // 2, (y1n + y2n) // 2)]
+        return drops
 
     def _save_bar_debug(self, screen, bar_crop, by1, by2, bx1, bx2, click_positions=None):
         if not logger.isEnabledFor(logging.DEBUG):

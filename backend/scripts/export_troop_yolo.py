@@ -1,8 +1,8 @@
 """Export captured troop-bar samples to a YOLO-style dataset.
 
-The samples come from /api/ai/troop-bar/capture or the Capture Troop Sample
-block. Labels are weak labels from the current recognizer detections, so review
-them before training a production detector.
+The samples come from /api/ai/troop-bar/capture or the Device tab capture UI.
+Labels are weak labels from the current recognizer detections, so review them
+before training a production detector.
 
 Run from repo root:
   .\\.venv\\Scripts\\python.exe backend\\scripts\\export_troop_yolo.py
