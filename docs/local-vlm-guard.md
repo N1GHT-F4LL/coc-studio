@@ -97,6 +97,16 @@ This saves a full screenshot, bar crop, overlay, and `meta.json` under
 `backend/data/troop_samples/` (gitignored). The graph block `Capture Troop
 Sample` does the same from a running graph.
 
+After collecting samples, export a weak-label YOLO dataset for review/training:
+
+```powershell
+.\.venv\Scripts\python.exe backend\scripts\export_troop_yolo.py --min-score 0.48
+```
+
+Output goes to `backend/data/troop_yolo/` (gitignored): `dataset.yaml`,
+`images/`, `labels/`, `review/`, and `manifest.json`. Labels are generated from
+the current recognizer detections, so inspect/correct them before training.
+
 ## Safety
 
 `vlm_tap` only taps when:

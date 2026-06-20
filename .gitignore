@@ -24,6 +24,7 @@ logs/
 backend/_calib/
 backend/data/coord_cache.json
 backend/data/troop_samples/
+backend/data/troop_yolo/
 
 # OS
 .DS_Store
