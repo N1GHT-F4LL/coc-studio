@@ -5,20 +5,41 @@
       "id": "loop",
       "type": "loop_n",
       "label": "Farm forever (50 cycles)",
-      "x": 340,
+      "x": 600,
       "y": 300,
       "params": {
         "graph_ref": "farm_cycle",
         "times": 500
       },
       "after": [
-        "ensure_home_11"
+        "ensure_troops_12"
       ],
       "data_in": {},
       "on_error": null
     },
     {
-      "id": "ensure_home_11",
+      "id": "ensure_troops_12",
+      "type": "ensure_troops",
+      "label": "Ensure Troops",
+      "x": 340,
+      "y": 300,
+      "params": {
+        "scenario": "",
+        "troops_only": false,
+        "target_capacity": 0,
+        "tap_delay": 0.2,
+        "threshold": 0.7,
+        "max_wait": 180,
+        "wait_seconds": 0
+      },
+      "after": [
+        "ensure_home_13"
+      ],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "ensure_home_13",
       "type": "ensure_home",
       "label": "Ensure Home",
       "x": 80,
