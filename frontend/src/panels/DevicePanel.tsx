@@ -7,9 +7,13 @@ import {
   connectDevice,
   disconnectDevice,
   selectSerial,
+  scanTroopBar,
+  captureTroopBar,
+  scanTroopBarYolo,
   type DeviceProfiles,
   type DeviceStatus,
   type AdbDevice,
+  type TroopDetection,
 } from "../api/client";
 import { useDeviceFrames } from "../device/DeviceStreamContext";
 
@@ -42,6 +46,10 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
   const [endpoint, setEndpoint] = useState("");
   const [devices, setDevices] = useState<AdbDevice[]>([]);
   const [busy, setBusy] = useState<string>("");
+  const [troops, setTroops] = useState<TroopDetection[]>([]);
+  const [troopDebug, setTroopDebug] = useState("");
+  const [sampleNote, setSampleNote] = useState("event troops");
+  const [expected, setExpected] = useState("");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -168,6 +176,52 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
     [onMessage, onStatus]
   );
 
+  const doTroopScan = useCallback(async () => {
+    setBusy("troop-scan");
+    onMessage("Scanning troop bar...");
+    try {
+      const res = await scanTroopBar(0.48);
+      setTroops(res.detections ?? []);
+      setTroopDebug(res.debug ?? "");
+      onMessage(`Troop bar: ${(res.detections ?? []).length} detection(s).`);
+    } catch (e) {
+      onMessage(`Troop scan failed: ${(e as Error).message}`);
+    } finally {
+      setBusy("");
+    }
+  }, [onMessage]);
+
+  const doTroopYolo = useCallback(async () => {
+    setBusy("troop-yolo");
+    onMessage("Running troop YOLO...");
+    try {
+      const res = await scanTroopBarYolo(0.35);
+      setTroops(res.detections ?? []);
+      setTroopDebug(res.debug ?? "");
+      onMessage(res.ok === false ? `YOLO: ${res.error}` : `YOLO: ${(res.detections ?? []).length} detection(s).`);
+    } catch (e) {
+      onMessage(`YOLO scan failed: ${(e as Error).message}`);
+    } finally {
+      setBusy("");
+    }
+  }, [onMessage]);
+
+  const doTroopCapture = useCallback(async () => {
+    setBusy("troop-capture");
+    onMessage("Capturing troop sample...");
+    try {
+      const expectedList = expected.split(",").map((s) => s.trim()).filter(Boolean);
+      const res = await captureTroopBar(sampleNote, expectedList, 0.48);
+      setTroops(res.detections ?? []);
+      setTroopDebug(String(res.files?.overlay ?? ""));
+      onMessage(`Captured sample ${res.sample_id}.`);
+    } catch (e) {
+      onMessage(`Capture failed: ${(e as Error).message}`);
+    } finally {
+      setBusy("");
+    }
+  }, [expected, sampleNote, onMessage]);
+
   return (
     <div className="device-tab">
       {/* Sidebar: configure + pick (top-to-bottom = the connect flow) */}
@@ -255,6 +309,32 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
             Disconnect
           </button>
         </div>
+
+        <div className="device-step">
+          <div className="device-step-title">4 - Troop bar</div>
+          <button className="device-wide" onClick={doTroopScan} disabled={!connected || busy === "troop-scan"}>
+            {busy === "troop-scan" ? "Scanning..." : "Scan troop bar"}
+          </button>
+          <button className="device-wide" onClick={doTroopYolo} disabled={!connected || busy === "troop-yolo"} style={{ marginTop: 6 }}>
+            {busy === "troop-yolo" ? "Running..." : "Scan with YOLO"}
+          </button>
+          <input
+            className="device-wide-input"
+            value={sampleNote}
+            onChange={(e) => setSampleNote(e.target.value)}
+            placeholder="sample note"
+          />
+          <input
+            className="device-wide-input"
+            value={expected}
+            onChange={(e) => setExpected(e.target.value)}
+            placeholder="expected keys, comma-separated"
+          />
+          <button className="device-wide" onClick={doTroopCapture} disabled={!connected || busy === "troop-capture"}>
+            {busy === "troop-capture" ? "Capturing..." : "Capture sample"}
+          </button>
+          <div className="muted mini-help">Use while the battle troop bar is visible.</div>
+        </div>
       </aside>
 
       {/* Content: status + live screen */}
@@ -277,6 +357,26 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
             <div className="muted device-screen-empty">
               Connect a device to see the live screen.
             </div>
+          )}
+        </div>
+        <div className="troop-results">
+          <div className="device-step-title">Troop recognition</div>
+          {troopDebug ? <div className="muted troop-debug">debug: {troopDebug}</div> : null}
+          {troops.length === 0 ? (
+            <div className="muted">No troop detections yet.</div>
+          ) : (
+            <table className="device-table troop-table">
+              <tbody>
+                {troops.map((t, i) => (
+                  <tr key={`${t.key}-${i}`}>
+                    <td className="serial">{t.name}</td>
+                    <td className="muted">{t.kind}</td>
+                    <td>{t.score.toFixed(2)}</td>
+                    <td className="muted">{t.x},{t.y}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       </div>

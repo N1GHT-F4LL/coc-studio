@@ -218,3 +218,64 @@ export interface AssetUsage {
 export async function assetUsage(rel: string): Promise<AssetUsage> {
   return json<AssetUsage>(await fetch(`/api/assets/usage/${assetPath(rel)}`));
 }
+
+// --- AI diagnostics --------------------------------------------------------
+export interface TroopDetection {
+  key: string;
+  name: string;
+  kind: string;
+  score: number;
+  x: number;
+  y: number;
+  box: number[];
+}
+
+export interface TroopBarResult {
+  detections: TroopDetection[];
+  region: number[] | null;
+  threshold?: number;
+  debug?: string | null;
+  ok?: boolean;
+  error?: string;
+}
+
+export interface TroopSampleResult extends TroopBarResult {
+  sample_id: string;
+  note: string;
+  expected: string[];
+  files: Record<string, string | null>;
+}
+
+export async function scanTroopBar(threshold = 0.48): Promise<TroopBarResult> {
+  return json<TroopBarResult>(
+    await fetch("/api/ai/troop-bar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threshold }),
+    })
+  );
+}
+
+export async function captureTroopBar(
+  note: string,
+  expected: string[] = [],
+  threshold = 0.48
+): Promise<TroopSampleResult> {
+  return json<TroopSampleResult>(
+    await fetch("/api/ai/troop-bar/capture", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note, expected, threshold }),
+    })
+  );
+}
+
+export async function scanTroopBarYolo(conf = 0.35): Promise<TroopBarResult> {
+  return json<TroopBarResult>(
+    await fetch("/api/ai/troop-bar/yolo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conf }),
+    })
+  );
+}
