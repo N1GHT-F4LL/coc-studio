@@ -179,6 +179,19 @@ else {
     if (-not $buildOk) { Write-Error "frontend build failed"; exit 1 }
 
     Write-Host "==> Starting backend at http://127.0.0.1:8000 (Ctrl+C to stop)" -ForegroundColor Green
+    # Open from PowerShell instead of relying on Python's webbrowser module.
+    # On some Windows/browser states webbrowser.open() succeeds silently but
+    # only focuses an existing hidden/background tab. Start-Process is more
+    # predictable for local desktop launches. Suppress the backend's own opener
+    # to avoid duplicate tabs.
+    if ($env:COC_OPEN_BROWSER -ne "0") {
+        Start-Process -FilePath "powershell" -WindowStyle Hidden -ArgumentList @(
+            "-NoProfile",
+            "-WindowStyle", "Hidden",
+            "-Command", "Start-Sleep -Seconds 2; Start-Process 'http://127.0.0.1:8000'"
+        )
+    }
+    $env:COC_OPEN_BROWSER = "0"
     Push-Location $backend
     try {
         & $python main.py
