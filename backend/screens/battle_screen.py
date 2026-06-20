@@ -444,7 +444,7 @@ class BattleScreen(BaseScreen):
             vision.find_template(screen, rh, threshold=0.7, use_orb_fallback=False)
         )
 
-    def dump_remaining(self, deploy_cfg, drop_points=None, max_rounds=4, taps_per_slot=6):
+    def dump_remaining(self, deploy_cfg, drop_points=None, max_rounds=None, taps_per_slot=None):
         """Deploy EVERYTHING still on the troop bar — including event/temporary
         troops that were never trained or planned, so they have NO template.
 
@@ -461,6 +461,8 @@ class BattleScreen(BaseScreen):
         bar_cy = (by1 + by2) // 2
         pitch = max(8, int(deploy_cfg.get("bar_slot_pitch", 95)))
         n_slots = max(1, (bx2 - bx1) // pitch)
+        max_rounds = max(1, int(max_rounds if max_rounds is not None else deploy_cfg.get("dump_max_rounds", 6)))
+        taps_per_slot = max(1, int(taps_per_slot if taps_per_slot is not None else deploy_cfg.get("dump_taps_per_slot", 12)))
 
         def_y = int(deploy_cfg.get("battlefield_y", 750))
         x1 = int(deploy_cfg.get("battlefield_x_start", 300))
@@ -483,7 +485,6 @@ class BattleScreen(BaseScreen):
         frac_thr = float(deploy_cfg.get("dump_color_frac", 0.42))   # >=this fraction = occupied
 
         dumped = False
-        prev_occupied = None
         for rnd in range(max_rounds):
             if self.ui_manager._stopped():
                 break
@@ -523,17 +524,8 @@ class BattleScreen(BaseScreen):
                 logger.info("[DUMP] no coloured (available) units left — done.")
                 break
 
-            # No progress: a dump round didn't reduce the colour slots, so the rest
-            # won't deploy (heroes whose portrait stays colourful, or no valid drop
-            # spot). Stop instead of re-tapping them every round.
-            if prev_occupied is not None and len(occupied) >= prev_occupied:
-                logger.info("[DUMP] %d slot(s) still colour after a round — stopping (heroes / undeployable here).",
-                            len(occupied))
-                break
-            prev_occupied = len(occupied)
-
-            logger.info("[DUMP] round %d: %d occupied slot(s) — dumping (incl. event troops).",
-                        rnd + 1, len(occupied))
+            logger.info("[DUMP] round %d/%d: %d occupied slot(s) — dumping %d tap(s)/slot (incl. event troops).",
+                        rnd + 1, max_rounds, len(occupied), taps_per_slot)
             for sx in occupied:
                 if self.ui_manager._stopped():
                     return dumped
