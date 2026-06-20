@@ -52,6 +52,9 @@
       "units/heroes/"
     ]
   },
+  "troop_dataset": {
+    "root_dir": "data/troop_samples"
+  },
   "actions": {
     "collect_resources": true,
     "farm_attack": true,

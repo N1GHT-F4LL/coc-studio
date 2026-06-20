@@ -84,6 +84,19 @@ asset is wrong, the bar region is wrong, or two troop icons score too closely.
 If template diagnostics remain ambiguous, train a custom YOLO/classifier on the
 saved bar crops/overlays and replace this recognizer behind the same API shape.
 
+To capture a reusable training sample:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/ai/troop-bar/capture `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"note":"thrower attack bar","expected":["units/troops/thrower","units/spells/rage"]}'
+```
+
+This saves a full screenshot, bar crop, overlay, and `meta.json` under
+`backend/data/troop_samples/` (gitignored). The graph block `Capture Troop
+Sample` does the same from a running graph.
+
 ## Safety
 
 `vlm_tap` only taps when:

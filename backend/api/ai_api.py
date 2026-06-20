@@ -6,6 +6,7 @@ They are disabled by default through settings.local_ai.enabled=false.
 from fastapi import APIRouter, Body, HTTPException
 
 from core.local_vlm import locate_point, save_debug
+from core.troop_dataset import capture_sample
 from core.troop_recognition import recognize_bar, save_debug as save_troop_debug
 from device_manager import manager, load_settings
 
@@ -67,3 +68,23 @@ def troop_bar(body: dict = Body(default={})):
     )
     debug_path = save_troop_debug(frame, result, settings)
     return {**result, "debug": debug_path}
+
+
+@router.post("/troop-bar/capture")
+def troop_bar_capture(body: dict = Body(default={})):
+    settings = load_settings()
+    frame = manager.capture_bgr()
+    if frame is None:
+        raise HTTPException(status_code=409, detail="device not connected / no frame")
+    try:
+        meta = capture_sample(
+            frame,
+            settings,
+            note=str(body.get("note") or ""),
+            expected=body.get("expected") or [],
+            region=body.get("region"),
+            threshold=body.get("threshold"),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return meta

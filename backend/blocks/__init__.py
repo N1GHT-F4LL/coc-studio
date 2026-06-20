@@ -46,6 +46,7 @@ DESCRIPTIONS = {
     "pinch": "Pinch zoom in/out. E.g. direction='out' to zoom out and see the whole village.",
     "vlm_tap": "Experimental: ask a local vision-language model (Ollama) to locate a UI target by text, then tap only when confidence is high. Enable settings.local_ai first. Use for diagnosing missclick-prone buttons, not as a blanket replacement for templates.",
     "recognize_troop_bar": "Experimental: scan the visible battle troop bar once and return matched troop/spell/siege/hero icons with scores. Use this to diagnose troop recognition misses and collect overlays before replacing deploy matching.",
+    "capture_troop_sample": "Experimental dataset capture: save the current battle troop bar crop, full screen, recognizer overlay and metadata under data/troop_samples. Use this to collect training data for a later YOLO/classifier model.",
     # OCR
     "read_number": "Read one integer inside 'region' [x1,y1,x2,y2] via OCR.",
     "read_loot": "Read the enemy loot (gold/elixir/dark) on the scout screen. Connect the numbers into compare/if to decide whether to attack or skip.",

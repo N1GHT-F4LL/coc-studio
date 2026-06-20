@@ -5,6 +5,7 @@ existing deterministic template/screen code.
 """
 from engine.registry import BlockSpec, Param, Port, Kind, register
 from core.local_vlm import locate_point, save_debug
+from core.troop_dataset import capture_sample
 from core.troop_recognition import recognize_bar, save_debug as save_troop_debug
 
 
@@ -92,3 +93,37 @@ class RecognizeTroopBar(BlockSpec):
             "count": len(detections),
             "json": json.dumps(detections, ensure_ascii=True),
         }
+
+
+@register("capture_troop_sample")
+class CaptureTroopSample(BlockSpec):
+    label = "Capture Troop Sample"
+    category = "AI"
+    inputs = [
+        Param("note", Kind.Text, default=""),
+        Param("expected", Kind.Text, default=""),
+        Param("region", Kind.Region, default=None),
+        Param("threshold", Kind.Number, default=0.48),
+    ]
+    outputs = [Port("sample_id", Kind.Text)]
+
+    def run(self, ctx, inputs):
+        screen = ctx.ui_manager.get_screen()
+        expected = inputs.get("expected") or []
+        if isinstance(expected, str):
+            expected = [v.strip() for v in expected.split(",") if v.strip()]
+        meta = capture_sample(
+            screen,
+            ctx.settings,
+            note=str(inputs.get("note") or ""),
+            expected=expected,
+            region=inputs.get("region"),
+            threshold=float(inputs.get("threshold", 0.48)),
+        )
+        ctx.emit({
+            "type": "log",
+            "level": "INFO",
+            "name": "troop_dataset",
+            "msg": f"sample: {meta['sample_id']} crop={meta['files']['bar_crop']}",
+        })
+        return {"sample_id": meta["sample_id"]}
