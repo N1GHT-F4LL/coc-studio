@@ -5,27 +5,11 @@
       "id": "loop",
       "type": "loop_n",
       "label": "Farm forever (50 cycles)",
-      "x": 295,
-      "y": 296,
+      "x": 292,
+      "y": 299,
       "params": {
         "graph_ref": "farm_cycle",
         "times": 500
-      },
-      "after": [
-        "ensure_home_11"
-      ],
-      "data_in": {},
-      "on_error": null
-    },
-    {
-      "id": "ensure_home_11",
-      "type": "ensure_home",
-      "label": "Ensure Home",
-      "x": 80,
-      "y": 300,
-      "params": {
-        "zoom_out": true,
-        "timeout": 10
       },
       "after": [],
       "data_in": {},
