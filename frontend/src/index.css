@@ -87,6 +87,7 @@ body {
 .device-screen-canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
 .device-screen-empty { padding: 40px; }
 .troop-results { flex: 0 0 190px; border-top: 1px solid var(--border); padding: 10px 14px; overflow: auto; background: var(--panel); }
+.troop-status { font-size: 12px; line-height: 1.35; color: #c2c8d0; background: #20242b; border: 1px solid var(--border); border-radius: 4px; padding: 6px 7px; word-break: break-word; }
 .troop-debug { font-size: 12px; word-break: break-all; margin-bottom: 6px; }
 .troop-table td:nth-child(3) { width: 52px; text-align: right; }
 .troop-table td:nth-child(4) { width: 84px; text-align: right; }

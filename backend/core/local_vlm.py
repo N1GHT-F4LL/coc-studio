@@ -79,8 +79,10 @@ def locate_point(frame, target: str, settings: dict, region=None, timeout=45) ->
     Coordinates must be in the original image pixel space.
     """
     if frame is None:
+        logger.warning("[VLM] skipped target=%r: no screen", target)
         return VLMPoint(found=False, reason="no screen")
     if not enabled(settings):
+        logger.warning("[VLM] skipped target=%r: local_ai disabled", target)
         return VLMPoint(found=False, reason="local_ai disabled")
 
     h, w = frame.shape[:2]

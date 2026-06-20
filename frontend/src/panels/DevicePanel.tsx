@@ -48,6 +48,7 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
   const [busy, setBusy] = useState<string>("");
   const [troops, setTroops] = useState<TroopDetection[]>([]);
   const [troopDebug, setTroopDebug] = useState("");
+  const [troopStatus, setTroopStatus] = useState("Idle.");
   const [sampleNote, setSampleNote] = useState("event troops");
   const [expected, setExpected] = useState("");
 
@@ -178,13 +179,16 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
 
   const doTroopScan = useCallback(async () => {
     setBusy("troop-scan");
+    setTroopStatus("Template scan running...");
     onMessage("Scanning troop bar...");
     try {
       const res = await scanTroopBar(0.48);
       setTroops(res.detections ?? []);
       setTroopDebug(res.debug ?? "");
+      setTroopStatus(`Template scan: ${(res.detections ?? []).length} detection(s). Debug: ${res.debug ?? "none"}`);
       onMessage(`Troop bar: ${(res.detections ?? []).length} detection(s).`);
     } catch (e) {
+      setTroopStatus(`Template scan failed: ${(e as Error).message}`);
       onMessage(`Troop scan failed: ${(e as Error).message}`);
     } finally {
       setBusy("");
@@ -193,13 +197,20 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
 
   const doTroopYolo = useCallback(async () => {
     setBusy("troop-yolo");
+    setTroopStatus("YOLO scan running...");
     onMessage("Running troop YOLO...");
     try {
       const res = await scanTroopBarYolo(0.35);
       setTroops(res.detections ?? []);
       setTroopDebug(res.debug ?? "");
+      setTroopStatus(
+        res.ok === false
+          ? `YOLO disabled/error: ${res.error}`
+          : `YOLO scan: ${(res.detections ?? []).length} detection(s). Debug: ${res.debug ?? "none"}`
+      );
       onMessage(res.ok === false ? `YOLO: ${res.error}` : `YOLO: ${(res.detections ?? []).length} detection(s).`);
     } catch (e) {
+      setTroopStatus(`YOLO scan failed: ${(e as Error).message}`);
       onMessage(`YOLO scan failed: ${(e as Error).message}`);
     } finally {
       setBusy("");
@@ -208,14 +219,17 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
 
   const doTroopCapture = useCallback(async () => {
     setBusy("troop-capture");
+    setTroopStatus("Capture running...");
     onMessage("Capturing troop sample...");
     try {
       const expectedList = expected.split(",").map((s) => s.trim()).filter(Boolean);
       const res = await captureTroopBar(sampleNote, expectedList, 0.48);
       setTroops(res.detections ?? []);
       setTroopDebug(String(res.files?.overlay ?? ""));
+      setTroopStatus(`Captured ${res.sample_id}: ${(res.detections ?? []).length} detection(s). Overlay: ${res.files?.overlay ?? "none"}`);
       onMessage(`Captured sample ${res.sample_id}.`);
     } catch (e) {
+      setTroopStatus(`Capture failed: ${(e as Error).message}`);
       onMessage(`Capture failed: ${(e as Error).message}`);
     } finally {
       setBusy("");
@@ -333,6 +347,7 @@ export function DevicePanel({ device, onStatus, onMessage }: Props) {
           <button className="device-wide" onClick={doTroopCapture} disabled={!connected || busy === "troop-capture"}>
             {busy === "troop-capture" ? "Capturing..." : "Capture sample"}
           </button>
+          <div className="troop-status">{troopStatus}</div>
           <div className="muted mini-help">Use while the battle troop bar is visible.</div>
         </div>
       </aside>

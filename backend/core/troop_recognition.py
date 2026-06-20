@@ -6,12 +6,15 @@ is meant to produce evidence for missclicks and a bootstrap dataset for a later
 custom YOLO/classifier model.
 """
 import json
+import logging
 import os
 from datetime import datetime
 
 import cv2
 
 from core.vision import vision
+
+logger = logging.getLogger(__name__)
 
 UNIT_PREFIXES = (
     "units/troops/",
@@ -55,12 +58,14 @@ def _kind(key: str) -> str:
 
 def recognize_bar(screen, settings: dict | None, region=None, threshold=None, max_results=None):
     if screen is None:
+        logger.warning("[TROOP_RECOG] no screen")
         return {"detections": [], "region": None}
     h, w = screen.shape[:2]
     x1, y1, x2, y2 = _bar_region(settings, region)
     x1 = max(0, min(w - 1, x1)); x2 = max(1, min(w, x2))
     y1 = max(0, min(h - 1, y1)); y2 = max(1, min(h, y2))
     if x2 <= x1 or y2 <= y1:
+        logger.warning("[TROOP_RECOG] invalid region=%s", [x1, y1, x2, y2])
         return {"detections": [], "region": [x1, y1, x2, y2]}
 
     threshold = float(threshold if threshold is not None else cfg(settings).get("threshold", 0.48))
@@ -70,7 +75,9 @@ def recognize_bar(screen, settings: dict | None, region=None, threshold=None, ma
     crop = screen[y1:y2, x1:x2]
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if crop.ndim == 3 else crop
     candidates = []
-    for key in _asset_keys(settings):
+    keys = _asset_keys(settings)
+    logger.info("[TROOP_RECOG] scan region=%s threshold=%.2f assets=%d", [x1, y1, x2, y2], threshold, len(keys))
+    for key in keys:
         tpl = vision.cache.get(key)
         if tpl is None:
             continue
@@ -103,6 +110,8 @@ def recognize_bar(screen, settings: dict | None, region=None, threshold=None, ma
             break
 
     selected.sort(key=lambda d: d["x"])
+    logger.info("[TROOP_RECOG] selected=%d candidates=%d names=%s",
+                len(selected), len(candidates), [d["name"] for d in selected])
     return {"detections": selected, "region": [x1, y1, x2, y2], "threshold": threshold}
 
 
@@ -127,4 +136,5 @@ def save_debug(screen, result: dict, settings: dict | None, label="troop_bar") -
     cv2.imwrite(base + ".jpg", out)
     with open(base + ".json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
+    logger.info("[TROOP_RECOG] debug saved image=%s json=%s", base + ".jpg", base + ".json")
     return base + ".jpg"
