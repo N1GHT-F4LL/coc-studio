@@ -185,10 +185,11 @@ else {
     # predictable for local desktop launches. Suppress the backend's own opener
     # to avoid duplicate tabs.
     if ($env:COC_OPEN_BROWSER -ne "0") {
+        $openUrl = "http://127.0.0.1:8000/?ts=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
         Start-Process -FilePath "powershell" -WindowStyle Hidden -ArgumentList @(
             "-NoProfile",
             "-WindowStyle", "Hidden",
-            "-Command", "Start-Sleep -Seconds 2; Start-Process 'http://127.0.0.1:8000'"
+            "-Command", "Start-Sleep -Seconds 2; Start-Process '$openUrl'"
         )
     }
     $env:COC_OPEN_BROWSER = "0"
