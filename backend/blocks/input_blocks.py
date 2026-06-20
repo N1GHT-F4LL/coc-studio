@@ -39,7 +39,7 @@ class TapTemplate(BlockSpec):
             threshold=float(inputs.get("threshold", 0.7)),
         )
         if loc:
-            ctx.ui_manager.click(*loc)
+            ctx.ui_manager.click(*loc, label=f"template:{inputs['template']}")
             return {"tapped": True}
         return {"tapped": False}
 

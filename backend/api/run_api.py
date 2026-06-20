@@ -211,16 +211,19 @@ def setup_and_run(graph_dict, emit, stop_event, pause_event=None, stream_logs=Fa
     if not vision._loc_cache:
         vision.load_coords(COORDS_PATH)
 
+    settings = load_settings()
+
     # Wire cooperative stop into the existing poll loops, like run_bot does.
     manager.ui_manager.stop_event = stop_event
     manager.ui_manager.pause_event = pause_event
+    manager.ui_manager.configure_tap_debug(settings, emit=emit)
 
     ctx = RuntimeContext(
         device=manager.device,
         ui_manager=manager.ui_manager,
         vision=vision,
         ocr_read=read_number_with_confidence,
-        settings=load_settings(),
+        settings=settings,
         logger=logger,
         stop_event=stop_event,
         pause_event=pause_event,
@@ -242,6 +245,7 @@ def setup_and_run(graph_dict, emit, stop_event, pause_event=None, stream_logs=Fa
     finally:
         manager.ui_manager.stop_event = None
         manager.ui_manager.pause_event = None
+        manager.ui_manager.configure_tap_debug(None, emit=None)
         if log_handler is not None:
             logging.getLogger().removeHandler(log_handler)
         try:

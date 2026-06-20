@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 import cv2
 from .vision import vision
+from . import tap_debug
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,14 @@ class UIManager:
         self.device = device
         self.stop_event = None  # set by run_bot; checked in all poll loops
         self.pause_event = None
+        self.tap_debug_settings = None
+        self.tap_debug_emit = None
+        self._tap_debug_count = 0
+
+    def configure_tap_debug(self, settings=None, emit=None):
+        self.tap_debug_settings = settings
+        self.tap_debug_emit = emit
+        self._tap_debug_count = 0
 
     def _stopped(self):
         return self.stop_event is not None and self.stop_event.is_set()
@@ -85,11 +94,41 @@ class UIManager:
         self._wait_if_paused()
         return self.device.get_screen()
 
-    def click(self, x, y):
+    def click(self, x, y, label=None, meta=None):
         self._wait_if_paused()
         jx, jy = self.humanize.get_jittered_coords(x, y)
         logger.debug(f"Tapping {jx}, {jy}")
+        before = None
+        after = None
+        record_tap = (
+            tap_debug.enabled(self.tap_debug_settings)
+            and self._tap_debug_count < tap_debug.max_per_run(self.tap_debug_settings)
+        )
+        if record_tap:
+            before = self.device.get_screen()
         self.device.tap(jx, jy)
+        if record_tap:
+            self._tap_debug_count += 1
+            delay = tap_debug.after_delay(self.tap_debug_settings)
+            if tap_debug.capture_after(self.tap_debug_settings):
+                self._poll_sleep(delay)
+                after = self.device.get_screen()
+            path = tap_debug.save(
+                before,
+                requested=(x, y),
+                actual=(jx, jy),
+                label=label,
+                settings=self.tap_debug_settings,
+                after_frame=after,
+                meta=meta,
+            )
+            if path and self.tap_debug_emit:
+                self.tap_debug_emit({
+                    "type": "log",
+                    "level": "INFO",
+                    "name": "tap_debug",
+                    "msg": f"tap overlay: {path}",
+                })
 
     def click_if_exists_quick(self, template_name, timeout=0.3):
         """Quick click if element exists (for popup scanning with minimal wait)."""

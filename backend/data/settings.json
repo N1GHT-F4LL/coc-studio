@@ -25,6 +25,33 @@
   "jitter": {
     "radius": 5.0
   },
+  "local_ai": {
+    "enabled": false,
+    "provider": "ollama",
+    "url": "http://127.0.0.1:11434/api/generate",
+    "model": "moondream",
+    "debug_dir": "logs/vlm_taps"
+  },
+  "tap_debug": {
+    "enabled": false,
+    "debug_dir": "logs/tap_debug",
+    "capture_after": false,
+    "after_delay": 0.25,
+    "max_per_run": 300
+  },
+  "troop_recognition": {
+    "threshold": 0.48,
+    "min_distance": 46,
+    "max_results": 18,
+    "debug_dir": "logs/troop_recognition",
+    "asset_prefixes": [
+      "units/troops/",
+      "units/super_troops/",
+      "units/spells/",
+      "units/siege/",
+      "units/heroes/"
+    ]
+  },
   "actions": {
     "collect_resources": true,
     "farm_attack": true,
