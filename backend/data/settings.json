@@ -55,6 +55,10 @@
   "troop_dataset": {
     "root_dir": "data/troop_samples"
   },
+  "troop_yolo": {
+    "model_path": "",
+    "conf": 0.35
+  },
   "actions": {
     "collect_resources": true,
     "farm_attack": true,

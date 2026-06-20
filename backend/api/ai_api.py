@@ -8,6 +8,7 @@ from fastapi import APIRouter, Body, HTTPException
 from core.local_vlm import locate_point, save_debug
 from core.troop_dataset import capture_sample
 from core.troop_recognition import recognize_bar, save_debug as save_troop_debug
+from core.troop_yolo import detect_bar as detect_yolo_bar
 from device_manager import manager, load_settings
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -88,3 +89,23 @@ def troop_bar_capture(body: dict = Body(default={})):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return meta
+
+
+@router.post("/troop-bar/yolo")
+def troop_bar_yolo(body: dict = Body(default={})):
+    settings = load_settings()
+    frame = manager.capture_bgr()
+    if frame is None:
+        raise HTTPException(status_code=409, detail="device not connected / no frame")
+    try:
+        result = detect_yolo_bar(
+            frame,
+            settings,
+            model_path=body.get("model_path"),
+            region=body.get("region"),
+            conf=body.get("conf"),
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    debug_path = save_troop_debug(frame, result, settings, label="troop_yolo") if result.get("ok") else None
+    return {**result, "debug": debug_path}

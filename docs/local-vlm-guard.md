@@ -107,6 +107,25 @@ Output goes to `backend/data/troop_yolo/` (gitignored): `dataset.yaml`,
 `images/`, `labels/`, `review/`, and `manifest.json`. Labels are generated from
 the current recognizer detections, so inspect/correct them before training.
 
+Train a prototype detector after review/correction:
+
+```powershell
+pip install ultralytics
+.\.venv\Scripts\python.exe backend\scripts\train_troop_yolo.py --epochs 80 --imgsz 640
+```
+
+Then point `troop_yolo.model_path` at `best.pt` or exported `.onnx` and test:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/ai/troop-bar/yolo `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"conf":0.35}'
+```
+
+The YOLO endpoint is optional. If `ultralytics` is missing or the model path is
+empty, it returns a clear error instead of affecting existing automation.
+
 ## Safety
 
 `vlm_tap` only taps when:
