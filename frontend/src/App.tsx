@@ -321,6 +321,8 @@ export default function App() {
         status={runner.status}
         onRun={onRun}
         onStop={runner.stop}
+        onPause={runner.pause}
+        onResume={runner.resume}
         device={device}
       />
 

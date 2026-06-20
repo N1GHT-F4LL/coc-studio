@@ -12,6 +12,7 @@ export interface LogLine {
 export interface RunnerState {
   connected: boolean;
   running: boolean;
+  paused: boolean;
   status: string; // "", "running", "ok", "error", "stopped", "invalid", "busy"
   runState: Map<string, NodeRunState>;
   logs: LogLine[];
@@ -23,6 +24,7 @@ const MAX_LOGS = 500;
 const initial: RunnerState = {
   connected: false,
   running: false,
+  paused: false,
   status: "",
   runState: new Map(),
   logs: [],
@@ -56,6 +58,7 @@ export function useRunner(opts: Opts = {}) {
       setState((s) => ({
         ...s,
         running: !!ev.running,
+        paused: !!ev.paused || ev.status === "paused",
         status: ev.status ?? "",
         runState,
         vars: ev.vars ?? {},
@@ -73,7 +76,11 @@ export function useRunner(opts: Opts = {}) {
     setState((s) => {
       switch (ev.type) {
         case "started":
-          return { ...s, status: "running", running: true };
+          return { ...s, status: "running", running: true, paused: false };
+        case "paused":
+          return { ...s, status: "paused", paused: true };
+        case "resumed":
+          return { ...s, status: "running", paused: false };
         case "node": {
           const runState = new Map(s.runState);
           runState.set(ev.id, ev.state as NodeRunState);
@@ -92,6 +99,7 @@ export function useRunner(opts: Opts = {}) {
           return {
             ...s,
             running: false,
+            paused: false,
             status: ev.status ?? "done",
             logs: ev.error
               ? [...s.logs, { level: "ERROR", name: "run", msg: String(ev.error) }].slice(
@@ -172,10 +180,18 @@ export function useRunner(opts: Opts = {}) {
     wsRef.current?.send(JSON.stringify({ cmd: "stop" }));
   }, []);
 
+  const pause = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ cmd: "pause" }));
+  }, []);
+
+  const resume = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ cmd: "resume" }));
+  }, []);
+
   const clear = useCallback(
     () => setState((s) => ({ ...s, logs: [], runState: new Map(), vars: {} })),
     []
   );
 
-  return { ...state, start, stop, clear };
+  return { ...state, start, stop, pause, resume, clear };
 }

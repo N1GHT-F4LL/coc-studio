@@ -20,6 +20,7 @@ class RuntimeContext:
     settings: dict              # load_settings() — same settings.json contract
     logger: Any
     stop_event: Any             # threading.Event; cooperative stop (like ui_manager.stop_event)
+    pause_event: Any = None     # threading.Event set while paused
 
     # Block-to-block shared memory for this run.
     vars: dict = field(default_factory=dict)
@@ -29,3 +30,15 @@ class RuntimeContext:
 
     def stopped(self) -> bool:
         return self.stop_event is not None and self.stop_event.is_set()
+
+    def wait_if_paused(self):
+        while (
+            self.pause_event is not None
+            and self.pause_event.is_set()
+            and not self.stopped()
+        ):
+            if self.stop_event is not None:
+                self.stop_event.wait(0.2)
+            else:
+                import time
+                time.sleep(0.2)

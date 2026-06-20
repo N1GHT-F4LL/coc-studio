@@ -12,16 +12,31 @@ class UIManager:
         self.humanize = humanize
         self.device = device
         self.stop_event = None  # set by run_bot; checked in all poll loops
+        self.pause_event = None
 
     def _stopped(self):
         return self.stop_event is not None and self.stop_event.is_set()
 
+    def _wait_if_paused(self):
+        while (
+            self.pause_event is not None
+            and
+            self.pause_event.is_set()
+            and not self._stopped()
+        ):
+            if self.stop_event is not None:
+                self.stop_event.wait(0.2)
+            else:
+                time.sleep(0.2)
+
     def _poll_sleep(self, seconds=0.5):
         """Sleep for `seconds`, but wake immediately if stop is requested."""
+        self._wait_if_paused()
         if self.stop_event is not None:
             self.stop_event.wait(seconds)
         else:
             time.sleep(seconds)
+        self._wait_if_paused()
 
     def wait_until_appears(self, template_name, timeout=5, silent=False, use_orb_fallback=True, threshold=0.7):
         """Poll until template appears or timeout expires; returns (cx, cy) or None."""
@@ -32,6 +47,7 @@ class UIManager:
         while time.time() - start < timeout:
             if self._stopped():
                 return None
+            self._wait_if_paused()
             screen = self.device.get_screen()
             if screen is None:
                 self._poll_sleep()
@@ -66,9 +82,11 @@ class UIManager:
         return None
 
     def get_screen(self):
+        self._wait_if_paused()
         return self.device.get_screen()
 
     def click(self, x, y):
+        self._wait_if_paused()
         jx, jy = self.humanize.get_jittered_coords(x, y)
         logger.debug(f"Tapping {jx}, {jy}")
         self.device.tap(jx, jy)

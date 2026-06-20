@@ -16,11 +16,14 @@ interface Props {
   status: string; // runner status: "", "running", "ok", "error", "stopped", ...
   onRun: () => void;
   onStop: () => void;
+  onPause: () => void;
+  onResume: () => void;
   device: DeviceStatus | null;
 }
 
 // Maps the runner status to a bot-light dot class + label.
 function botLight(running: boolean, status: string): { cls: string; label: string } {
+  if (status === "paused") return { cls: "warn", label: "paused" };
   if (running) return { cls: "run", label: status === "connecting" ? "connecting" : "running" };
   switch (status) {
     case "ok":
@@ -50,6 +53,8 @@ export function TopBar({
   status,
   onRun,
   onStop,
+  onPause,
+  onResume,
   device,
 }: Props) {
   const bot = botLight(running, status);
@@ -134,6 +139,13 @@ export function TopBar({
 
           <button className="run" onClick={onRun} disabled={running} title="Run the current graph">
             ▶ Run
+          </button>
+          <button
+            onClick={status === "paused" ? onResume : onPause}
+            disabled={!running}
+            title={status === "paused" ? "Resume the run" : "Pause the run"}
+          >
+            {status === "paused" ? "Resume" : "Pause"}
           </button>
           <button className="stop" onClick={onStop} disabled={!running} title="Stop the run">
             ■ Stop

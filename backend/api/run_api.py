@@ -46,6 +46,7 @@ class RunHub:
     def __init__(self):
         self._lock = threading.Lock()
         self.stop_event = None      # set while a run is active
+        self.pause_event = None     # set while paused
         self.loop = None            # asyncio loop, for threadsafe fan-out
         self._subscribers = set()   # asyncio.Queue per connected client
         self._reset_state()
@@ -78,6 +79,7 @@ class RunHub:
             return {
                 "type": "snapshot",
                 "running": self.running,
+                "paused": self.pause_event.is_set() if self.pause_event is not None else False,
                 "status": self.status,
                 "error": self.error,
                 "graph": self.graph,
@@ -93,6 +95,7 @@ class RunHub:
                 return None  # a run is already active
             self._reset_state()
             self.stop_event = threading.Event()
+            self.pause_event = threading.Event()
             self.running = True
             self.status = "running"
             self.graph = graph
@@ -101,6 +104,7 @@ class RunHub:
     def end(self):
         with self._lock:
             self.stop_event = None
+            self.pause_event = None
             self.running = False
 
     def stop(self):
@@ -109,6 +113,24 @@ class RunHub:
                 self.stop_event.set()
                 return True
             return False
+
+    def pause(self):
+        with self._lock:
+            if self.pause_event is None or self.stop_event is None:
+                return False
+            self.pause_event.set()
+            self.status = "paused"
+        self.publish({"type": "paused"})
+        return True
+
+    def resume(self):
+        with self._lock:
+            if self.pause_event is None or self.stop_event is None:
+                return False
+            self.pause_event.clear()
+            self.status = "running"
+        self.publish({"type": "resumed"})
+        return True
 
     # --- event ingest + fan-out (called from the run worker thread) ---------
     def publish(self, ev):
@@ -125,6 +147,10 @@ class RunHub:
                 self.status = ev.get("status", self.status)
                 self.error = ev.get("error")
                 self.running = False
+            elif t == "paused":
+                self.status = "paused"
+            elif t == "resumed":
+                self.status = "running"
             subs = list(self._subscribers)
             loop = self.loop
         if loop is not None:
@@ -167,7 +193,7 @@ class _EmitLogHandler(logging.Handler):
             pass  # never let logging break the run
 
 
-def setup_and_run(graph_dict, emit, stop_event, stream_logs=False):
+def setup_and_run(graph_dict, emit, stop_event, pause_event=None, stream_logs=False):
     """Blocking: ensure device/OCR, build context, run graph. Returns (status, vars).
 
     ``emit`` receives every run-event (node/done + log when stream_logs). Shared by
@@ -187,6 +213,7 @@ def setup_and_run(graph_dict, emit, stop_event, stream_logs=False):
 
     # Wire cooperative stop into the existing poll loops, like run_bot does.
     manager.ui_manager.stop_event = stop_event
+    manager.ui_manager.pause_event = pause_event
 
     ctx = RuntimeContext(
         device=manager.device,
@@ -196,6 +223,7 @@ def setup_and_run(graph_dict, emit, stop_event, stream_logs=False):
         settings=load_settings(),
         logger=logger,
         stop_event=stop_event,
+        pause_event=pause_event,
         vars={},
         emit=emit,
     )
@@ -213,6 +241,7 @@ def setup_and_run(graph_dict, emit, stop_event, stream_logs=False):
         return "invalid", ctx.vars
     finally:
         manager.ui_manager.stop_event = None
+        manager.ui_manager.pause_event = None
         if log_handler is not None:
             logging.getLogger().removeHandler(log_handler)
         try:
@@ -245,7 +274,7 @@ async def run(body: dict = Body(...)):
 
     try:
         status, run_vars = await asyncio.to_thread(
-            setup_and_run, graph_dict, emit, stop_event
+            setup_and_run, graph_dict, emit, stop_event, controller.pause_event
         )
         emit({"type": "vars", "vars": run_vars})
     finally:
@@ -257,3 +286,11 @@ async def run(body: dict = Body(...)):
 @router.post("/run/stop")
 def run_stop():
     return {"ok": controller.stop()}
+
+@router.post("/run/pause")
+def run_pause():
+    return {"ok": controller.pause()}
+
+@router.post("/run/resume")
+def run_resume():
+    return {"ok": controller.resume()}

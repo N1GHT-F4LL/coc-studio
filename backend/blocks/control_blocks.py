@@ -51,11 +51,15 @@ class Delay(BlockSpec):
 
     def run(self, ctx, inputs):
         seconds = float(inputs.get("seconds", 1))
-        # Cooperative sleep: wake immediately on stop (mirrors ui_manager._poll_sleep).
-        if ctx.stop_event is not None:
-            ctx.stop_event.wait(seconds)
-        else:
-            time.sleep(seconds)
+        # Cooperative sleep: pause/resume and wake immediately on stop.
+        deadline = time.time() + seconds
+        while time.time() < deadline and not ctx.stopped():
+            ctx.wait_if_paused()
+            remaining = max(0.0, min(0.2, deadline - time.time()))
+            if ctx.stop_event is not None:
+                ctx.stop_event.wait(remaining)
+            else:
+                time.sleep(remaining)
         return {}
 
 

@@ -63,6 +63,9 @@ def _is_active(node, completed: set, skipped: set, outputs: dict) -> bool:
 
 def _run_node(node, outputs: dict, ctx):
     inputs = resolve_inputs(node, outputs)
+    ctx.wait_if_paused()
+    if ctx.stopped():
+        return
     ctx.emit({"type": "node", "id": node.id, "state": "running"})
     out = REGISTRY[node.type]().run(ctx, inputs) or {}
     outputs[node.id] = out

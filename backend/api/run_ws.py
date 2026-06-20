@@ -3,6 +3,8 @@
 Protocol (client -> server JSON):
   {"cmd":"start", "graph": {...}}   start a run (if none is active)
   {"cmd":"stop"}                    cooperatively stop the active run
+  {"cmd":"pause"}                   pause between poll/action checkpoints
+  {"cmd":"resume"}                  resume a paused run
 
 Server -> client JSON events:
   {"type":"snapshot", ...}          sent immediately on connect — the current run
@@ -52,7 +54,7 @@ async def _start_run(ws: WebSocket, graph_dict):
     def worker():
         try:
             _status, run_vars = setup_and_run(
-                graph_dict, controller.publish, stop_event, stream_logs=True
+                graph_dict, controller.publish, stop_event, controller.pause_event, stream_logs=True
             )
             controller.publish({"type": "vars", "vars": run_vars})
         except Exception as e:  # defensive — setup_and_run already guards GraphError
@@ -93,6 +95,10 @@ async def run_ws(ws: WebSocket):
             cmd = msg.get("cmd")
             if cmd == "stop":
                 controller.stop()
+            elif cmd == "pause":
+                controller.pause()
+            elif cmd == "resume":
+                controller.resume()
             elif cmd == "start":
                 await _start_run(ws, msg.get("graph"))
             else:
