@@ -183,7 +183,7 @@
           "after": [
             "n_8"
           ],
-          "template": "units/heroes/barbarian_king",
+          "template": "units/heroes/archer_queen",
           "taps": 1,
           "strategy": "line",
           "x": 300,
