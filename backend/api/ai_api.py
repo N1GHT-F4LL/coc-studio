@@ -8,6 +8,7 @@ import logging
 
 from core.local_vlm import locate_point, save_debug
 from core.troop_dataset import capture_sample
+from core.perception import detect_troop_bar
 from core.troop_recognition import recognize_bar, save_debug as save_troop_debug
 from core.troop_yolo import detect_bar as detect_yolo_bar
 from device_manager import manager, load_settings
@@ -133,4 +134,27 @@ def troop_bar_yolo(body: dict = Body(default={})):
                     len(result.get("detections") or []), debug_path, result.get("model"))
     else:
         logger.warning("[AI] troop-bar YOLO result error=%s", result.get("error"))
+    return {**result, "debug": debug_path}
+
+@router.post("/troop-bar/perception")
+def troop_bar_perception(body: dict = Body(default={})):
+    settings = load_settings()
+    mode = body.get("mode") or ((settings.get("perception") or {}).get("troop_bar") or {}).get("mode") or "auto"
+    logger.info("[AI] troop-bar perception mode=%s", mode)
+    frame = manager.capture_bgr()
+    if frame is None:
+        logger.warning("[AI] troop-bar perception failed: no frame")
+        raise HTTPException(status_code=409, detail="device not connected / no frame")
+    result = detect_troop_bar(
+        frame,
+        settings,
+        mode=mode,
+        region=body.get("region"),
+        conf=body.get("conf"),
+        threshold=body.get("threshold"),
+        model_path=body.get("model_path"),
+    )
+    debug_path = save_troop_debug(frame, result, settings, label=f"troop_perception_{result.get('source')}") if result.get("ok") else None
+    logger.info("[AI] troop-bar perception source=%s count=%d debug=%s",
+                result.get("source"), len(result.get("detections") or []), debug_path)
     return {**result, "debug": debug_path}

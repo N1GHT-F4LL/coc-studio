@@ -2,22 +2,22 @@ import type { Connection, Edge } from "reactflow";
 import { parseHandle } from "./handleId";
 
 // Mirrors backend engine/graph.py:validate at edit time:
-//  - control edges only connect control handles; adding one must not create a
-//    control-flow cycle (graph stays a DAG).
+//  - control edges only connect control handles.
 //  - data edges only connect data handles of the SAME Kind.
 //  - flows can't be mixed (control <-> data).
+//  - control + data edges together must stay a DAG.
 
-function controlAdjacency(edges: Edge[]): Map<string, string[]> {
+function dependencyAdjacency(edges: Edge[]): Map<string, string[]> {
   const adj = new Map<string, string[]>();
   for (const e of edges) {
-    if (parseHandle(e.sourceHandle)?.flow !== "control") continue;
+    if (!parseHandle(e.sourceHandle) || !parseHandle(e.targetHandle)) continue;
     if (!adj.has(e.source)) adj.set(e.source, []);
     adj.get(e.source)!.push(e.target);
   }
   return adj;
 }
 
-// Can we reach `target` from `start` following existing control edges?
+// Can we reach `target` from `start` following existing dependency edges?
 function reaches(start: string, target: string, adj: Map<string, string[]>): boolean {
   const seen = new Set<string>();
   const stack = [start];
@@ -40,11 +40,12 @@ export function validateConnection(c: Connection, edges: Edge[]): boolean {
   if (src.flow !== dst.flow) return false;
 
   if (src.flow === "data") {
-    return src.kind === (dst.flow === "data" ? dst.kind : src.kind);
+    if (dst.flow !== "data") return false;
+    if (src.kind !== dst.kind) return false;
   }
 
-  // control: adding source->target must not close a cycle, i.e. target must not
-  // already reach source.
-  const adj = controlAdjacency(edges);
+  // Adding source->target must not close a runtime dependency cycle, i.e.
+  // target must not already reach source through control or data edges.
+  const adj = dependencyAdjacency(edges);
   return !reaches(c.target, c.source, adj);
 }

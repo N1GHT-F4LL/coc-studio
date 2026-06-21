@@ -6,7 +6,6 @@
   --text: #e6e9ee;
   --muted: #8b929c;
   --accent: #2b7de0;
-  --leader: #5b626d; /* port callout leader lines */
 }
 
 * { box-sizing: border-box; }
@@ -93,7 +92,7 @@ body {
 .troop-table td:nth-child(4) { width: 84px; text-align: right; }
 
 /* Offline overlay shown in stream views (Bot Builder dock, battle-canvas) when
-   the device isn't connected — directs the user to the Device tab. */
+   the device isn't connected â€” directs the user to the Device tab. */
 .device-offline {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 10px;
@@ -275,8 +274,7 @@ button.danger:hover { background: #3a2530; }
   min-width: 130px;
   text-align: center;
 }
-/* Elevate the hovered/selected node so its port callouts render above the
-   neighbouring nodes instead of being clipped behind them. */
+/* Elevate the hovered/selected node so active handles clear neighbours. */
 .react-flow__node:hover, .react-flow__node.selected { z-index: 1000 !important; }
 .block-node.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .block-node.run-running { border-color: #2b7de0; box-shadow: 0 0 0 2px #2b7de0, 0 0 14px #2b7de0aa; }
@@ -290,7 +288,7 @@ button.danger:hover { background: #3a2530; }
   font-size: 10px;
   color: var(--muted);
 }
-/* Branch label for the horizontal layout — stacked on the right edge. */
+/* Branch label for the horizontal layout â€” stacked on the right edge. */
 .branch-label-v {
   position: absolute;
   right: -2px;
@@ -299,42 +297,6 @@ button.danger:hover { background: #3a2530; }
   color: var(--muted);
   white-space: nowrap;
 }
-/* Port callouts: label boxes floating above (inputs) / below (outputs) the
-   node with a leader to each port dot. Shown on node hover/select. The hovered
-   node is elevated (see .block-node:hover) so callouts clear neighbour nodes. */
-.port-callouts { display: none; }
-.callout-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.callout-box {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  transform: translate(-50%, -50%); /* centred: left = box centre */
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 13px;
-  padding: 3px 11px 3px 9px;
-  height: 24px;
-  box-sizing: border-box;
-  font-size: 11px;
-  color: var(--text);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-}
-/* slim kind-coloured accent bar on the leading edge — the only colour */
-.callout-box::before {
-  content: "";
-  width: 3px;
-  height: 13px;
-  border-radius: 2px;
-  background: var(--kind, var(--muted));
-}
-/* Anchor the box by its node-facing edge so the horizontal leader lands on it:
-   left wing extends leftward (anchor right edge), right wing rightward. */
-.callout-box.callout-left { transform: translate(-100%, -50%); }
-.callout-box.callout-right { transform: translate(0, -50%); }
-.callout-name { font-weight: 600; letter-spacing: 0.2px; }
-.callout-kind { color: var(--muted); font-size: 10px; }
 .block-title { font-weight: 600; }
 .block-type { font-size: 11px; color: var(--muted); }
 .ctl-handle { width: 10px; height: 10px; background: #444b54; border: 1px solid #6b7280; }

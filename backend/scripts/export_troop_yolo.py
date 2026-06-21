@@ -32,6 +32,22 @@ if str(BACKEND_DIR) not in sys.path:
 
 DEFAULT_IN = BACKEND_DIR / "data" / "troop_samples"
 DEFAULT_OUT = BACKEND_DIR / "data" / "troop_yolo"
+DEFAULT_CLASSES = BACKEND_DIR / "data" / "troop_yolo_classes.json"
+
+def _load_class_config(path: Path):
+    if not path.is_file():
+        return [], {}
+    with path.open("r", encoding="utf-8") as f:
+        doc = json.load(f)
+    classes = [str(x) for x in doc.get("classes") or []]
+    aliases = {str(k): str(v) for k, v in (doc.get("aliases") or {}).items()}
+    return classes, aliases
+
+def _canonical(raw, aliases):
+    key = str(raw or "").strip()
+    if not key:
+        return ""
+    return aliases.get(key, aliases.get(key.rsplit("/", 1)[-1], key))
 
 
 def _load_samples(src: Path):
@@ -51,15 +67,27 @@ def _load_samples(src: Path):
             yield meta_path, meta, crop_path
 
 
-def _class_names(samples):
+def _class_names(samples, configured, aliases):
+    if configured:
+        return configured
     names = set()
     for _meta_path, meta, _crop in samples:
         for key in meta.get("expected") or []:
-            names.add(str(key))
-        for det in meta.get("detections") or []:
+            canon = _canonical(key, aliases)
+            if canon:
+                names.add(canon)
+        for det in (meta.get("labels") or meta.get("detections") or []):
             if det.get("key"):
-                names.add(str(det["key"]))
+                canon = _canonical(det["key"], aliases)
+                if canon:
+                    names.add(canon)
     return sorted(names)
+
+def _label_rows(meta):
+    labels = meta.get("labels")
+    if isinstance(labels, list):
+        return labels, "manual"
+    return meta.get("detections") or [], "weak"
 
 
 def _rel_yolo_box(box, region, crop_w, crop_h):
@@ -78,27 +106,29 @@ def _rel_yolo_box(box, region, crop_w, crop_h):
     return cx, cy, bw, bh
 
 
-def _draw_review(img, detections, region, class_to_id, min_score):
+def _draw_review(img, detections, region, class_to_id, min_score, aliases, source):
     out = img.copy()
     rx1, ry1, _rx2, _ry2 = [int(v) for v in region]
     for det in detections:
-        key = det.get("key")
+        key = _canonical(det.get("key"), aliases)
         if key not in class_to_id or float(det.get("score", 0.0)) < min_score:
             continue
         x1, y1, x2, y2 = [int(v) for v in det.get("box", [0, 0, 0, 0])]
         x1 -= rx1; x2 -= rx1; y1 -= ry1; y2 -= ry1
         cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(out, f"{key.rsplit('/', 1)[-1]} {float(det.get('score', 0.0)):.2f}",
+        label = f"{key.rsplit('/', 1)[-1]} {source} {float(det.get('score', 1.0)):.2f}"
+        cv2.putText(out, label,
                     (x1, max(16, y1 - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.48,
                     (0, 255, 0), 1, cv2.LINE_AA)
     return out
 
 
-def export(src: Path, out: Path, min_score: float, val_ratio: float, seed: int):
+def export(src: Path, out: Path, min_score: float, val_ratio: float, seed: int, class_file: Path):
     samples = list(_load_samples(src))
     if not samples:
         raise SystemExit(f"no samples found under {src}")
-    names = _class_names(samples)
+    configured, aliases = _load_class_config(class_file)
+    names = _class_names(samples, configured, aliases)
     if not names:
         raise SystemExit("samples contain no expected labels or detections")
     class_to_id = {name: i for i, name in enumerate(names)}
@@ -128,11 +158,12 @@ def export(src: Path, out: Path, min_score: float, val_ratio: float, seed: int):
         shutil.copyfile(crop_path, dst_img)
 
         lines = []
-        for det in meta.get("detections") or []:
-            key = det.get("key")
+        rows, label_source = _label_rows(meta)
+        for det in rows:
+            key = _canonical(det.get("key"), aliases)
             if key not in class_to_id:
                 continue
-            if float(det.get("score", 0.0)) < min_score:
+            if label_source == "weak" and float(det.get("score", 0.0)) < min_score:
                 continue
             box = _rel_yolo_box(det.get("box"), region, crop_w, crop_h)
             if box is None:
@@ -141,7 +172,7 @@ def export(src: Path, out: Path, min_score: float, val_ratio: float, seed: int):
         with dst_lbl.open("w", encoding="utf-8") as f:
             f.write("\n".join(lines) + ("\n" if lines else ""))
 
-        review = _draw_review(img, meta.get("detections") or [], region, class_to_id, min_score)
+        review = _draw_review(img, rows, region, class_to_id, min_score, aliases, label_source)
         cv2.imwrite(str(out / "review" / f"{stem}.jpg"), review)
         exported += 1
 
@@ -159,6 +190,7 @@ def export(src: Path, out: Path, min_score: float, val_ratio: float, seed: int):
         "output": str(out),
         "samples": exported,
         "classes": names,
+        "class_file": str(class_file),
         "min_score": min_score,
         "val_ratio": val_ratio,
         "note": "Weak labels from recognizer detections. Review/correct before real training.",
@@ -175,8 +207,9 @@ def main():
     ap.add_argument("--min-score", type=float, default=0.48)
     ap.add_argument("--val-ratio", type=float, default=0.2)
     ap.add_argument("--seed", type=int, default=13)
+    ap.add_argument("--classes", type=Path, default=DEFAULT_CLASSES)
     args = ap.parse_args()
-    manifest = export(args.src, args.out, args.min_score, args.val_ratio, args.seed)
+    manifest = export(args.src, args.out, args.min_score, args.val_ratio, args.seed, args.classes)
     print(json.dumps(manifest, indent=2))
 
 

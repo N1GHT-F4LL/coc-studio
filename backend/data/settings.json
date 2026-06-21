@@ -59,6 +59,13 @@
     "model_path": "",
     "conf": 0.35
   },
+  "perception": {
+    "troop_bar": {
+      "mode": "auto",
+      "slot_pitch": 95,
+      "note": "auto uses troop_yolo.model_path when present, else template recognition; normalized roles feed event troop dumping."
+    }
+  },
   "actions": {
     "collect_resources": true,
     "farm_attack": true,

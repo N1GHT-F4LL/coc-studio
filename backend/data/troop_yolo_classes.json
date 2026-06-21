@@ -1,0 +1,40 @@
+{
+  "classes": [
+    "units/troops/archer",
+    "units/troops/healer",
+    "units/troops/root_rider",
+    "units/troops/thrower",
+    "units/spells/rage",
+    "units/spells/totem",
+    "units/siege/log_launcher",
+    "units/heroes/archer_queen",
+    "units/heroes/barbarian_king",
+    "units/heroes/grand_warden",
+    "units/heroes/royal_champion",
+    "event_unknown",
+    "slot_empty",
+    "slot_disabled"
+  ],
+  "aliases": {
+    "archer": "units/troops/archer",
+    "healer": "units/troops/healer",
+    "root_rider": "units/troops/root_rider",
+    "thrower": "units/troops/thrower",
+    "rage": "units/spells/rage",
+    "totem": "units/spells/totem",
+    "log_launcher": "units/siege/log_launcher",
+    "queen": "units/heroes/archer_queen",
+    "archer_queen": "units/heroes/archer_queen",
+    "king": "units/heroes/barbarian_king",
+    "barbarian_king": "units/heroes/barbarian_king",
+    "warden": "units/heroes/grand_warden",
+    "grand_warden": "units/heroes/grand_warden",
+    "champion": "units/heroes/royal_champion",
+    "royal_champion": "units/heroes/royal_champion",
+    "event": "event_unknown",
+    "unknown": "event_unknown",
+    "empty": "slot_empty",
+    "disabled": "slot_disabled",
+    "spent": "slot_disabled"
+  }
+}

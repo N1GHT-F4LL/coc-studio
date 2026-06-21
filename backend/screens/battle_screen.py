@@ -1,5 +1,6 @@
 from .base_screen import BaseScreen
 from core.vision import vision
+from core.perception import detect_troop_bar, protected_centers
 import logging
 import math
 import os
@@ -444,6 +445,56 @@ class BattleScreen(BaseScreen):
             vision.find_template(screen, rh, threshold=0.7, use_orb_fallback=False)
         )
 
+    def _protected_bar_centers(self, gray_bar, bx1, by1, deploy_cfg):
+        """Known hero/siege slots should not be swept as event troops."""
+        if not bool(deploy_cfg.get("dump_skip_heroes_sieges", True)):
+            return []
+        screen = deploy_cfg.get("_dump_screen")
+        settings = deploy_cfg.get("_perception_settings")
+        if screen is not None and settings is not None:
+            mode = deploy_cfg.get("dump_perception_mode", "auto")
+            result = detect_troop_bar(
+                screen, settings, mode=mode, region=[bx1, by1, deploy_cfg.get("_dump_bx2"), deploy_cfg.get("_dump_by2")])
+            centers = protected_centers(result)
+            if centers:
+                logger.info("[DUMP] protected slots via %s=%s", result.get("source"), centers)
+                return centers
+
+        prefixes = tuple(deploy_cfg.get("dump_skip_prefixes") or ("units/heroes/", "units/siege/"))
+        threshold = float(deploy_cfg.get("dump_protected_threshold", 0.52))
+        min_dist = int(deploy_cfg.get("dump_protected_min_distance", 46))
+        candidates = deploy_cfg.get("_dump_protected_templates")
+        if candidates is None:
+            candidates = [
+                (key, tpl) for key, tpl in vision.cache.items()
+                if isinstance(key, str) and key.startswith(prefixes) and tpl is not None
+            ]
+            deploy_cfg["_dump_protected_templates"] = candidates
+        hits = []
+        for key, tpl in candidates:
+            score, scaled, rmap = vision._find_best_scale(
+                gray_bar, tpl, threshold=threshold, scales=SLOT_ICON_SCALES)
+            if rmap is None or scaled is None or score < threshold:
+                continue
+            _, _, _, max_loc = cv2.minMaxLoc(rmap)
+            th, tw = scaled.shape[:2]
+            hits.append({
+                "key": key,
+                "score": float(score),
+                "x": int(max_loc[0] + tw // 2 + bx1),
+                "y": int(max_loc[1] + th // 2 + by1),
+            })
+        selected = []
+        for hit in sorted(hits, key=lambda d: d["score"], reverse=True):
+            if any((hit["x"] - s["x"]) ** 2 + (hit["y"] - s["y"]) ** 2 < min_dist ** 2 for s in selected):
+                continue
+            selected.append(hit)
+        if selected:
+            logger.info("[DUMP] protected slots=%s", [
+                f"{h['key'].rsplit('/', 1)[-1]}@{h['x']}:{h['score']:.2f}" for h in selected
+            ])
+        return [h["x"] for h in selected]
+
     def dump_remaining(self, deploy_cfg, drop_points=None, max_rounds=None, taps_per_slot=None):
         """Deploy EVERYTHING still on the troop bar — including event/temporary
         troops that were never trained or planned, so they have NO template.
@@ -457,10 +508,20 @@ class BattleScreen(BaseScreen):
         Return Home button is re-checked before every drop, so once the fight is
         over (bar gone) we never tap the loot/result screen. Returns True if it
         dropped anything."""
+        screen0 = self.ui_manager.get_screen()
+        if self._battle_ended(screen0):
+            logger.info("[DUMP] battle ended / no bar - skipping.")
+            return False
+        h0, w0 = screen0.shape[:2]
         bx1, by1, bx2, by2 = [int(v) for v in deploy_cfg.get("troop_bar_region", [200, 855, 1400, 910])]
+        bx1 = max(0, min(w0 - 1, bx1)); bx2 = max(1, min(w0, bx2))
+        by1 = max(0, min(h0 - 1, by1)); by2 = max(1, min(h0, by2))
+        if bx2 <= bx1 or by2 <= by1:
+            logger.warning("[DUMP] troop_bar_region invalid - skipping.")
+            return False
         bar_cy = (by1 + by2) // 2
         pitch = max(8, int(deploy_cfg.get("bar_slot_pitch", 95)))
-        n_slots = max(1, (bx2 - bx1) // pitch)
+        n_slots = max(1, int(math.ceil((bx2 - bx1) / pitch)))
         max_rounds = max(1, int(max_rounds if max_rounds is not None else deploy_cfg.get("dump_max_rounds", 6)))
         taps_per_slot = max(1, int(taps_per_slot if taps_per_slot is not None else deploy_cfg.get("dump_taps_per_slot", 12)))
 
@@ -492,10 +553,15 @@ class BattleScreen(BaseScreen):
             if self._battle_ended(screen):
                 logger.info("[DUMP] battle ended / no bar — stopping.")
                 break
+            deploy_cfg["_dump_screen"] = screen
+            deploy_cfg["_dump_bx2"] = bx2
+            deploy_cfg["_dump_by2"] = by2
             hsv = cv2.cvtColor(screen, cv2.COLOR_BGR2HSV)
+            gray_bar = cv2.cvtColor(screen[by1:by2, bx1:bx2], cv2.COLOR_BGR2GRAY)
+            protected = self._protected_bar_centers(gray_bar, bx1, by1, deploy_cfg)
             h, w = hsv.shape[:2]
 
-            fracs, centers = [], []
+            slots = []
             for i in range(n_slots):
                 tx1 = max(0, min(w, bx1 + i * pitch))
                 tx2 = max(0, min(w, tx1 + pitch))
@@ -513,13 +579,28 @@ class BattleScreen(BaseScreen):
                 body = hsv[sy1:sy2, sx1:sx2]
                 if body.size:
                     coloured = (body[:, :, 1] >= sat_min) & (body[:, :, 2] >= val_min)
-                    fracs.append(float(coloured.mean()))   # fraction of non-grey px
-                    centers.append((tx1 + tx2) // 2)
-            if not fracs:
+                    slots.append({
+                        "i": i,
+                        "x": (tx1 + tx2) // 2,
+                        "frac": float(coloured.mean()),
+                    })
+            if not slots:
                 break
-            occupied = [c for c, f in zip(centers, fracs) if f >= frac_thr]
-            logger.info("[DUMP] colour-fraction=%s thr=%.2f -> %d available",
-                        [round(f, 2) for f in fracs], frac_thr, len(occupied))
+            occupied = []
+            skipped = []
+            for s in slots:
+                if s["frac"] < frac_thr:
+                    continue
+                if any(abs(s["x"] - px) <= pitch * 0.55 for px in protected):
+                    skipped.append((s["i"], s["x"], s["frac"]))
+                    continue
+                occupied.append(s["x"])
+            logger.info("[DUMP] colour-fraction=%s thr=%.2f -> %d available, %d protected skip",
+                        [round(s["frac"], 2) for s in slots], frac_thr, len(occupied), len(skipped))
+            if skipped:
+                logger.info("[DUMP] skipped protected slot(s)=%s", [
+                    f"#{i}@{x}:{frac:.2f}" for i, x, frac in skipped
+                ])
             if not occupied:
                 logger.info("[DUMP] no coloured (available) units left — done.")
                 break

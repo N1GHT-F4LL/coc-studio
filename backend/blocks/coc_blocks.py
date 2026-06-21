@@ -386,6 +386,11 @@ class Deploy(BlockSpec):
         Param("select_delay", Kind.Number, default=0.2, label="Select delay (s)"),
         Param("humanize", Kind.Bool, default=True, label="Humanize drops"),
         Param("deploy_event_troops", Kind.Bool, default=True, label="Deploy event troops"),
+        Param("event_taps_per_slot", Kind.Number, default=8, label="Event taps / slot"),
+        Param("event_max_rounds", Kind.Number, default=4, label="Event max rounds"),
+        Param("event_color_frac", Kind.Number, default=0.42, label="Event color threshold"),
+        Param("event_perception_mode", Kind.Text, default="auto", label="Event detector", choices=["auto", "yolo", "template"]),
+        Param("event_skip_heroes_sieges", Kind.Bool, default=True, label="Skip hero/siege slots"),
     ]
     outputs = [Port("deployed", Kind.Bool)]
 
@@ -423,13 +428,40 @@ class Deploy(BlockSpec):
                 ctx.logger.warning("[deploy] ignoring non-numeric %s=%r", key, v)
         if "humanize" in inputs and inputs.get("humanize") is not None:
             deploy_cfg["humanize"] = _param_bool(inputs.get("humanize"), True)
+        event_param_map = {
+            "event_taps_per_slot": "dump_taps_per_slot",
+            "event_max_rounds": "dump_max_rounds",
+            "event_color_frac": "dump_color_frac",
+        }
+        for in_key, cfg_key in event_param_map.items():
+            v = inputs.get(in_key)
+            if v is None or v == "":
+                continue
+            try:
+                deploy_cfg[cfg_key] = max(0.0, float(v))
+            except (TypeError, ValueError):
+                ctx.logger.warning("[deploy] ignoring non-numeric %s=%r", in_key, v)
+        if "event_skip_heroes_sieges" in inputs and inputs.get("event_skip_heroes_sieges") is not None:
+            deploy_cfg["dump_skip_heroes_sieges"] = _param_bool(
+                inputs.get("event_skip_heroes_sieges"), True)
+        mode = str(inputs.get("event_perception_mode") or "auto").strip().lower()
+        if mode in ("auto", "yolo", "template"):
+            deploy_cfg["dump_perception_mode"] = mode
+        deploy_cfg.setdefault("dump_taps_per_slot", 8)
+        deploy_cfg.setdefault("dump_max_rounds", 4)
+        deploy_cfg.setdefault("dump_color_frac", 0.42)
+        deploy_cfg.setdefault("dump_skip_heroes_sieges", True)
+        deploy_cfg.setdefault("dump_perception_mode", "auto")
+        deploy_cfg["_perception_settings"] = ctx.settings
         ctx.logger.info("[deploy] scenario=%s variant=%s nodes=%d tap=%.3fs select=%.3fs",
                         scenario, variant_name, len(nodes),
                         deploy_cfg.get("tap_interval", 0.15), deploy_cfg.get("select_delay", 0.3))
         battle.deploy_troops(deploy_cfg)
         if _param_bool(inputs.get("deploy_event_troops"), True):
             drops = battle.collect_drop_points(nodes)
-            ctx.logger.info("[deploy] event troop dump enabled -> %d drop spot(s)", len(drops))
+            ctx.logger.info(
+                "[deploy] event troop dump enabled -> %d drop spot(s), %s tap(s)/slot, %s round(s)",
+                len(drops), deploy_cfg.get("dump_taps_per_slot", 8), deploy_cfg.get("dump_max_rounds", 4))
             battle.dump_remaining(deploy_cfg, drop_points=drops or None)
         return {"deployed": True}
 
