@@ -24,7 +24,7 @@
       "x": 340,
       "y": 300,
       "params": {
-        "scenario": "",
+        "scenario": "supper_minion",
         "troops_only": false,
         "target_capacity": 0,
         "tap_delay": 0.2,

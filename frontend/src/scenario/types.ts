@@ -11,12 +11,13 @@ export type DeployType =
   | "delay"
   | "surrender"
   | "ensure_deployed";
-export type Strategy = "line" | "points" | "delay";
+export type Strategy = "line" | "points" | "spline" | "delay";
 
 // One deploy slot. Fields depend on type/strategy:
 //  - delay:  strategy "delay" + seconds
 //  - points: points [[x,y],…]   (tapped in order, wraps if taps > len)
 //  - line:   x1,y1,x2,y2        (taps spread along the line; taps=1 = midpoint)
+//  - spline: x1,y1,x2,y2        (drag from bar to line points using curved paths)
 export interface DeployNode {
   id: string;
   label: string;
@@ -25,6 +26,11 @@ export interface DeployNode {
   template?: string; // units/<folder>/<name>; omitted for delay
   taps?: number; // troop/spell/siege count = taps
   strategy?: Strategy;
+  drop_style?: "drag" | "spline" | null;
+  multi_targets?: [number, number][] | null;
+  spline_min_steps?: number | null;
+  spline_max_steps?: number | null;
+  spline_px_per_step?: number | null;
   points?: [number, number][];
   x1?: number;
   y1?: number;

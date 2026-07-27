@@ -130,6 +130,113 @@ class UIManager:
                     "msg": f"tap overlay: {path}",
                 })
 
+    def drag(self, x1, y1, x2, y2, duration_ms=350, label=None, meta=None):
+        """Press-and-drag from (x1,y1) to (x2,y2). Uses humanized coords and
+        records debug frames similarly to `click` when enabled.
+        """
+        self._wait_if_paused()
+        sx, sy = self.humanize.get_jittered_coords(x1, y1)
+        ex, ey = self.humanize.get_jittered_coords(x2, y2)
+        logger.debug(f"Drag {sx},{sy} -> {ex},{ey} dur={duration_ms}ms")
+        record_tap = (
+            tap_debug.enabled(self.tap_debug_settings)
+            and self._tap_debug_count < tap_debug.max_per_run(self.tap_debug_settings)
+        )
+        before = None
+        after = None
+        if record_tap:
+            before = self.device.get_screen()
+        # Use device.swipe to perform press+move+release; duration controls hold time.
+        try:
+            # For a simple two-point drag, device.swipe/_curved_swipe is sufficient.
+            self.device.swipe([(sx, sy), (ex, ey)], duration_ms=duration_ms)
+        except Exception:
+            logger.exception("Drag failed")
+        if record_tap:
+            self._tap_debug_count += 1
+            delay = tap_debug.after_delay(self.tap_debug_settings)
+            if tap_debug.capture_after(self.tap_debug_settings):
+                self._poll_sleep(delay)
+                after = self.device.get_screen()
+            path = tap_debug.save(
+                before,
+                requested=(x1, y1),
+                actual=((sx, sy), (ex, ey)),
+                label=label,
+                settings=self.tap_debug_settings,
+                after_frame=after,
+                meta=meta,
+            )
+            if path and self.tap_debug_emit:
+                self.tap_debug_emit({
+                    "type": "log",
+                    "level": "INFO",
+                    "name": "tap_debug",
+                    "msg": f"tap overlay: {path}",
+                })
+
+    def drag_multi(self, moves, duration_ms=350, label=None, meta=None):
+        """Perform simultaneous drags.
+
+        `moves` is a list of ((sx,sy),(ex,ey)) pairs. Emits debug frames similar
+        to `drag` when enabled.
+        """
+        self._wait_if_paused()
+        record_tap = (
+            tap_debug.enabled(self.tap_debug_settings)
+            and self._tap_debug_count < tap_debug.max_per_run(self.tap_debug_settings)
+        )
+        before = None
+        after = None
+        if record_tap:
+            before = self.device.get_screen()
+        # Humanize each end/start coordinate
+        # Determine if moves are endpoint pairs or full per-finger path lists
+        # If each entry is a list of points -> use multi_touch_swipe_paths
+        is_path_mode = False
+        if moves and isinstance(moves[0], (list, tuple)) and moves[0] and isinstance(moves[0][0], (list, tuple)):
+            is_path_mode = True
+
+        try:
+            if is_path_mode:
+                # moves is list of per-finger paths: each path is list of (x,y)
+                paths = []
+                for path in moves:
+                    sampled = [self.humanize.get_jittered_coords(int(p[0]), int(p[1])) for p in path]
+                    paths.append(sampled)
+                self.device.multi_touch_swipe_paths(paths, duration_ms=duration_ms)
+            else:
+                pairs = []
+                for (sx, sy), (ex, ey) in moves:
+                    sxx, syy = self.humanize.get_jittered_coords(sx, sy)
+                    exx, eyy = self.humanize.get_jittered_coords(ex, ey)
+                    pairs.append(((sxx, syy), (exx, eyy)))
+                self.device.multi_touch_swipe(pairs, duration_ms=duration_ms)
+        except Exception:
+            logger.exception("Multi-drag failed")
+        if record_tap:
+            self._tap_debug_count += 1
+            delay = tap_debug.after_delay(self.tap_debug_settings)
+            if tap_debug.capture_after(self.tap_debug_settings):
+                self._poll_sleep(delay)
+                after = self.device.get_screen()
+            path = tap_debug.save(
+                before,
+                requested=[p for p in moves],
+                actual=pairs,
+                label=label,
+                settings=self.tap_debug_settings,
+                after_frame=after,
+                meta=meta,
+            )
+            if path and self.tap_debug_emit:
+                self.tap_debug_emit({
+                    "type": "log",
+                    "level": "INFO",
+                    "name": "tap_debug",
+                    "msg": f"tap overlay: {path}",
+                })
+
     def click_if_exists_quick(self, template_name, timeout=0.3):
         """Quick click if element exists (for popup scanning with minimal wait)."""
         logger.debug(f"Quick checking if '{template_name}' exists...")

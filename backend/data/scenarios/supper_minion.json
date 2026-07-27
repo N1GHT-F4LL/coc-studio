@@ -318,7 +318,7 @@
           "template": "",
           "taps": 1,
           "strategy": "delay",
-          "seconds": 30,
+          "seconds": 20,
           "x": 1980,
           "y": 300
         },

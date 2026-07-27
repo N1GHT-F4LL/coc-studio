@@ -100,6 +100,16 @@ def device_disconnect():
     return {"ok": True, "status": manager.status()}
 
 
+@router.get("/api/device/touch_info")
+def device_touch_info():
+    """Return information about the touch input device used for multi-touch.
+
+    { path: str|null, max_x: int|null, max_y: int|null, multi_touch: bool }
+    """
+    path, max_x, max_y = manager.touch_info()
+    return {"path": path, "max_x": max_x, "max_y": max_y, "multi_touch": bool(path)}
+
+
 @router.post("/api/device/serial")
 def device_set_serial(body: dict = Body(...)):
     serial = (body.get("serial") or "").strip()

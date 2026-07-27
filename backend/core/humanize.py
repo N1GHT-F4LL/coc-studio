@@ -38,3 +38,21 @@ class Humanize:
             y = (1 - t) ** 2 * sy + 2 * (1 - t) * t * cy + t ** 2 * ey
             points.append((int(round(x)), int(round(y))))
         return points
+
+    def adaptive_bezier(self, start, end, control=None, min_steps=6, max_steps=32, px_per_step=40):
+        """Compute a bezier curve path with adaptive number of steps based on
+        the geometric distance between start and end.
+
+        - px_per_step: target pixels per frame; more distant moves get more steps.
+        - clamps between min_steps and max_steps.
+        Returns list of (x,y) points.
+        """
+        sx, sy = start
+        ex, ey = end
+        dx = ex - sx
+        dy = ey - sy
+        dist = (dx * dx + dy * dy) ** 0.5
+        approx_steps = max(min_steps, min(max_steps, int(max(1, dist / max(1.0, px_per_step)))))
+        # Ensure odd symmetry and at least min_steps
+        steps = max(min_steps, approx_steps)
+        return self.bezier_curve(start, end, control, steps=steps)

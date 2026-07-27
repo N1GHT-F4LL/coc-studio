@@ -11,6 +11,27 @@
         "graph_ref": "farm_cycle",
         "times": 50
       },
+      "after": [
+        "ensure_troops_0"
+      ],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "ensure_troops_0",
+      "type": "ensure_troops",
+      "label": "Ensure Troops",
+      "x": 80,
+      "y": 300,
+      "params": {
+        "scenario": "supper_minion",
+        "troops_only": false,
+        "target_capacity": 0,
+        "tap_delay": 0.2,
+        "threshold": 0.7,
+        "max_wait": 180,
+        "wait_seconds": 0
+      },
       "after": [],
       "data_in": {},
       "on_error": null

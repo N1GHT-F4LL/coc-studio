@@ -1,0 +1,50 @@
+{
+  "name": "superminion2",
+  "variants": [
+    {
+      "name": "Default",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "n0",
+          "label": "Super Minion Pair",
+          "type": "super_troop",
+          "after": [],
+          "template": "units/super_troops/super_minion",
+          "taps": 7,
+          "strategy": "points",
+          "points": [[600,350]],
+          "x": 300,
+          "y": 200,
+          "drop_style": "spline",
+          "multi_targets": [[600,350],[700,350]]
+        },
+        {
+          "id": "n1",
+          "label": "Totem",
+          "type": "spell",
+          "after": ["n0"],
+          "template": "units/spells/totem",
+          "taps": 2,
+          "strategy": "line",
+          "x1": 640,
+          "y1": 320,
+          "x2": 720,
+          "y2": 300,
+          "x": 540,
+          "y": 320
+        },
+        {
+          "id": "n2",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": ["n1"],
+          "template": "",
+          "taps": 1,
+          "x": 900,
+          "y": 320
+        }
+      ]
+    }
+  ]
+}

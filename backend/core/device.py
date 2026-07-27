@@ -881,6 +881,147 @@ class Device:
         res = self._run_adb(['shell', script])
         return res is not None and res.returncode == 0
 
+    def multi_touch_swipe(self, pairs, duration_ms=300, steps=20):
+        """Perform simultaneous multi-finger drags.
+
+        `pairs` is a list of ((sx,sy),(ex,ey)) tuples, one per finger. Each
+        finger will be interpolated over `steps` frames and emitted together
+        per frame using sendevent (ABS_MT frames per finger then SYN_REPORT).
+        """
+        if not pairs:
+            return False
+        event_dev, max_x_evt, max_y_evt = self._find_touch_input_device()
+        if not event_dev:
+            logger.warning("No multi-touch input device found; cannot multi_touch_swipe.")
+            return False
+        size = self.get_screen_size()
+        if not size:
+            logger.warning("Cannot multi-touch swipe: failed to read screen size.")
+            return False
+        sw, sh = size
+        max_x_evt = max_x_evt or sw
+        max_y_evt = max_y_evt or sh
+
+        EV_ABS, EV_SYN = 3, 0
+        ABS_MT_POSITION_X, ABS_MT_POSITION_Y = 0x35, 0x36
+        SYN_REPORT, SYN_MT_REPORT = 0, 2
+
+        sleep_per = max(0.008, duration_ms / 1000 / max(1, steps - 1))
+        cmds = []
+        def se(t, c, v): cmds.append(f"sendevent {event_dev} {t} {c} {v}")
+
+        # Precompute per-finger start/end in event coordinates
+        ev_paths = []
+        for (sx, sy), (ex, ey) in pairs:
+            sx_e, sy_e = self._pixel_to_event(sx, sy, max_x_evt, max_y_evt, sw, sh)
+            ex_e, ey_e = self._pixel_to_event(ex, ey, max_x_evt, max_y_evt, sw, sh)
+            ev_paths.append((sx_e, sy_e, ex_e, ey_e))
+
+        for i in range(steps + 1):
+            t = i / max(1, steps)
+            # Emit one ABS pair per finger, then SYN_MT_REPORT, repeat
+            for (sx_e, sy_e, ex_e, ey_e) in ev_paths:
+                cur_x = int(round(sx_e + (ex_e - sx_e) * t))
+                cur_y = int(round(sy_e + (ey_e - sy_e) * t))
+                se(EV_ABS, ABS_MT_POSITION_X, cur_x)
+                se(EV_ABS, ABS_MT_POSITION_Y, cur_y)
+                se(EV_SYN, SYN_MT_REPORT, 0)
+            se(EV_SYN, SYN_REPORT, 0)
+            cmds.append(f"sleep {sleep_per:.3f}")
+
+        # Lift all fingers
+        se(EV_SYN, SYN_REPORT, 0)
+        script = ";".join(cmds)
+        res = self._run_adb(['shell', script])
+        return res is not None and res.returncode == 0
+
+    def multi_touch_swipe_paths(self, paths, duration_ms=300, steps=20):
+        """Perform simultaneous multi-finger drags where each finger has a
+        precomputed path (list of pixel (x,y) points). Paths are resampled to
+        `steps` frames and emitted together per frame.
+        """
+        if not paths:
+            return False
+        event_dev, max_x_evt, max_y_evt = self._find_touch_input_device()
+        if not event_dev:
+            logger.warning("No multi-touch input device found; cannot multi_touch_swipe_paths.")
+            return False
+        size = self.get_screen_size()
+        if not size:
+            logger.warning("Cannot multi-touch swipe: failed to read screen size.")
+            return False
+        sw, sh = size
+        max_x_evt = max_x_evt or sw
+        max_y_evt = max_y_evt or sh
+
+        EV_ABS, EV_SYN = 3, 0
+        ABS_MT_POSITION_X, ABS_MT_POSITION_Y = 0x35, 0x36
+        SYN_REPORT, SYN_MT_REPORT = 0, 2
+
+        sleep_per = max(0.008, duration_ms / 1000 / max(1, steps - 1))
+        cmds = []
+        def se(t, c, v): cmds.append(f"sendevent {event_dev} {t} {c} {v}")
+
+        # Helper: resample a path (list of px points) to `steps+1` positions
+        def resample(path_pts, frames):
+            if not path_pts:
+                return [(0, 0)] * (frames + 1)
+            if len(path_pts) == 1:
+                return [path_pts[0]] * (frames + 1)
+            # compute cumulative lengths
+            seg_lens = []
+            total = 0.0
+            for a, b in zip(path_pts, path_pts[1:]):
+                dx = b[0] - a[0]
+                dy = b[1] - a[1]
+                l = (dx * dx + dy * dy) ** 0.5
+                seg_lens.append(l)
+                total += l
+            if total == 0:
+                return [path_pts[0]] * (frames + 1)
+            out = []
+            for fi in range(frames + 1):
+                t = fi / float(frames)
+                target = t * total
+                acc = 0.0
+                for idx, L in enumerate(seg_lens):
+                    if acc + L >= target:
+                        a = path_pts[idx]
+                        b = path_pts[idx + 1]
+                        local_t = (target - acc) / (L if L else 1.0)
+                        x = int(round(a[0] + (b[0] - a[0]) * local_t))
+                        y = int(round(a[1] + (b[1] - a[1]) * local_t))
+                        out.append((x, y))
+                        break
+                    acc += L
+                else:
+                    out.append(path_pts[-1])
+            return out
+
+        # Precompute per-finger event coords per frame
+        frames = steps
+        finger_frames = []
+        for path in paths:
+            # path is list of (x,y) pixels; resample
+            sampled = resample(path, frames)
+            evs = [self._pixel_to_event(px, py, max_x_evt, max_y_evt, sw, sh) for (px, py) in sampled]
+            finger_frames.append(evs)
+
+        for fi in range(frames + 1):
+            for evs in finger_frames:
+                ex, ey = evs[fi]
+                se(EV_ABS, ABS_MT_POSITION_X, ex)
+                se(EV_ABS, ABS_MT_POSITION_Y, ey)
+                se(EV_SYN, SYN_MT_REPORT, 0)
+            se(EV_SYN, SYN_REPORT, 0)
+            cmds.append(f"sleep {sleep_per:.3f}")
+
+        # Lift fingers
+        se(EV_SYN, SYN_REPORT, 0)
+        script = ";".join(cmds)
+        res = self._run_adb(['shell', script])
+        return res is not None and res.returncode == 0
+
     def tap(self, x, y):
         if not self.available or not self.connected:
             logger.debug("tap skipped: no active ADB device.")
@@ -890,10 +1031,13 @@ class Device:
         except FileNotFoundError:
             logger.error("adb binary not found when attempting to tap.")
 
-    def swipe(self, path):
+    def swipe(self, path, duration_ms=300):
+        """Swipe along `path`. `duration_ms` controls the adb swipe duration for
+        a two-point gesture. Longer durations emulate a press-and-drag.
+        """
         if len(path) < 2:
             return
-        if len(path) > 2 and self._curved_swipe(path):
+        if len(path) > 2 and self._curved_swipe(path, duration_ms=duration_ms):
             return
         start, end = path[0], path[-1]
         if not self.available or not self.connected:
@@ -902,6 +1046,6 @@ class Device:
         try:
             self._run_adb(['shell', 'input', 'swipe',
                            str(start[0]), str(start[1]),
-                           str(end[0]), str(end[1]), '300'])
+                           str(end[0]), str(end[1]), str(int(duration_ms))])
         except FileNotFoundError:
             logger.error("adb binary not found when attempting to swipe.")

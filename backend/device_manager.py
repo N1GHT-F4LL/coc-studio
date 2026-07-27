@@ -118,6 +118,13 @@ class DeviceManager:
             connect_with_profile(dev, profile, endpoint)
             return dev.list_devices()
 
+    def touch_info(self):
+        """Return touch input device info: (path, max_x, max_y) or (None,None,None)."""
+        with self._lock:
+            if self.device is None:
+                return (None, None, None)
+            return self.device._find_touch_input_device()
+
     def launch_emulator(self):
         """Launch the configured profile's emulator if it isn't running."""
         with self._lock:

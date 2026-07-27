@@ -321,11 +321,91 @@ class BattleScreen(BaseScreen):
                         logger.info(f"[DEPLOY] {name:<22} ×{configured_taps}  bar=({slot_cx},{slot_cy}) conf={score:.2f}  → {target}")
 
                     debug_clicks.append((template_key, slot_cx, slot_cy))
-                    self.ui_manager.click(slot_cx, slot_cy)
-                    self.ui_manager._poll_sleep(select_delay)
-                    if configured_taps > 0:
-                        self._execute_slot_strategy(slot, deploy_cfg, configured_taps, tap_interval)
-                    any_deployed = True
+                    # Allow per-slot or global deploy_cfg override to use press-and-drag
+                    strat = slot.get("strategy", "line")
+                    drop_style = slot.get("drop_style") or deploy_cfg.get("drop_style")
+                    if strat == "spline":
+                        drop_style = "spline"
+                    use_drag = drop_style in ("drag", "spline")
+                    if use_drag:
+                        # Perform drag-based drops directly from the bar slot to targets.
+                        # Support multi-target simultaneous drags: slot['multi_targets'] = [ (x,y), ... ]
+                        multi = slot.get("multi_targets")
+                        if multi and isinstance(multi, (list, tuple)) and len(multi) > 1:
+                            # Build pair list: start positions distributed around slot_cx
+                            n = len(multi)
+                            spacing = int(deploy_cfg.get("bar_multi_spacing", 48))
+                            starts = []
+                            # center the group on slot_cx
+                            base = slot_cx
+                            offset = -((n - 1) * spacing) // 2
+                            for i in range(n):
+                                starts.append((base + offset + i * spacing, (by1 + by2) // 2))
+                            # If drop_style explicitly requests spline paths, build per-finger bezier curves
+                            if drop_style == "spline":
+                                paths = []
+                                steps = int(deploy_cfg.get("spline_steps", 12))
+                                for s, tgt in zip(starts, multi):
+                                    # Use humanize.bezier_curve to produce a natural curve
+                                    path = self.ui_manager.humanize.bezier_curve(s, (int(tgt[0]), int(tgt[1])), None, steps=steps)
+                                    paths.append(path)
+                                self.ui_manager.drag_multi(paths, duration_ms=int(tap_interval * 1000))
+                            else:
+                                pairs = []
+                                for s, tgt in zip(starts, multi):
+                                    pairs.append((s, (int(tgt[0]), int(tgt[1]))))
+                                self.ui_manager.drag_multi(pairs, duration_ms=int(tap_interval * 1000))
+                            any_deployed = True
+                        elif strat == "points":
+                            pts = slot.get("points", [])
+                            if not pts:
+                                logger.warning(f"[DEPLOY] strategy='points' but no points configured for '{slot.get('template', '?')}'")
+                            else:
+                                for i in range(configured_taps):
+                                    if self.ui_manager._stopped():
+                                        break
+                                    pt = pts[i % len(pts)]
+                                    if drop_style == "spline":
+                                        path = self.ui_manager.humanize.adaptive_bezier((slot_cx, (by1 + by2) // 2), (int(pt[0]), int(pt[1])), None,
+                                                                 min_steps=int(deploy_cfg.get("spline_min_steps", 6)),
+                                                                 max_steps=int(deploy_cfg.get("spline_max_steps", 32)),
+                                                                 px_per_step=float(deploy_cfg.get("spline_px_per_step", 40)))
+                                        self.ui_manager.drag_multi([path], duration_ms=int(tap_interval*1000))
+                                    else:
+                                        self.ui_manager.drag(slot_cx, slot_cy, int(pt[0]), int(pt[1]), duration_ms=int(tap_interval*1000))
+                                    any_deployed = True
+                        else:
+                            # line or default: use same per-tap logic but via drag
+                            def_y = int(deploy_cfg.get("battlefield_y", 750))
+                            x1 = int(slot.get("x1", slot.get("x_start", deploy_cfg.get("battlefield_x_start", 300))))
+                            y1 = int(slot.get("y1", slot.get("y", def_y)))
+                            x2 = int(slot.get("x2", slot.get("x_end",   deploy_cfg.get("battlefield_x_end",  1300))))
+                            y2 = int(slot.get("y2", slot.get("y", def_y)))
+                            # Spread taps along line
+                            dx = x2 - x1
+                            dy = y2 - y1
+                            dist = (dx*dx + dy*dy) ** 0.5 or 1.0
+                            for i in range(configured_taps):
+                                t = i / max(1, configured_taps - 1) if configured_taps > 1 else 0.5
+                                bx = int(round(x1 + dx * t))
+                                by = int(round(y1 + dy * t))
+                                if self.ui_manager._stopped():
+                                    break
+                                if drop_style == "spline":
+                                    path = self.ui_manager.humanize.adaptive_bezier((slot_cx, (by1 + by2) // 2), (bx, by), None,
+                                                                                     min_steps=int(deploy_cfg.get("spline_min_steps", 6)),
+                                                                                     max_steps=int(deploy_cfg.get("spline_max_steps", 32)),
+                                                                                     px_per_step=float(deploy_cfg.get("spline_px_per_step", 40)))
+                                    self.ui_manager.drag_multi([path], duration_ms=int(tap_interval*1000))
+                                else:
+                                    self.ui_manager.drag(slot_cx, slot_cy, bx, by, duration_ms=int(tap_interval*1000))
+                                any_deployed = True
+                    else:
+                        self.ui_manager.click(slot_cx, slot_cy)
+                        self.ui_manager._poll_sleep(select_delay)
+                        if configured_taps > 0:
+                            self._execute_slot_strategy(slot, deploy_cfg, configured_taps, tap_interval)
+                        any_deployed = True
 
             for n in ready:
                 completed.add(n["id"])

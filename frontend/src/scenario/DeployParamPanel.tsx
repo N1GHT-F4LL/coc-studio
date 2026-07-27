@@ -141,10 +141,14 @@ export function DeployParamPanel({
             <span>Strategy</span>
             <select
               value={node.strategy ?? "line"}
-              onChange={(e) => set({ strategy: e.target.value as Strategy })}
+              onChange={(e) => {
+                const strategy = e.target.value as Strategy;
+                set({ strategy, drop_style: strategy === "spline" ? "spline" : null });
+              }}
             >
               <option value="line">line (spread along a line)</option>
               <option value="points">points (tap fixed spots)</option>
+              <option value="spline">spline (drag curved path)</option>
             </select>
           </label>
 

@@ -226,6 +226,81 @@ export function ParamPanel({
         )
       )}
 
+      {/* Deploy-specific UI: drop_style, multi_targets, spline tuning */}
+      {spec.category === "CoC" ? (
+        <div className="deploy-options">
+          <h3>Deploy Options</h3>
+          <label className="field" htmlFor="drop-style">
+            <span>Drop style</span>
+            <select
+              id="drop-style"
+              value={String(params["drop_style"] ?? "")}
+              onChange={(e) => onChangeParam(node.id, "drop_style", e.target.value || null)}
+            >
+              <option value="">- default -</option>
+              <option value="drag">drag (single-finger)</option>
+              <option value="spline">spline (curved path)</option>
+            </select>
+          </label>
+
+          <label className="field" htmlFor="multi-targets">
+            <span>Multi targets</span>
+            <input
+              id="multi-targets"
+              type="text"
+              placeholder="x1,y1; x2,y2; ..."
+              value={Array.isArray(params["multi_targets"]) ? (params["multi_targets"] as any[])
+                .map((p) => Array.isArray(p) ? `${p[0]},${p[1]}` : String(p)).join("; ") : String(params["multi_targets"] ?? "")}
+              onChange={(e) => {
+                const v = e.target.value.trim();
+                if (!v) return onChangeParam(node.id, "multi_targets", null);
+                const parts = v.split(";").map((s) => s.trim()).filter(Boolean);
+                const pts: number[][] = [];
+                let ok = true;
+                for (const p of parts) {
+                  const nums = p.split(",").map((s) => Number(s.trim()));
+                  if (nums.length !== 2 || nums.some(Number.isNaN)) {
+                    ok = false;
+                    break;
+                  }
+                  pts.push([Math.round(nums[0]), Math.round(nums[1])]);
+                }
+                if (ok) onChangeParam(node.id, "multi_targets", pts);
+                else onChangeParam(node.id, "multi_targets", v); // keep raw for visibility
+              }}
+            />
+          </label>
+
+          <label className="field" htmlFor="spline-min-steps">
+            <span>Spline min steps</span>
+            <input
+              id="spline-min-steps"
+              type="number"
+              value={String(params["spline_min_steps"] ?? "")}
+              onChange={(e) => onChangeParam(node.id, "spline_min_steps", e.target.value === "" ? null : Number(e.target.value))}
+            />
+          </label>
+          <label className="field" htmlFor="spline-max-steps">
+            <span>Spline max steps</span>
+            <input
+              id="spline-max-steps"
+              type="number"
+              value={String(params["spline_max_steps"] ?? "")}
+              onChange={(e) => onChangeParam(node.id, "spline_max_steps", e.target.value === "" ? null : Number(e.target.value))}
+            />
+          </label>
+          <label className="field" htmlFor="spline-px-per-step">
+            <span>Spline px / step</span>
+            <input
+              id="spline-px-per-step"
+              type="number"
+              value={String(params["spline_px_per_step"] ?? "")}
+              onChange={(e) => onChangeParam(node.id, "spline_px_per_step", e.target.value === "" ? null : Number(e.target.value))}
+            />
+          </label>
+        </div>
+      ) : null}
+
       <button className="danger" onClick={() => onDelete(node.id)}>
         Delete node
       </button>
