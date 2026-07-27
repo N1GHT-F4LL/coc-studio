@@ -343,6 +343,17 @@ class BattleScreen(BaseScreen):
                             logger.info(f"[DEPLOY] {name:<22} ×{configured_taps}  bar=({slot_cx},{slot_cy}) conf={score:.2f}  → {target}")
 
                     debug_clicks.append((template_key, slot_cx, slot_cy))
+
+                    # --- Ability nodes (taps=0): tap battlefield points directly, NOT bar ---
+                    if configured_taps == 0 and slot.get("strategy") == "points" and slot.get("points"):
+                        logger.info(f"[DEPLOY] {name}: ability tap at {slot['points']}")
+                        for pt in slot.get("points", []):
+                            self.ui_manager.click(int(pt[0]), int(pt[1]))
+                            self.ui_manager._poll_sleep(tap_interval)
+                        any_deployed = True
+                        continue
+
+                    # --- Normal deploy: select on bar then drop on battlefield ---
                     # Allow per-slot or global deploy_cfg override to use press-and-drag
                     strat = slot.get("strategy", "line")
                     drop_style = slot.get("drop_style") or deploy_cfg.get("drop_style")
