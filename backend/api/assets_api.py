@@ -52,9 +52,11 @@ _VALID_FOLDERS = set(CAT_TO_FOLDER.values())
 
 def _rel_to_path(rel: str) -> str:
     """Resolve an asset key (rel posix, no .png) to its file path, guarding traversal."""
-    if ".." in rel or rel.startswith("/"):
+    base = os.path.realpath(app_paths.ASSETS_DIR)
+    candidate = os.path.realpath(os.path.join(base, rel.replace("/", os.sep)))
+    if not candidate.startswith(base + os.sep) and candidate != base:
         raise HTTPException(status_code=400, detail="bad asset path")
-    return os.path.join(app_paths.ASSETS_DIR, *rel.split("/")) + ".png"
+    return candidate + ".png"
 
 
 def _sanitize_name(raw: str) -> str:

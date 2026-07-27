@@ -32,6 +32,22 @@ router = APIRouter(prefix="/api", tags=["run"])
 
 _LOG_BUFFER = 500  # how many recent log lines to retain for reattach replay
 
+# Graph resource limits — guard against excessively large graphs.
+MAX_GRAPH_NODES = 500
+MAX_GRAPH_EDGES = 2000
+
+
+def _validate_graph_resources(graph_dict: dict) -> list[str]:
+    """Check graph size against resource limits. Returns list of violations."""
+    errors: list[str] = []
+    nodes = graph_dict.get("nodes") or []
+    edges = graph_dict.get("edges") or []
+    if len(nodes) > MAX_GRAPH_NODES:
+        errors.append(f"node count {len(nodes)} exceeds limit ({MAX_GRAPH_NODES})")
+    if len(edges) > MAX_GRAPH_EDGES:
+        errors.append(f"edge count {len(edges)} exceeds limit ({MAX_GRAPH_EDGES})")
+    return errors
+
 
 class RunHub:
     """Single-run guard + cooperative stop handle + a server-side buffer of the
@@ -262,7 +278,11 @@ async def run(body: dict = Body(...)):
         raise HTTPException(status_code=400, detail="body must be {\"graph\": {...}}")
 
     # Validate structure up front so a bad graph 400s instead of 500s.
-    errors = Graph.from_dict(graph_dict).validate()
+    errors = _validate_graph_resources(graph_dict)
+    try:
+        errors = Graph.from_dict(graph_dict).validate() + errors
+    except KeyError as e:
+        raise HTTPException(status_code=400, detail={"errors": [f"missing required field: {e}"]})
     if errors:
         raise HTTPException(status_code=400, detail={"errors": errors})
 
