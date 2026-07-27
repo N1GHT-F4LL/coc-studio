@@ -388,7 +388,9 @@ class Deploy(BlockSpec):
         Param("deploy_event_troops", Kind.Bool, default=True, label="Deploy event troops"),
         Param("event_taps_per_slot", Kind.Number, default=8, label="Event taps / slot"),
         Param("event_max_rounds", Kind.Number, default=4, label="Event max rounds"),
-        Param("event_color_frac", Kind.Number, default=0.42, label="Event color threshold"),
+        Param("event_color_frac", Kind.Number, default=0.38, label="Event color threshold"),
+        Param("event_sat_min", Kind.Number, default=55, label="Event sat min"),
+        Param("event_val_min", Kind.Number, default=45, label="Event val min"),
         Param("event_perception_mode", Kind.Text, default="auto", label="Event detector", choices=["auto", "yolo", "template"]),
         Param("event_skip_heroes_sieges", Kind.Bool, default=True, label="Skip hero/siege slots"),
     ]
@@ -432,6 +434,8 @@ class Deploy(BlockSpec):
             "event_taps_per_slot": "dump_taps_per_slot",
             "event_max_rounds": "dump_max_rounds",
             "event_color_frac": "dump_color_frac",
+            "event_sat_min": "dump_sat_min",
+            "event_val_min": "dump_val_min",
         }
         for in_key, cfg_key in event_param_map.items():
             v = inputs.get(in_key)
@@ -449,7 +453,9 @@ class Deploy(BlockSpec):
             deploy_cfg["dump_perception_mode"] = mode
         deploy_cfg.setdefault("dump_taps_per_slot", 8)
         deploy_cfg.setdefault("dump_max_rounds", 4)
-        deploy_cfg.setdefault("dump_color_frac", 0.42)
+        deploy_cfg.setdefault("dump_color_frac", 0.38)
+        deploy_cfg.setdefault("dump_sat_min", 55.0)
+        deploy_cfg.setdefault("dump_val_min", 45.0)
         deploy_cfg.setdefault("dump_skip_heroes_sieges", True)
         deploy_cfg.setdefault("dump_perception_mode", "auto")
         deploy_cfg["_perception_settings"] = ctx.settings

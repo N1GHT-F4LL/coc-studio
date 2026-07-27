@@ -617,13 +617,14 @@ class BattleScreen(BaseScreen):
         # slot or a spent/greyed hero is mostly grey -> few coloured pixels. This
         # separates better than mean saturation/brightness, where a dark-but-
         # colourful troop reads lower than a bright greyed hero. Tunable below.
-        sat_min = float(deploy_cfg.get("dump_sat_min", 60.0))   # px S>=this = coloured
-        val_min = float(deploy_cfg.get("dump_val_min", 50.0))   # ...and not near-black
+        # For event troops (Titan, etc.) with dark colors, lower sat_min helps.
+        sat_min = float(deploy_cfg.get("dump_sat_min", 55.0))   # px S>=this = coloured (lowered from 60 for dark troops)
+        val_min = float(deploy_cfg.get("dump_val_min", 45.0))   # ...and not near-black (lowered from 50)
         # Measured fractions: real available troop body >=0.43; spent hero
         # (pet+health) <=0.41; empty slot showing the map background ~0.21; a
-        # used-up troop <=0.15. So the threshold sits at 0.42 — above heroes/
-        # background, below the dimmest real troop. Calibrate from logged values.
-        frac_thr = float(deploy_cfg.get("dump_color_frac", 0.42))   # >=this fraction = occupied
+        # used-up troop <=0.15. Event troops like Titan can be darker (~0.35-0.40).
+        # Threshold 0.38 catches dark event troops while still skipping heroes.
+        frac_thr = float(deploy_cfg.get("dump_color_frac", 0.38))   # >=this fraction = occupied (lowered from 0.42)
 
         dumped = False
         for rnd in range(max_rounds):
@@ -677,6 +678,10 @@ class BattleScreen(BaseScreen):
                 occupied.append(s["x"])
             logger.info("[DUMP] colour-fraction=%s thr=%.2f -> %d available, %d protected skip",
                         [round(s["frac"], 2) for s in slots], frac_thr, len(occupied), len(skipped))
+            # Detailed per-slot log for calibration
+            for s in slots:
+                status = "OCCUPIED" if any(s["x"] == ox for ox in occupied) else ("SKIPPED" if any(s["x"] == sx for _, sx, _ in skipped) else "EMPTY")
+                logger.info("[DUMP] slot #%d x=%d frac=%.3f thr=%.2f -> %s", s["i"], s["x"], s["frac"], frac_thr, status)
             if skipped:
                 logger.info("[DUMP] skipped protected slot(s)=%s", [
                     f"#{i}@{x}:{frac:.2f}" for i, x, frac in skipped
