@@ -1,6 +1,7 @@
 from .base_screen import BaseScreen
 from core.vision import vision
 from core.perception import detect_troop_bar, protected_centers
+from core.event_troop_detector import detect_available_troops, detect_protected_slots, _get_slot_pitch
 import logging
 import math
 import os
@@ -532,14 +533,13 @@ class BattleScreen(BaseScreen):
         screen = deploy_cfg.get("_dump_screen")
         settings = deploy_cfg.get("_perception_settings")
         if screen is not None and settings is not None:
-            mode = deploy_cfg.get("dump_perception_mode", "auto")
-            result = detect_troop_bar(
-                screen, settings, mode=mode, region=[bx1, by1, deploy_cfg.get("_dump_bx2"), deploy_cfg.get("_dump_by2")])
-            centers = protected_centers(result)
-            if centers:
-                logger.info("[DUMP] protected slots via %s=%s", result.get("source"), centers)
-                return centers
+            # Use modular API to detect protected slots
+            protected = detect_protected_slots(screen, settings)
+            if protected:
+                logger.info("[DUMP] protected slots=%s", protected)
+                return protected
 
+        # Fallback: template-based detection (existing logic)
         prefixes = tuple(deploy_cfg.get("dump_skip_prefixes") or ("units/heroes/", "units/siege/"))
         threshold = float(deploy_cfg.get("dump_protected_threshold", 0.52))
         min_dist = int(deploy_cfg.get("dump_protected_min_distance", 46))
@@ -576,55 +576,46 @@ class BattleScreen(BaseScreen):
         return [h["x"] for h in selected]
 
     def dump_remaining(self, deploy_cfg, drop_points=None, max_rounds=None, taps_per_slot=None):
-        """Deploy EVERYTHING still on the troop bar — including event/temporary
-        troops that were never trained or planned, so they have NO template.
+        """Deploy leftover troops using modular detection API.
 
-        Rather than matching known icons, sweep the bar by SLOT POSITION: split
-        the bar into fixed-pitch tiles and treat a tile that is still in COLOUR
-        (high mean saturation) as an available troop — a used-up slot greys out.
-        For each occupied slot, select it and spam-drop along the front; re-scan
-        each round and stop when no slot is colourful (bar done) or the battle
-        ends. The
-        Return Home button is re-checked before every drop, so once the fight is
-        over (bar gone) we never tap the loot/result screen. Returns True if it
-        dropped anything."""
-        screen0 = self.ui_manager.get_screen()
-        if self._battle_ended(screen0):
+        CoC mechanics for event troops:
+          1. Tap troop icon on bar → ALL count of that troop selected
+          2. Tap battlefield ONCE → deploys entire count at that location
+          3. Re-scan bar after each dump round to find remaining troops
+
+        Uses `event_troop_detector.detect_available_troops()` for detection.
+        Falls back to color-fraction scan if no YOLO/template match.
+
+        Args:
+            deploy_cfg: dict with dump settings (dump_sat_min, dump_val_min, dump_color_frac, etc.)
+            drop_points: list of (x, y) coordinates to drop troops onto
+            max_rounds: max dump iterations (default: 6)
+            taps_per_slot: IGNORED — CoC deploys all selected troops in 1 tap
+
+        Returns:
+            True if any troops were dumped.
+        """
+        screen = self.ui_manager.get_screen()
+        if self._battle_ended(screen):
             logger.info("[DUMP] battle ended / no bar - skipping.")
             return False
-        h0, w0 = screen0.shape[:2]
-        bx1, by1, bx2, by2 = [int(v) for v in deploy_cfg.get("troop_bar_region", [200, 855, 1400, 910])]
-        bx1 = max(0, min(w0 - 1, bx1)); bx2 = max(1, min(w0, bx2))
-        by1 = max(0, min(h0 - 1, by1)); by2 = max(1, min(h0, by2))
-        if bx2 <= bx1 or by2 <= by1:
-            logger.warning("[DUMP] troop_bar_region invalid - skipping.")
-            return False
-        bar_cy = (by1 + by2) // 2
-        pitch = max(8, int(deploy_cfg.get("bar_slot_pitch", 95)))
-        n_slots = max(1, int(math.ceil((bx2 - bx1) / pitch)))
-        max_rounds = max(1, int(max_rounds if max_rounds is not None else deploy_cfg.get("dump_max_rounds", 6)))
-        taps_per_slot = max(1, int(taps_per_slot if taps_per_slot is not None else deploy_cfg.get("dump_taps_per_slot", 12)))
 
+        # Build settings dict for detection API
+        settings = {
+            "attack": {"deploy": deploy_cfg},
+            "perception": {"troop_bar": deploy_cfg},
+        }
+        bar_region = deploy_cfg.get("troop_bar_region", [200, 855, 1400, 910])
+
+        # Detection params
+        max_rounds = max(1, int(max_rounds if max_rounds is not None else deploy_cfg.get("dump_max_rounds", 6)))
+        select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
+
+        # Use first drop point only — CoC deploys all selected troops in 1 battlefield tap
+        deploy_point = drop_points[0] if drop_points else None
         def_y = int(deploy_cfg.get("battlefield_y", 750))
         x1 = int(deploy_cfg.get("battlefield_x_start", 300))
         x2 = int(deploy_cfg.get("battlefield_x_end", 1300))
-        tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
-        select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
-        humanize = bool(deploy_cfg.get("humanize", True))
-        # Occupancy by COLOUR-FRACTION: how much of the tile body is non-grey
-        # (coloured) pixels. An available troop icon has lots of saturated pixels
-        # even when the icon is dark (e.g. a dark-blue super minion); a used (x0)
-        # slot or a spent/greyed hero is mostly grey -> few coloured pixels. This
-        # separates better than mean saturation/brightness, where a dark-but-
-        # colourful troop reads lower than a bright greyed hero. Tunable below.
-        # For event troops (Titan, etc.) with dark colors, lower sat_min helps.
-        sat_min = float(deploy_cfg.get("dump_sat_min", 55.0))   # px S>=this = coloured (lowered from 60 for dark troops)
-        val_min = float(deploy_cfg.get("dump_val_min", 45.0))   # ...and not near-black (lowered from 50)
-        # Measured fractions: real available troop body >=0.43; spent hero
-        # (pet+health) <=0.41; empty slot showing the map background ~0.21; a
-        # used-up troop <=0.15. Event troops like Titan can be darker (~0.35-0.40).
-        # Threshold 0.38 catches dark event troops while still skipping heroes.
-        frac_thr = float(deploy_cfg.get("dump_color_frac", 0.38))   # >=this fraction = occupied (lowered from 0.42)
 
         dumped = False
         for rnd in range(max_rounds):
@@ -634,84 +625,53 @@ class BattleScreen(BaseScreen):
             if self._battle_ended(screen):
                 logger.info("[DUMP] battle ended / no bar — stopping.")
                 break
-            deploy_cfg["_dump_screen"] = screen
-            deploy_cfg["_dump_bx2"] = bx2
-            deploy_cfg["_dump_by2"] = by2
-            hsv = cv2.cvtColor(screen, cv2.COLOR_BGR2HSV)
-            gray_bar = cv2.cvtColor(screen[by1:by2, bx1:bx2], cv2.COLOR_BGR2GRAY)
-            protected = self._protected_bar_centers(gray_bar, bx1, by1, deploy_cfg)
-            h, w = hsv.shape[:2]
 
-            slots = []
-            for i in range(n_slots):
-                tx1 = max(0, min(w, bx1 + i * pitch))
-                tx2 = max(0, min(w, tx1 + pitch))
-                ty1 = max(0, min(h, by1)); ty2 = max(0, min(h, by2))
-                tw_, th_ = tx2 - tx1, ty2 - ty1
-                if tw_ < 6 or th_ < 6:
-                    continue
-                # Sample only the lower-central BODY of the tile. The top strip
-                # holds the level badge and — for a spent hero — its HEALTH BAR
-                # (a bright green/red bar) which would otherwise add colour.
-                sx1 = tx1 + int(tw_ * 0.20); sx2 = tx2 - int(tw_ * 0.20)
-                sy1 = ty1 + int(th_ * 0.45); sy2 = ty2 - int(th_ * 0.05)
-                if sx2 - sx1 < 4 or sy2 - sy1 < 4:
-                    sx1, sy1, sx2, sy2 = tx1, ty1, tx2, ty2
-                body = hsv[sy1:sy2, sx1:sx2]
-                if body.size:
-                    coloured = (body[:, :, 1] >= sat_min) & (body[:, :, 2] >= val_min)
-                    slots.append({
-                        "i": i,
-                        "x": (tx1 + tx2) // 2,
-                        "frac": float(coloured.mean()),
-                    })
-            if not slots:
-                break
-            occupied = []
-            skipped = []
-            for s in slots:
-                if s["frac"] < frac_thr:
-                    continue
-                if any(abs(s["x"] - px) <= pitch * 0.55 for px in protected):
-                    skipped.append((s["i"], s["x"], s["frac"]))
-                    continue
-                occupied.append(s["x"])
-            logger.info("[DUMP] colour-fraction=%s thr=%.2f -> %d available, %d protected skip",
-                        [round(s["frac"], 2) for s in slots], frac_thr, len(occupied), len(skipped))
-            # Detailed per-slot log for calibration
-            for s in slots:
-                status = "OCCUPIED" if any(s["x"] == ox for ox in occupied) else ("SKIPPED" if any(s["x"] == sx for _, sx, _ in skipped) else "EMPTY")
-                logger.info("[DUMP] slot #%d x=%d frac=%.3f thr=%.2f -> %s", s["i"], s["x"], s["frac"], frac_thr, status)
-            if skipped:
-                logger.info("[DUMP] skipped protected slot(s)=%s", [
-                    f"#{i}@{x}:{frac:.2f}" for i, x, frac in skipped
-                ])
-            if not occupied:
-                logger.info("[DUMP] no coloured (available) units left — done.")
+            # Use modular detection API
+            available = detect_available_troops(screen, settings, region=bar_region)
+            if not available:
+                logger.info("[DUMP] no available troops detected — done.")
                 break
 
-            logger.info("[DUMP] round %d/%d: %d occupied slot(s) — dumping %d tap(s)/slot (incl. event troops).",
-                        rnd + 1, max_rounds, len(occupied), taps_per_slot)
-            for sx in occupied:
+            # Get protected slots (heroes/sieges to skip)
+            protected_x = detect_protected_slots(screen, settings, region=bar_region)
+            pitch = _get_slot_pitch(settings)
+
+            # Filter out protected slots
+            to_dump = [t for t in available if not any(abs(t["x"] - px) <= pitch * 0.55 for px in protected_x)]
+            if not to_dump:
+                logger.info("[DUMP] all detected troops are protected (heroes/sieges) — done.")
+                break
+
+            logger.info("[DUMP] round %d/%d: %d troop(s) to dump (source=%s)",
+                        rnd + 1, max_rounds, len(to_dump), available[0].get("source", "unknown"))
+            for t in to_dump:
+                logger.info("[DUMP]   slot #%d x=%d y=%d kind=%s name=%s frac=%.3f",
+                            t.get("slot_index", -1), t["x"], t["y"], t["kind"], t.get("name", "?"),
+                            t.get("color_fraction", 0))
+
+            # Dump each detected troop — 1 tap per troop (CoC deploys all count at once)
+            for troop in to_dump:
                 if self.ui_manager._stopped():
                     return dumped
                 if self._battle_ended(self.ui_manager.get_screen()):
                     logger.info("[DUMP] battle ended mid-dump — stopping.")
                     return dumped
-                self.ui_manager.click(sx, bar_cy)        # select whatever sits in this slot
+
+                # Select troop slot
+                self.ui_manager.click(troop["x"], troop["y"])
                 self.ui_manager._poll_sleep(select_delay)
-                # Drop onto the SAME spots the planned deploy used (already valid
-                # for this base) if we were given them; else fall back to a line
-                # across the front. A central default line can land on the base
-                # (red zone) and silently fail to deploy.
-                if drop_points:
-                    for k in range(taps_per_slot):
-                        px, py = drop_points[k % len(drop_points)]
-                        self.ui_manager.click(int(px), int(py))
-                        self.ui_manager._poll_sleep(self._drop_delay(tap_interval, humanize))
+
+                # Deploy: tap battlefield ONCE (CoC deploys all selected troops)
+                if deploy_point:
+                    self.ui_manager.click(int(deploy_point[0]), int(deploy_point[1]))
                 else:
-                    self._tap_line(x1, def_y, x2, def_y, taps_per_slot, tap_interval, humanize=humanize)
+                    # Tap midpoint of front line
+                    self.ui_manager.click((x1 + x2) // 2, def_y)
                 dumped = True
+                logger.info("[DUMP] deployed %s from slot #%d", troop.get("name", "?"), troop.get("slot_index", -1))
+
+                # Small pause between troop dumps
+                self.ui_manager._poll_sleep(0.3)
 
         if dumped:
             logger.info("[DUMP] leftover troops dumped.")
