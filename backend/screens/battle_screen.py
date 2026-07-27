@@ -612,18 +612,18 @@ class BattleScreen(BaseScreen):
 
         CoC mechanics:
           1. Tap troop icon → that troop type selected
-          2. Each battlefield tap → deploys 1 group (NOT all)
-          3. Multiple taps needed to deploy full stack (e.g., 40 Titans = ~8-10 taps)
-          4. Re-scan bar after each round to catch remaining troops
+          2. Each battlefield tap → deploys ~5 troops
+          3. OCR the remaining count on each slot → taps ≈ count / 5
+          4. Re-scan bar after each round
 
-        Uses `event_troop_detector.detect_available_troops()` for detection.
-        Falls back to color-fraction scan if no YOLO/template match.
+        Uses `event_troop_detector.detect_available_troops()` which OCRs
+        remaining count on each slot.
 
         Args:
             deploy_cfg: dict with dump settings
             drop_points: list of (x, y) coordinates to drop troops onto
             max_rounds: max dump iterations (default: 6)
-            taps_per_slot: taps per troop to deploy full stack (default: 8)
+            taps_per_slot: fallback when OCR fails (default: 8)
 
         Returns:
             True if any troops were dumped.
@@ -642,7 +642,7 @@ class BattleScreen(BaseScreen):
 
         # Detection params
         max_rounds = max(1, int(max_rounds if max_rounds is not None else deploy_cfg.get("dump_max_rounds", 6)))
-        taps_per_slot = max(1, int(taps_per_slot if taps_per_slot is not None else deploy_cfg.get("dump_taps_per_slot", 8)))
+        fallback_taps = max(1, int(taps_per_slot if taps_per_slot is not None else deploy_cfg.get("dump_taps_per_slot", 8)))
         def_y = int(deploy_cfg.get("battlefield_y", 750))
         x1 = int(deploy_cfg.get("battlefield_x_start", 300))
         x2 = int(deploy_cfg.get("battlefield_x_end", 1300))
@@ -659,8 +659,8 @@ class BattleScreen(BaseScreen):
                 logger.info("[DUMP] battle ended / no bar — stopping.")
                 break
 
-            # Use modular detection API
-            available = detect_available_troops(screen, settings, region=bar_region)
+            # Use modular detection API (with OCR counts)
+            available = detect_available_troops(screen, settings, region=bar_region, read_counts=True)
             if not available:
                 logger.info("[DUMP] no available troops detected — done.")
                 break
@@ -675,14 +675,14 @@ class BattleScreen(BaseScreen):
                 logger.info("[DUMP] all detected troops are protected (heroes/sieges) — done.")
                 break
 
-            logger.info("[DUMP] round %d/%d: %d troop(s) to dump (source=%s), %d taps/slot",
-                        rnd + 1, max_rounds, len(to_dump), available[0].get("source", "unknown"), taps_per_slot)
+            logger.info("[DUMP] round %d/%d: %d troop(s) to dump (source=%s)",
+                        rnd + 1, max_rounds, len(to_dump), available[0].get("source", "unknown"))
             for t in to_dump:
-                logger.info("[DUMP]   slot #%d x=%d y=%d kind=%s name=%s frac=%.3f",
-                            t.get("slot_index", -1), t["x"], t["y"], t["kind"], t.get("name", "?"),
-                            t.get("color_fraction", 0))
+                logger.info("[DUMP]   slot #%d x=%d y=%d name=%s frac=%.3f count=%s",
+                            t.get("slot_index", -1), t["x"], t["y"], t.get("name", "?"),
+                            t.get("color_fraction", 0), t.get("count", "?"))
 
-            # Dump each detected troop
+            # Dump each detected troop — use OCR count to determine taps
             for troop in to_dump:
                 if self.ui_manager._stopped():
                     return dumped
@@ -690,13 +690,29 @@ class BattleScreen(BaseScreen):
                     logger.info("[DUMP] battle ended mid-dump — stopping.")
                     return dumped
 
+                # Determine number of taps from OCR count
+                cnt = troop.get("count")
+                if cnt is not None and cnt > 0:
+                    # CoC: each tap deploys ~5 troops
+                    actual_taps = max(1, int(cnt / 4))
+                    logger.info("[DUMP] %s: OCR count=%d, taps=%d", troop.get("name", "?"), cnt, actual_taps)
+                else:
+                    actual_taps = fallback_taps
+                    logger.info("[DUMP] %s: no count, fallback taps=%d", troop.get("name", "?"), actual_taps)
+
                 # Select troop slot
                 self.ui_manager.click(troop["x"], troop["y"])
                 self.ui_manager._poll_sleep(select_delay)
 
-                # Deploy: multiple taps to deploy full stack
+                # Deploy
                 if drop_points:
-                    for k in range(taps_per_slot):
+                    for k in range(actual_taps):
+                        px, py = drop_points[k % len(drop_points)]
+                        self.ui_manager.click(int(px), int(py))
+                        self.ui_manager._poll_sleep(self._drop_delay(tap_interval, humanize))
+                else:
+                    self._tap_line(x1, def_y, x2, def_y, actual_taps, tap_interval, humanize=humanize)
+                dumped = True
                         px, py = drop_points[k % len(drop_points)]
                         self.ui_manager.click(int(px), int(py))
                         self.ui_manager._poll_sleep(self._drop_delay(tap_interval, humanize))
