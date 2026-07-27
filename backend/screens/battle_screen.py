@@ -211,7 +211,6 @@ class BattleScreen(BaseScreen):
             return False
 
         bar_crop = screen[by1:by2, bx1:bx2]
-        bar_gray = None
         tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
         # Pause after selecting a troop on the bar before dropping it. Charged
         # once per node, so it dominates wall-clock on scenarios with many nodes.
@@ -245,7 +244,8 @@ class BattleScreen(BaseScreen):
                         continue
                     slot = q.pop(0)
 
-                    if slot.get("strategy") == "delay" or slot.get("type") == "delay":
+                    # --- Control nodes ---
+                    if slot.get("type") == "delay" or slot.get("strategy") == "delay":
                         seconds = int(slot.get("seconds", 1))
                         logger.info(f"[DEPLOY] delay  {seconds}s")
                         self.ui_manager._poll_sleep(seconds)
@@ -254,8 +254,6 @@ class BattleScreen(BaseScreen):
 
                     if slot.get("type") == "surrender":
                         logger.info("[DEPLOY] surrender -> exit battle")
-                        # Just end the fight + confirm; the graph's Return Home
-                        # block handles getting back to the village.
                         self.surrender(return_home=False)
                         any_deployed = True
                         continue
@@ -293,33 +291,56 @@ class BattleScreen(BaseScreen):
                             target = f"({slot.get('x1','?')},{slot.get('y1','?')})→({slot.get('x2','?')},{slot.get('y2','?')})"
                         logger.info(f"[DEPLOY] {name:<22} ×{configured_taps}  bar=({slot_cx},{slot_cy}) [fixed]  → {target}")
                     else:
+                        # Re-capture bar for each node to get fresh state after previous deploys
+                        bar_crop = self.ui_manager.get_screen()[by1:by2, bx1:bx2]
+                        bar_gray = cv2.cvtColor(bar_crop, cv2.COLOR_BGR2GRAY) if bar_crop is not None else None
                         if bar_gray is None:
-                            bar_gray = cv2.cvtColor(bar_crop, cv2.COLOR_BGR2GRAY)
+                            logger.warning(f"[DEPLOY] {name}: cannot capture bar")
+                            continue
                         template = vision.cache.get(template_key)
                         if template is None:
-                            logger.warning(f"[DEPLOY] SKIP  {name}: template not in asset cache")
-                            continue
-
-                        default_threshold = 0.40 if "siege" in template_key else 0.50
-                        slot_threshold = float(slot.get("threshold", default_threshold))
-                        score, scaled, result_map = vision._find_best_scale(
-                            bar_gray, template, threshold=slot_threshold, scales=SLOT_ICON_SCALES,
-                        )
-                        if result_map is None or scaled is None:
-                            logger.warning(f"[DEPLOY] MISS  {name}: conf={score:.2f} < thr={slot_threshold:.2f} — skipped")
-                            continue
-
-                        _, _, _, max_loc = cv2.minMaxLoc(result_map)
-                        th, tw = scaled.shape[:2]
-                        slot_cx = int(max_loc[0] + tw // 2 + bx1)
-                        slot_cy = int(max_loc[1] + th // 2 + by1)
-                        strat = slot.get("strategy", "line")
-                        if strat == "points":
-                            pts = slot.get("points", [])
-                            target = f"pts×{len(pts)}"
+                            # Fallback: try to detect by position using event troop detector
+                            logger.info(f"[DEPLOY] {name}: template not in cache, trying position-based detection...")
+                            screen = self.ui_manager.get_screen()
+                            if screen is not None:
+                                settings = {"attack": {"deploy": deploy_cfg}, "perception": {"troop_bar": deploy_cfg}}
+                                bar_region = deploy_cfg.get("troop_bar_region", [200, 855, 1400, 910])
+                                available = detect_available_troops(screen, settings, region=bar_region)
+                                # Find closest slot by expected position (slot.get('x') or slot.get('bar_x'))
+                                expected_x = slot.get("x")
+                                if expected_x and available:
+                                    # Find closest detected troop to expected x
+                                    closest = min(available, key=lambda t: abs(t["x"] - expected_x))
+                                    slot_cx = closest["x"]
+                                    slot_cy = closest["y"]
+                                    logger.info(f"[DEPLOY] {name}: found at ({slot_cx},{slot_cy}) via event detection")
+                                else:
+                                    logger.warning(f"[DEPLOY] SKIP  {name}: cannot detect position")
+                                    continue
+                            else:
+                                logger.warning(f"[DEPLOY] SKIP  {name}: no screen available")
+                                continue
                         else:
-                            target = f"({slot.get('x1','?')},{slot.get('y1','?')})→({slot.get('x2','?')},{slot.get('y2','?')})"
-                        logger.info(f"[DEPLOY] {name:<22} ×{configured_taps}  bar=({slot_cx},{slot_cy}) conf={score:.2f}  → {target}")
+                            default_threshold = 0.40 if "siege" in template_key else 0.50
+                            slot_threshold = float(slot.get("threshold", default_threshold))
+                            score, scaled, result_map = vision._find_best_scale(
+                                bar_gray, template, threshold=slot_threshold, scales=SLOT_ICON_SCALES,
+                            )
+                            if result_map is None or scaled is None:
+                                logger.warning(f"[DEPLOY] MISS  {name}: conf={score:.2f} < thr={slot_threshold:.2f} — skipped")
+                                continue
+
+                            _, _, _, max_loc = cv2.minMaxLoc(result_map)
+                            th, tw = scaled.shape[:2]
+                            slot_cx = int(max_loc[0] + tw // 2 + bx1)
+                            slot_cy = int(max_loc[1] + th // 2 + by1)
+                            strat = slot.get("strategy", "line")
+                            if strat == "points":
+                                pts = slot.get("points", [])
+                                target = f"pts×{len(pts)}"
+                            else:
+                                target = f"({slot.get('x1','?')},{slot.get('y1','?')})→({slot.get('x2','?')},{slot.get('y2','?')})"
+                            logger.info(f"[DEPLOY] {name:<22} ×{configured_taps}  bar=({slot_cx},{slot_cy}) conf={score:.2f}  → {target}")
 
                     debug_clicks.append((template_key, slot_cx, slot_cy))
                     # Allow per-slot or global deploy_cfg override to use press-and-drag
