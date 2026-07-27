@@ -578,19 +578,20 @@ class BattleScreen(BaseScreen):
     def dump_remaining(self, deploy_cfg, drop_points=None, max_rounds=None, taps_per_slot=None):
         """Deploy leftover troops using modular detection API.
 
-        CoC mechanics for event troops:
-          1. Tap troop icon on bar → ALL count of that troop selected
-          2. Tap battlefield ONCE → deploys entire count at that location
-          3. Re-scan bar after each dump round to find remaining troops
+        CoC mechanics:
+          1. Tap troop icon → that troop type selected
+          2. Each battlefield tap → deploys 1 group (NOT all)
+          3. Multiple taps needed to deploy full stack (e.g., 40 Titans = ~8-10 taps)
+          4. Re-scan bar after each round to catch remaining troops
 
         Uses `event_troop_detector.detect_available_troops()` for detection.
         Falls back to color-fraction scan if no YOLO/template match.
 
         Args:
-            deploy_cfg: dict with dump settings (dump_sat_min, dump_val_min, dump_color_frac, etc.)
+            deploy_cfg: dict with dump settings
             drop_points: list of (x, y) coordinates to drop troops onto
             max_rounds: max dump iterations (default: 6)
-            taps_per_slot: IGNORED — CoC deploys all selected troops in 1 tap
+            taps_per_slot: taps per troop to deploy full stack (default: 8)
 
         Returns:
             True if any troops were dumped.
@@ -609,13 +610,13 @@ class BattleScreen(BaseScreen):
 
         # Detection params
         max_rounds = max(1, int(max_rounds if max_rounds is not None else deploy_cfg.get("dump_max_rounds", 6)))
-        select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
-
-        # Use first drop point only — CoC deploys all selected troops in 1 battlefield tap
-        deploy_point = drop_points[0] if drop_points else None
+        taps_per_slot = max(1, int(taps_per_slot if taps_per_slot is not None else deploy_cfg.get("dump_taps_per_slot", 8)))
         def_y = int(deploy_cfg.get("battlefield_y", 750))
         x1 = int(deploy_cfg.get("battlefield_x_start", 300))
         x2 = int(deploy_cfg.get("battlefield_x_end", 1300))
+        tap_interval = float(deploy_cfg.get("tap_interval", DEPLOY_TAP_INTERVAL))
+        select_delay = float(deploy_cfg.get("select_delay", DEPLOY_SELECT_DELAY))
+        humanize = bool(deploy_cfg.get("humanize", True))
 
         dumped = False
         for rnd in range(max_rounds):
@@ -642,14 +643,14 @@ class BattleScreen(BaseScreen):
                 logger.info("[DUMP] all detected troops are protected (heroes/sieges) — done.")
                 break
 
-            logger.info("[DUMP] round %d/%d: %d troop(s) to dump (source=%s)",
-                        rnd + 1, max_rounds, len(to_dump), available[0].get("source", "unknown"))
+            logger.info("[DUMP] round %d/%d: %d troop(s) to dump (source=%s), %d taps/slot",
+                        rnd + 1, max_rounds, len(to_dump), available[0].get("source", "unknown"), taps_per_slot)
             for t in to_dump:
                 logger.info("[DUMP]   slot #%d x=%d y=%d kind=%s name=%s frac=%.3f",
                             t.get("slot_index", -1), t["x"], t["y"], t["kind"], t.get("name", "?"),
                             t.get("color_fraction", 0))
 
-            # Dump each detected troop — 1 tap per troop (CoC deploys all count at once)
+            # Dump each detected troop
             for troop in to_dump:
                 if self.ui_manager._stopped():
                     return dumped
@@ -661,17 +662,19 @@ class BattleScreen(BaseScreen):
                 self.ui_manager.click(troop["x"], troop["y"])
                 self.ui_manager._poll_sleep(select_delay)
 
-                # Deploy: tap battlefield ONCE (CoC deploys all selected troops)
-                if deploy_point:
-                    self.ui_manager.click(int(deploy_point[0]), int(deploy_point[1]))
+                # Deploy: multiple taps to deploy full stack
+                if drop_points:
+                    for k in range(taps_per_slot):
+                        px, py = drop_points[k % len(drop_points)]
+                        self.ui_manager.click(int(px), int(py))
+                        self.ui_manager._poll_sleep(self._drop_delay(tap_interval, humanize))
                 else:
-                    # Tap midpoint of front line
-                    self.ui_manager.click((x1 + x2) // 2, def_y)
+                    self._tap_line(x1, def_y, x2, def_y, taps_per_slot, tap_interval, humanize=humanize)
                 dumped = True
-                logger.info("[DUMP] deployed %s from slot #%d", troop.get("name", "?"), troop.get("slot_index", -1))
+                logger.info("[DUMP] deployed %s (%d taps) from slot #%d", troop.get("name", "?"), taps_per_slot, troop.get("slot_index", -1))
 
-                # Small pause between troop dumps
-                self.ui_manager._poll_sleep(0.3)
+                # Pause between troop dumps
+                self.ui_manager._poll_sleep(0.5)
 
         if dumped:
             logger.info("[DUMP] leftover troops dumped.")
