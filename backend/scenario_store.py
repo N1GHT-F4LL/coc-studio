@@ -1,7 +1,7 @@
 """coc-studio scenario store (data/scenarios/).
 
 A *scenario* is the deploy-bar program consumed by
-``BattleScreen._slot_deploy`` — i.e. ``{name, variants:[{name,weight,nodes:[...]}]}``
+``TroopDeployer.deploy_slots`` — i.e. ``{name, variants:[{name,weight,nodes:[...]}]}``
 where each node is a deploy slot (hero/siege/troop/delay with template/taps/
 strategy/points/line). The ``deploy`` block + the scenario migrator use this.
 

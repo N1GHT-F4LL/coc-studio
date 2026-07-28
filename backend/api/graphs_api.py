@@ -27,7 +27,7 @@ def _path(name: str) -> str:
 
 
 @router.get("")
-def list_graphs():
+def list_graphs() -> dict:
     os.makedirs(app_paths.GRAPHS_DIR, exist_ok=True)
     names = [
         f[:-5] for f in os.listdir(app_paths.GRAPHS_DIR) if f.endswith(".json")
@@ -36,7 +36,7 @@ def list_graphs():
 
 
 @router.get("/{name}")
-def get_graph(name: str):
+def get_graph(name: str) -> dict:
     path = _path(name)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="graph not found")
@@ -45,7 +45,7 @@ def get_graph(name: str):
 
 
 @router.put("/{name}")
-def put_graph(name: str, graph: dict = Body(...)):
+def put_graph(name: str, graph: dict = Body(...)) -> dict:
     # Structural validation before persisting (unknown type / cycle / dangling ref).
     errors = Graph.from_dict(graph).validate()
     if errors:
@@ -58,7 +58,7 @@ def put_graph(name: str, graph: dict = Body(...)):
 
 
 @router.delete("/{name}")
-def delete_graph(name: str):
+def delete_graph(name: str) -> dict:
     path = _path(name)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="graph not found")

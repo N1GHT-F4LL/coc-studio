@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _start_run(ws: WebSocket, graph_dict):
+async def _start_run(ws: WebSocket, graph_dict) -> None:
     """Validate + begin a run, then drive it on a worker thread (publishing into
     the hub). Errors (bad graph / already running) go only to the requester."""
     errors = (
@@ -67,7 +67,7 @@ async def _start_run(ws: WebSocket, graph_dict):
 
 
 @router.websocket("/ws/run")
-async def run_ws(ws: WebSocket):
+async def run_ws(ws: WebSocket) -> None:
     import asyncio
 
     await ws.accept()

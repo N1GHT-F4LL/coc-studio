@@ -15,7 +15,7 @@ REQUIRED_GROUPS = ("device", "farm", "delays", "jitter")
 
 
 @router.get("/settings")
-def get_settings():
+def get_settings() -> dict:
     try:
         return load_settings()
     except FileNotFoundError:
@@ -25,7 +25,7 @@ def get_settings():
 
 
 @router.put("/settings")
-def put_settings(settings: dict = Body(...)):
+def put_settings(settings: dict = Body(...)) -> dict:
     missing = [g for g in REQUIRED_GROUPS if g not in settings]
     if missing:
         raise HTTPException(

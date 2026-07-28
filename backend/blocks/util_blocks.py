@@ -1,6 +1,6 @@
 """Utility blocks — logging, popup handling, game restart, run flags."""
 from engine.registry import BlockSpec, Param, Port, Kind, register
-from screens.home_screen import HomeScreen
+from screens import facade
 from device_manager import COC_PACKAGE
 
 
@@ -25,7 +25,7 @@ class ClosePopups(BlockSpec):
 
     def run(self, ctx, inputs):
         # BaseScreen.close_popups scans the known popup-close buttons.
-        HomeScreen(ctx.ui_manager).close_popups()
+        facade.home_screen(ctx.ui_manager).close_popups()
         return {}
 
 

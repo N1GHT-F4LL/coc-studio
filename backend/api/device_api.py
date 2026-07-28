@@ -41,12 +41,12 @@ MAX_FPS = 15
 
 
 @router.get("/api/device/status")
-def device_status():
+def device_status() -> dict:
     return manager.status()
 
 
 @router.get("/api/device/profiles")
-def device_profiles():
+def device_profiles() -> dict:
     """List selectable profiles + the one currently configured in settings."""
     cfg = load_settings().get("device", {})
     return {
@@ -57,7 +57,7 @@ def device_profiles():
 
 
 @router.post("/api/device/profile")
-def set_device_profile(body: dict = Body(...)):
+def set_device_profile(body: dict = Body(...)) -> dict:
     """Persist the chosen profile (+ optional custom endpoint) to settings.json.
 
     Takes effect on the next connect — the bootstrap reads device.profile.
@@ -76,32 +76,32 @@ def set_device_profile(body: dict = Body(...)):
 
 
 @router.post("/api/device/connect")
-async def device_connect():
+async def device_connect() -> dict:
     # Bootstrap may launch an emulator and block for seconds — offload it.
     ok, reason = await asyncio.to_thread(manager.connect, True)
     return {"ok": ok, "reason": reason, "status": manager.status()}
 
 
 @router.get("/api/device/scan")
-async def device_scan():
+async def device_scan() -> dict:
     devices = await asyncio.to_thread(manager.scan)
     return {"devices": devices, "status": manager.status()}
 
 
 @router.post("/api/device/launch")
-async def device_launch():
+async def device_launch() -> dict:
     res = await asyncio.to_thread(manager.launch_emulator)
     return res
 
 
 @router.post("/api/device/disconnect")
-def device_disconnect():
+def device_disconnect() -> dict:
     manager.disconnect()
     return {"ok": True, "status": manager.status()}
 
 
 @router.post("/api/device/serial")
-def device_set_serial(body: dict = Body(...)):
+def device_set_serial(body: dict = Body(...)) -> dict:
     serial = (body.get("serial") or "").strip()
     if not serial:
         raise HTTPException(status_code=400, detail="serial required")
@@ -110,7 +110,7 @@ def device_set_serial(body: dict = Body(...)):
 
 
 @router.websocket("/ws/device")
-async def device_stream(ws: WebSocket):
+async def device_stream(ws: WebSocket) -> None:
     await ws.accept()
 
     # Parse desired FPS from query (?fps=N), clamped.

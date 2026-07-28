@@ -166,7 +166,7 @@ COORDS_PATH = os.path.join(app_paths.DATA_DIR, "coord_cache.json")
 
 
 @router.get("/blocks")
-def get_blocks():
+def get_blocks() -> dict:
     return {"blocks": all_specs()}
 
 
@@ -193,7 +193,7 @@ class _EmitLogHandler(logging.Handler):
             pass  # never let logging break the run
 
 
-def setup_and_run(graph_dict, emit, stop_event, pause_event=None, stream_logs=False):
+def setup_and_run(graph_dict, emit, stop_event, pause_event=None, stream_logs=False) -> tuple[str, dict]:
     """Blocking: ensure device/OCR, build context, run graph. Returns (status, vars).
 
     ``emit`` receives every run-event (node/done + log when stream_logs). Shared by
@@ -252,7 +252,7 @@ def setup_and_run(graph_dict, emit, stop_event, pause_event=None, stream_logs=Fa
 
 
 @router.post("/run")
-async def run(body: dict = Body(...)):
+async def run(body: dict = Body(...)) -> dict:
     graph_dict = body.get("graph")
     if not isinstance(graph_dict, dict):
         raise HTTPException(status_code=400, detail="body must be {\"graph\": {...}}")
@@ -284,13 +284,13 @@ async def run(body: dict = Body(...)):
 
 
 @router.post("/run/stop")
-def run_stop():
+def run_stop() -> dict:
     return {"ok": controller.stop()}
 
 @router.post("/run/pause")
-def run_pause():
+def run_pause() -> dict:
     return {"ok": controller.pause()}
 
 @router.post("/run/resume")
-def run_resume():
+def run_resume() -> dict:
     return {"ok": controller.resume()}

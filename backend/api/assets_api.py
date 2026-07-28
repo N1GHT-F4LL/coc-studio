@@ -87,12 +87,12 @@ def _load_into_cache(path: str, folder: str, name: str) -> None:
 
 
 @router.get("/categories")
-def categories():
+def categories() -> dict:
     return {"categories": [{"label": k, "folder": v} for k, v in CAT_TO_FOLDER.items()]}
 
 
 @router.get("")
-def list_assets(cat: str = ""):
+def list_assets(cat: str = "") -> dict:
     """Asset keys (rel posix paths without .png). ``cat`` filters by folder prefix."""
     root = app_paths.ASSETS_DIR
     keys = []
@@ -109,7 +109,7 @@ def list_assets(cat: str = ""):
 
 
 @router.get("/thumb/{rel:path}")
-def thumb(rel: str):
+def thumb(rel: str) -> FileResponse:
     path = _rel_to_path(rel)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="asset not found")
@@ -117,7 +117,7 @@ def thumb(rel: str):
 
 
 @router.post("/crop")
-def save_crop(body: dict = Body(...)):
+def save_crop(body: dict = Body(...)) -> dict:
     """Capture the live screen, crop ``region``, save as ``<folder>/<name>.png``.
 
     body: { "region": [x1,y1,x2,y2], "folder": "units/troops", "name": "thrower" }
@@ -158,7 +158,7 @@ def save_crop(body: dict = Body(...)):
 
 
 @router.post("/move")
-def move_asset(body: dict = Body(...)):
+def move_asset(body: dict = Body(...)) -> dict:
     """Rename / re-categorise an asset: move ``src`` -> ``<folder>/<name>.png``.
 
     body: { "src": "units/troops/archer", "folder": "units/troops", "name": "archer2" }
@@ -190,7 +190,7 @@ def move_asset(body: dict = Body(...)):
 
 
 @router.get("/usage/{rel:path}")
-def asset_usage(rel: str):
+def asset_usage(rel: str) -> dict:
     """Where an asset key is referenced, so the UI can warn before rename/delete.
 
     Templates are stored as strings — either the full ``folder/name`` rel key or
@@ -243,7 +243,7 @@ def asset_usage(rel: str):
 
 
 @router.delete("/{rel:path}")
-def delete_asset(rel: str):
+def delete_asset(rel: str) -> dict:
     path = _rel_to_path(rel)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="asset not found")

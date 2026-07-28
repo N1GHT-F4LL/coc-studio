@@ -1,6 +1,6 @@
 """OCR primitives — read integers from a screen region via core.ocr."""
 from engine.registry import BlockSpec, Param, Port, Kind, register
-from screens.attack_screen import AttackScreen
+from screens import facade
 
 
 def _read(ctx, region, min_value=0, max_value=None):
@@ -39,7 +39,7 @@ class ReadLoot(BlockSpec):
         if screen is None:
             return {"gold": 0, "elixir": 0, "dark": 0}
         attack_cfg = ctx.settings.get("attack", {})
-        loot, _conf = AttackScreen(ctx.ui_manager, ctx.settings)._read_loot(screen, attack_cfg)
+        loot, _conf = facade.attack_screen(ctx.ui_manager, ctx.settings)._read_loot(screen, attack_cfg)
         return {"gold": loot["gold"], "elixir": loot["elixir"], "dark": loot["dark_elixir"]}
 
 

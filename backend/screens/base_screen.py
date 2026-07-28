@@ -30,6 +30,19 @@ class BaseScreen:
         if not closed_any:
             logger.debug("No popups detected")
 
+    def bail_via_exit_buttons(self, templates, timeout=5, log_tag=""):
+        """Best-effort recovery: tap whichever exit button is reachable, settle,
+        then close popups. Shared by AttackScreen._bail and BattleScreen.bail
+        (``log_tag`` keeps their historical log messages distinct)."""
+        loc = self._wait_until_any_appears(
+            templates, timeout=timeout, silent=True, use_orb_fallback=False,
+        )
+        if loc:
+            self.ui_manager.click(*loc)
+            logger.info(f"Return Home tapped ({log_tag}bail recovery).")
+            self.ui_manager._poll_sleep(3)
+        self.close_popups()
+
     def _existing_templates(self, candidates):
         existing = [name for name in candidates if name in vision.cache]
         return existing or list(candidates)

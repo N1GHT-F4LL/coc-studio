@@ -1,7 +1,7 @@
 """Migrate an old coc-tools scenario JSON into coc-studio.
 
 Old scenarios (``d:\\coc-tools\\coc_bot\\scenarios\\*.json``) are already in the
-deploy-bar node format that ``BattleScreen._slot_deploy`` consumes, so the
+deploy-bar node format that ``TroopDeployer.deploy_slots`` consumes, so the
 scenario itself is copied (normalized) into ``data/scenarios/<name>.json`` and a
 runnable block-graph ``data/graphs/<name>_farm.json`` is generated:
 

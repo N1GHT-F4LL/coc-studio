@@ -1,6 +1,6 @@
 """run_graph — the generic executor.
 
-Generalizes the proven loop in ``screens/battle_screen.py:_slot_deploy``
+Generalizes the proven loop in ``screens/deploy.py:TroopDeployer.deploy_slots``
 (completed/pending/ready, cycle-guarded), extended with:
 
   - **data edges**: a node's ``data_in`` ports are resolved from upstream

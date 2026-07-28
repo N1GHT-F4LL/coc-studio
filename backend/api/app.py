@@ -55,7 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(scenarios_router)
 
     @app.get("/api/health")
-    def health():
+    def health() -> dict:
         return {"ok": True, "service": "coc-studio"}
 
     # Serve the built SPA if present (production). Mounted last so /api and

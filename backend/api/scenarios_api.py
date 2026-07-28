@@ -1,6 +1,6 @@
 """REST CRUD for deploy scenarios (data/scenarios/).
 
-A scenario is the deploy-bar program consumed by ``BattleScreen._slot_deploy``
+A scenario is the deploy-bar program consumed by ``TroopDeployer.deploy_slots``
 — ``{name, variants:[{name,weight,nodes:[...]}]}`` where each node is a deploy
 slot (troop/spell/siege/hero/delay with template/taps/strategy/points/line).
 The ``deploy`` + ``ensure_troops`` blocks read these by name; this module lets
@@ -30,12 +30,12 @@ def _check_name(name: str) -> str:
 
 
 @router.get("")
-def list_scenarios():
+def list_scenarios() -> dict:
     return {"scenarios": scenario_store.list_scenarios()}
 
 
 @router.get("/{name}")
-def get_scenario(name: str):
+def get_scenario(name: str) -> dict:
     _check_name(name)
     try:
         return scenario_store.load_scenario(name)
@@ -44,7 +44,7 @@ def get_scenario(name: str):
 
 
 @router.get("/{name}/composition")
-def get_composition(name: str):
+def get_composition(name: str) -> dict:
     _check_name(name)
     try:
         doc = scenario_store.load_scenario(name)
@@ -54,7 +54,7 @@ def get_composition(name: str):
 
 
 @router.put("/{name}")
-def put_scenario(name: str, doc: dict = Body(...)):
+def put_scenario(name: str, doc: dict = Body(...)) -> dict:
     _check_name(name)
     if not isinstance(doc.get("variants"), list):
         raise HTTPException(status_code=400, detail="scenario must have a 'variants' list")
@@ -66,7 +66,7 @@ def put_scenario(name: str, doc: dict = Body(...)):
 
 
 @router.delete("/{name}")
-def delete_scenario(name: str):
+def delete_scenario(name: str) -> dict:
     _check_name(name)
     path = os.path.join(app_paths.SCENARIOS_DIR, f"{name}.json")
     if not os.path.isfile(path):

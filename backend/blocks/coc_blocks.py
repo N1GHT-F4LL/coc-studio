@@ -13,44 +13,10 @@ import time
 
 from engine.registry import BlockSpec, Param, Port, Kind, register
 from engine.composition import required_composition
-from core.vision import vision
-from screens.home_screen import HomeScreen
-from screens.attack_screen import AttackScreen
-from screens.battle_screen import BattleScreen
-from screens.train_screen import TrainScreen
+from screens import facade
+from screens.facade import dismiss_reconnect_popup
 from device_manager import save_settings, COC_PACKAGE
 import scenario_store
-
-# Reconnect popups CoC throws when the session is interrupted. Both leave the
-# village drawn behind a dim overlay, so screen detection would falsely succeed;
-# we must tap their reload button to get a live session back. ``reload_game`` =
-# "Anyone there? / disconnected due to inactivity" (RELOAD GAME); ``reload_connection``
-# = "Connection lost / Another device is connecting to this Village" (RELOAD).
-# The latter fires mid-cycle when more than one client reads the screen at once
-# (e.g. the browser DeviceView streaming while a run is in progress).
-_RECONNECT_BUTTONS = ("icons/status/reload_game", "icons/status/reload_connection")
-
-
-def dismiss_reconnect_popup(ui, logger=None, settle=8.0):
-    """Tap any visible reconnect popup's reload button. Returns True if it acted.
-
-    Safe to call anywhere a stale session might surface (startup or mid-cycle):
-    it's a no-op when no popup is present.
-    """
-    screen = ui.get_screen()
-    if screen is None:
-        return False
-    for key in _RECONNECT_BUTTONS:
-        if key not in vision.cache:
-            continue
-        loc = vision.find_template(screen, key, threshold=0.8, use_orb_fallback=False)
-        if loc:
-            if logger:
-                logger.warning("[reconnect] %s popup — tapping reload.", key.rsplit("/", 1)[-1])
-            ui.click(*loc)
-            ui._poll_sleep(settle)
-            return True
-    return False
 
 
 @register("ensure_home")
@@ -76,7 +42,7 @@ class EnsureHome(BlockSpec):
             ctx.vars["home"] = False
             return {"home": False}
 
-        home = HomeScreen(ui)
+        home = facade.home_screen(ui)
         zoom = bool(inputs.get("zoom_out", True))
 
         def settle():
@@ -199,7 +165,7 @@ class EnsureTroops(BlockSpec):
                     "[ensure_troops] %s share roster face %r — training can't tell "
                     "them apart; rename one.", keys, "units/roster/" + stem)
 
-        train = TrainScreen(ctx.ui_manager)
+        train = facade.train_screen(ctx.ui_manager)
         tap_delay = float(inputs.get("tap_delay", 0.2))
         threshold = float(inputs.get("threshold", 0.7))
         troops_only = bool(inputs.get("troops_only", False))
@@ -317,7 +283,7 @@ class CollectResources(BlockSpec):
     outputs = []
 
     def run(self, ctx, inputs):
-        HomeScreen(ctx.ui_manager).collect_resources()
+        facade.home_screen(ctx.ui_manager).collect_resources()
         return {}
 
 
@@ -360,7 +326,7 @@ class FindMatch(BlockSpec):
             "[find_match] loot thresholds gold>=%s elixir>=%s dark>=%s",
             farm.get("min_gold", 0), farm.get("min_elixir", 0), farm.get("min_dark_elixir", 0),
         )
-        found = AttackScreen(ctx.ui_manager, settings).find_match()
+        found = facade.attack_screen(ctx.ui_manager, settings).find_match()
         ctx.vars["match_found"] = bool(found)
         return {"found": bool(found)}
 
@@ -386,12 +352,12 @@ class Deploy(BlockSpec):
 
         scenario = (inputs.get("scenario") or "").strip()
         if not scenario:
-            deployed = AttackScreen(ctx.ui_manager, ctx.settings).deploy()
+            deployed = facade.attack_screen(ctx.ui_manager, ctx.settings).deploy()
             return {"deployed": bool(deployed)}
 
         # Scenario path: wait for battle, pick a variant, run the same deploy bar
-        # logic (BattleScreen.deploy_troops -> _slot_deploy) for parity.
-        battle = BattleScreen(ctx.ui_manager)
+        # logic (BattleScreen.deploy_troops -> TroopDeployer.deploy_slots) for parity.
+        battle = facade.battle_screen(ctx.ui_manager)
         if not battle.wait_until_entered(timeout=15):
             ctx.logger.warning("[deploy] battle screen not detected — bailing.")
             return {"deployed": False}
@@ -440,7 +406,7 @@ class ReturnHome(BlockSpec):
                 settings = {**ctx.settings, "attack": attack}
             except (TypeError, ValueError):
                 ctx.logger.warning("[return_home] ignoring non-numeric settle_delay=%r", v)
-        AttackScreen(ctx.ui_manager, settings).return_home()
+        facade.attack_screen(ctx.ui_manager, settings).return_home()
         return {}
 
 
@@ -452,5 +418,5 @@ class RequestClanTroops(BlockSpec):
     outputs = []
 
     def run(self, ctx, inputs):
-        AttackScreen(ctx.ui_manager, ctx.settings)._request_clan_troops()
+        facade.attack_screen(ctx.ui_manager, ctx.settings)._request_clan_troops()
         return {}
