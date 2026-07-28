@@ -19,6 +19,9 @@ interface Props {
   onPause: () => void;
   onResume: () => void;
   device: DeviceStatus | null;
+  /** Per-node timeout in seconds (null = unlimited). Saved in graph.meta. */
+  nodeTimeout: number | null;
+  onNodeTimeout: (seconds: number | null) => void;
 }
 
 // Maps the runner status to a bot-light dot class + label.
@@ -56,6 +59,8 @@ export function TopBar({
   onPause,
   onResume,
   device,
+  nodeTimeout,
+  onNodeTimeout,
 }: Props) {
   const bot = botLight(running, status);
   const devOn = !!device?.connected;
@@ -134,6 +139,28 @@ export function TopBar({
           <button onClick={onAutoLayout} title="Tidy node positions by control-flow order">
             ⤓ Auto-layout
           </button>
+
+          <label
+            className="timeout-label"
+            title="Per-node timeout (seconds). If a block runs longer than this, the run is aborted. Leave blank for no limit. Saved with the graph."
+          >
+            ⏱
+            <input
+              className="timeout-input"
+              type="number"
+              min={1}
+              step={1}
+              placeholder="∞"
+              value={nodeTimeout ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") { onNodeTimeout(null); return; }
+                const n = parseFloat(v);
+                if (Number.isFinite(n) && n > 0) onNodeTimeout(n);
+              }}
+            />
+            s
+          </label>
 
           <span className="toolbar-sep" />
 

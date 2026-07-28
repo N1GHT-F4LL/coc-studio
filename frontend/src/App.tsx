@@ -28,7 +28,7 @@ import type { BlockSpec, GraphDoc } from "./blocks/types";
 import { BlockNode, type BlockNodeData } from "./canvas/BlockNode";
 import { parseHandle } from "./canvas/handleId";
 import { kindColor } from "./canvas/kindColors";
-import { validateConnection } from "./canvas/validation";
+import { connectionError } from "./canvas/validation";
 import { fromGraphDoc, toGraphDoc, layoutGraphNodes } from "./graph/serialize";
 import { Palette } from "./panels/Palette";
 import { ParamPanel } from "./panels/ParamPanel";
@@ -58,6 +58,16 @@ export default function App() {
   const [scenarios, setScenarios] = useState<string[]>([]);
   const [device, setDevice] = useState<DeviceStatus | null>(null);
   const [mode, setMode] = useState<AppMode>("editor");
+  // Graph metadata round-tripped from disk (e.g. node_timeout). Loaded from
+  // fromGraphDoc, persisted via toGraphDoc so custom meta keys are not lost.
+  const [graphMeta, setGraphMeta] = useState<Record<string, unknown>>({});
+  const [connErrMsg, setConnErrMsg] = useState<string | null>(null);
+  const connErrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track the most recent rejection reason from isValidConnection so we can
+  // surface it when the user drops on an incompatible handle (onConnect is
+  // never called for rejected connections — only isValidConnection is).
+  const lastConnErrRef = useRef<string | null>(null);
+  const connectCompletedRef = useRef(false);
   // Graph handed back when we reattach to a run still in progress (set from the
   // WS snapshot); adopted into the canvas once blocks are loaded (effect below).
   const [attachDoc, setAttachDoc] = useState<GraphDoc | null>(null);
@@ -117,13 +127,14 @@ export default function App() {
   // loaded (fromGraphDoc needs the specs to resolve node types).
   useEffect(() => {
     if (!attachDoc || blocks.length === 0) return;
-    const { nodes: ns, edges: es } = fromGraphDoc(attachDoc, specByType);
+    const { nodes: ns, edges: es, meta } = fromGraphDoc(attachDoc, specByType);
     for (const n of ns) {
       const m = /_(\d+)$/.exec(n.id);
       if (m) idSeq.current = Math.max(idSeq.current, Number(m[1]) + 1);
     }
     setNodes(ns);
     setEdges(es);
+    setGraphMeta(meta);
     if (attachDoc.name) setGraphName(attachDoc.name);
     setSelectedId(null);
     setMode("editor"); // surface the running graph
@@ -167,12 +178,34 @@ export default function App() {
     [setNodes]
   );
 
+  const showConnErr = useCallback((msg: string) => {
+    setConnErrMsg(msg);
+    if (connErrTimer.current) clearTimeout(connErrTimer.current);
+    connErrTimer.current = setTimeout(() => setConnErrMsg(null), 4000);
+  }, []);
+
+  // isValidConnection is called by ReactFlow during handle hover to decide if a
+  // target is compatible. Rejected drops never reach onConnect, so we capture
+  // the rejection reason here and surface it in onConnectEnd if no valid
+  // connection was completed during that drag gesture.
+  const isValidConnection = useCallback((c: Connection) => {
+    const err = connectionError(c, edgesRef.current);
+    if (err) {
+      lastConnErrRef.current = err;
+      return false;
+    }
+    lastConnErrRef.current = null;
+    return true;
+  }, []);
+
+  const onConnectStart = useCallback(() => {
+    lastConnErrRef.current = null;
+    connectCompletedRef.current = false;
+  }, []);
+
   const onConnect = useCallback(
     (c: Connection) => {
-      if (!validateConnection(c, edgesRef.current)) {
-        setStatus("Invalid connection (type mismatch or would create a cycle).");
-        return;
-      }
+      connectCompletedRef.current = true;
       const src = parseHandle(c.sourceHandle);
       const color = src?.flow === "data" ? kindColor(src.kind) : "#444b54";
       setEdges((es) =>
@@ -190,10 +223,13 @@ export default function App() {
     [setEdges]
   );
 
-  const isValidConnection = useCallback(
-    (c: Connection) => validateConnection(c, edgesRef.current),
-    []
-  );
+  // Called when a drag gesture ends (drop or cancel). If the drag did not
+  // produce a valid connection and we captured a rejection reason, show it.
+  const onConnectEnd = useCallback(() => {
+    if (!connectCompletedRef.current && lastConnErrRef.current) {
+      showConnErr(lastConnErrRef.current);
+    }
+  }, [showConnErr]);
 
   const onSelectionChange = useCallback(
     ({ nodes: sel }: { nodes: Node[] }) => setSelectedId(sel[0]?.id ?? null),
@@ -236,20 +272,20 @@ export default function App() {
       return;
     }
     try {
-      await saveGraph(name, toGraphDoc(name, nodes, edges));
+      await saveGraph(name, toGraphDoc(name, nodes, edges, graphMeta));
       setStatus(`Saved "${name}".`);
       refreshGraphs();
     } catch (e) {
       setStatus(`Save failed: ${(e as Error).message}`);
     }
-  }, [graphName, nodes, edges]);
+  }, [graphName, nodes, edges, graphMeta]);
 
   const doLoad = useCallback(
     async (name: string) => {
       if (!name) return;
       try {
         const doc = await loadGraph(name);
-        const { nodes: ns, edges: es } = fromGraphDoc(doc, specByType);
+        const { nodes: ns, edges: es, meta } = fromGraphDoc(doc, specByType);
         // Keep id sequence ahead of loaded ids to avoid collisions.
         for (const n of ns) {
           const m = /_(\d+)$/.exec(n.id);
@@ -257,6 +293,7 @@ export default function App() {
         }
         setNodes(ns);
         setEdges(es);
+        setGraphMeta(meta);
         setGraphName(doc.name || name);
         setSelectedId(null);
         setStatus(`Loaded "${name}" (${ns.length} nodes).`);
@@ -273,10 +310,10 @@ export default function App() {
       return;
     }
     setStatus("");
-    runner.start(toGraphDoc(graphName.trim() || "untitled", nodes, edges));
+    runner.start(toGraphDoc(graphName.trim() || "untitled", nodes, edges, graphMeta));
     // Run connects the device itself; refresh the light shortly after.
     setTimeout(refreshDevice, 2000);
-  }, [nodes, edges, graphName, runner, refreshDevice]);
+  }, [nodes, edges, graphName, graphMeta, runner, refreshDevice]);
 
   const onAutoLayout = useCallback(() => {
     setNodes((ns) => layoutGraphNodes(ns, edgesRef.current));
@@ -286,6 +323,7 @@ export default function App() {
     setNodes([]);
     setEdges([]);
     setSelectedId(null);
+    setGraphMeta({});
     setStatus("New graph.");
   }, [setNodes, setEdges]);
 
@@ -324,6 +362,19 @@ export default function App() {
         onPause={runner.pause}
         onResume={runner.resume}
         device={device}
+        nodeTimeout={
+          typeof graphMeta.node_timeout === "number" && graphMeta.node_timeout > 0
+            ? graphMeta.node_timeout
+            : null
+        }
+        onNodeTimeout={(s) =>
+          setGraphMeta((m) => {
+            const next = { ...m };
+            if (s === null) delete next.node_timeout;
+            else next.node_timeout = s;
+            return next;
+          })
+        }
       />
 
       <DeviceStreamProvider
@@ -349,6 +400,11 @@ export default function App() {
         <Palette blocks={blocks} onAdd={addBlock} />
         <div className="center">
           <div className="canvas">
+            {connErrMsg && (
+              <div className="connection-toast" role="alert">
+                ⚠ {connErrMsg}
+              </div>
+            )}
             <RunStateContext.Provider value={runner.runState}>
               {/* Own provider so this flow's store is isolated from the scenario
                   editor's ReactFlow (both stay mounted across tabs; a shared
@@ -362,6 +418,8 @@ export default function App() {
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
                   onConnect={onConnect}
+                  onConnectStart={onConnectStart}
+                  onConnectEnd={onConnectEnd}
                   isValidConnection={isValidConnection}
                   onSelectionChange={onSelectionChange}
                   onInit={(inst) => (rfRef.current = inst)}

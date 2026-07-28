@@ -52,7 +52,12 @@ function BlockNodeImpl({ id, data, selected }: NodeProps<BlockNodeData>) {
       {/* control flow in (left) — the graph flows left-to-right */}
       <Handle id={CTL_IN} type="target" position={Position.Left} className="ctl-handle" />
 
-      <div className="block-title">{label || spec.label}</div>
+      <div className="block-title">
+        {label || spec.label}
+        {spec.description && (
+          <span className="block-info" title={spec.description}>ⓘ</span>
+        )}
+      </div>
       <div className="block-type">{spec.type}</div>
 
       {/* data input/output handle dots; the field name lives in the callout. */}

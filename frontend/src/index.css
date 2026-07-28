@@ -256,6 +256,19 @@ button.stop { border-color: #d4356b; }
   margin: 0 0 12px;
 }
 .param-meta { font-size: 12px; margin-bottom: 12px; line-height: 1.6; }
+/* Timeout label in the top bar editor strip */
+.timeout-label {
+  display: inline-flex; align-items: center; gap: 3px;
+  color: var(--muted); font-size: 13px; cursor: default;
+  flex: 0 0 auto; white-space: nowrap;
+}
+.timeout-input {
+  width: 48px; padding: 4px 6px; text-align: right;
+  -moz-appearance: textfield;
+}
+.timeout-input::-webkit-outer-spin-button,
+.timeout-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
 button.danger { width: 100%; margin-top: 12px; border-color: #d4356b; }
 button.danger:hover { background: #3a2530; }
 
@@ -274,8 +287,14 @@ button.danger:hover { background: #3a2530; }
 .block-node.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .block-node.run-running { border-color: #2b7de0; box-shadow: 0 0 0 2px #2b7de0, 0 0 14px #2b7de0aa; }
 .block-node.run-done { border-color: #1fa37a; box-shadow: 0 0 0 1px #1fa37a; }
-.block-node.run-error { border-color: #d4356b; box-shadow: 0 0 0 2px #d4356b; }
-.block-node.run-skipped { opacity: 0.45; border-style: dashed; }
+.block-node.run-error {
+  border-color: #d4356b;
+  box-shadow: 0 0 0 2px #d4356b, 0 0 10px #d4356b66;
+  background: #2a1f24;
+}
+.block-node.run-error .block-title::after { content: " ✕"; color: #d4356b; font-size: 10px; font-weight: 400; }
+.block-node.run-skipped { opacity: 0.4; border-style: dashed; filter: grayscale(40%); }
+.block-node.run-skipped .block-title { text-decoration: line-through; text-decoration-color: var(--muted); }
 .branch-label {
   position: absolute;
   bottom: -4px;
@@ -328,8 +347,40 @@ button.danger:hover { background: #3a2530; }
 .callout-box.callout-right { transform: translate(0, -50%); }
 .callout-name { font-weight: 600; letter-spacing: 0.2px; }
 .callout-kind { color: var(--muted); font-size: 10px; }
-.block-title { font-weight: 600; }
+.block-title { font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px; }
 .block-type { font-size: 11px; color: var(--muted); }
+/* Inline ⓘ icon on the node card that shows the block description on hover. */
+.block-info {
+  font-size: 10px;
+  color: var(--muted);
+  cursor: help;
+  font-weight: 400;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.block-info:hover { color: var(--accent); }
+/* Connection error toast — overlaid at the bottom of the canvas. */
+.connection-toast {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  background: #2a1f24;
+  border: 1px solid #d4356b;
+  color: #ff7fa6;
+  border-radius: 8px;
+  padding: 7px 18px;
+  font-size: 13px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  animation: toast-in 0.15s ease;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
 .ctl-handle { width: 10px; height: 10px; background: #444b54; border: 1px solid #6b7280; }
 .react-flow__handle { width: 9px; height: 9px; }
 

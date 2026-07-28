@@ -6,7 +6,14 @@ import { parseHandle, CTL_IN, CTL_OUT, ctlOutBranch, dataHandleId } from "../can
 type RFNode = Node<BlockNodeData>;
 
 // React Flow graph -> backend GraphDoc.
-export function toGraphDoc(name: string, nodes: RFNode[], edges: Edge[]): GraphDoc {
+// `meta` is merged into the output so callers can round-trip arbitrary graph
+// metadata (e.g. node_timeout) without clobbering unknown keys.
+export function toGraphDoc(
+  name: string,
+  nodes: RFNode[],
+  edges: Edge[],
+  meta: Record<string, unknown> = {}
+): GraphDoc {
   const out: Record<string, GraphNode> = {};
   for (const n of nodes) {
     out[n.id] = {
@@ -33,14 +40,15 @@ export function toGraphDoc(name: string, nodes: RFNode[], edges: Edge[]): GraphD
       tgt.data_in[dst.port] = { from: e.source, port: src.port };
     }
   }
-  return { name, nodes: Object.values(out), meta: {} };
+  return { name, nodes: Object.values(out), meta };
 }
 
 // backend GraphDoc -> React Flow graph (needs the block specs to rebuild handles).
+// Returns meta alongside nodes/edges so callers can preserve it on save.
 export function fromGraphDoc(
   doc: GraphDoc,
   specByType: Map<string, BlockSpec>
-): { nodes: RFNode[]; edges: Edge[] } {
+): { nodes: RFNode[]; edges: Edge[]; meta: Record<string, unknown> } {
   const nodes: RFNode[] = [];
   const edges: Edge[] = [];
   for (const gn of doc.nodes) {
@@ -77,7 +85,7 @@ export function fromGraphDoc(
       });
     }
   }
-  return { nodes, edges };
+  return { nodes, edges, meta: doc.meta ?? {} };
 }
 
 // Auto-layout the block graph horizontally (suits a 16:9 screen): every runtime

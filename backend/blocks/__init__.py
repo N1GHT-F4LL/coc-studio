@@ -50,10 +50,15 @@ DESCRIPTIONS = {
     # Logic
     "const_number": "A constant number, used as a data-edge source — e.g. a loot threshold to compare against.",
     "const_bool": "A constant true/false, used as a data-edge source.",
+    "const_text": "A constant text string output. Pipe it into any block that expects a Text data port — template keys, variable names, log messages, etc.",
+    "const_coord": "A fixed (x, y) screen coordinate output. Useful for hard-coding tap targets without a template scan — connect 'coord' into a Tap block.",
     "compare": "Compare: a (op) b → Bool. E.g. connect loot.gold into a, op='>=', b=500000. Connect 'result' into if.cond.",
     "logic_and": "AND two Bools → true when both are true.",
     "logic_or": "OR two Bools → true when at least one is true.",
     "logic_not": "NOT a Bool (invert true/false).",
+    "log_message": "Emit a message to the run console at the chosen level (debug/info/warning/error). Connect a Text data port into 'message' to log a dynamic value, or type it directly.",
+    "set_var": "Write a value into the run's variable store (ctx.vars) by name. Other blocks — Get Variable, Loop Until Var — can read it. Tip: set name='done', value='true' inside a sub-graph to break out of a loop_until.",
+    "get_var": "Read a named variable from the run store and output it as Text plus an 'exists' Bool. If the variable is not set, value='' and exists=false.",
     # Util
     "log": "Write one 'message' line to the Run console — for debugging a graph.",
     "close_popups": "Scan for and close any open popups (Close/OK buttons).",

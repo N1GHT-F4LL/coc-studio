@@ -31,20 +31,41 @@ function reaches(start: string, target: string, adj: Map<string, string[]>): boo
   return false;
 }
 
-export function validateConnection(c: Connection, edges: Edge[]): boolean {
-  if (!c.source || !c.target || c.source === c.target) return false;
+/**
+ * Returns a human-readable error message if the connection is invalid,
+ * or null if it is valid.
+ */
+export function connectionError(c: Connection, edges: Edge[]): string | null {
+  if (!c.source || !c.target) return "Incomplete connection.";
+  if (c.source === c.target) return "Cannot connect a node to itself.";
+
   const src = parseHandle(c.sourceHandle);
   const dst = parseHandle(c.targetHandle);
-  if (!src || !dst) return false;
-  if (src.dir !== "out" || dst.dir !== "in") return false;
-  if (src.flow !== dst.flow) return false;
 
-  if (src.flow === "data") {
-    return src.kind === (dst.flow === "data" ? dst.kind : src.kind);
+  if (!src || !dst) return "Unknown handle type.";
+  if (src.dir !== "out") return "Drag from an output (right-side) handle.";
+  if (dst.dir !== "in") return "Drop onto an input (left-side) handle.";
+
+  if (src.flow !== dst.flow) {
+    return `Cannot mix ${src.flow} and ${dst.flow} handles — connect control→control or data→data.`;
   }
 
-  // control: adding source->target must not close a cycle, i.e. target must not
-  // already reach source.
-  const adj = controlAdjacency(edges);
-  return !reaches(c.target, c.source, adj);
+  if (src.flow === "data" && dst.flow === "data") {
+    if (src.kind !== dst.kind) {
+      return `Type mismatch: ${src.kind} → ${dst.kind}. Both ends must have the same port type.`;
+    }
+  }
+
+  if (src.flow === "control") {
+    const adj = controlAdjacency(edges);
+    if (reaches(c.target, c.source, adj)) {
+      return "This connection would create a cycle. Graphs must be acyclic (use loop blocks for repetition).";
+    }
+  }
+
+  return null;
+}
+
+export function validateConnection(c: Connection, edges: Edge[]): boolean {
+  return connectionError(c, edges) === null;
 }
