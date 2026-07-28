@@ -1,10 +1,10 @@
 """Troop deployer — troop-bar slot matching, drop strategies, leftover dump.
 
-Extracted from ``BattleScreen``: the battle screen owns the battle lifecycle
-(enter / wait-end / surrender / bail), while this module owns the deploy phase
-— finding unit icons on the troop bar and dropping them onto the field per
-the scenario config. ``BattleScreen`` keeps thin delegates so existing call
-sites (``deploy_troops`` / ``dump_remaining``) are unchanged.
+Extracted verbatim from ``BattleScreen``: the battle screen owns the battle
+lifecycle (enter / wait-end / surrender / bail), while this module owns the
+deploy phase — finding unit icons on the troop bar and dropping them onto the
+field per the scenario config. ``BattleScreen`` keeps thin delegates so
+existing call sites (``deploy_troops`` / ``dump_remaining``) are unchanged.
 """
 import logging
 import math
@@ -20,10 +20,10 @@ from core.vision import vision
 logger = logging.getLogger(__name__)
 
 DEPLOY_TAP_INTERVAL = 0.15   # delay between successive drop taps of one unit
+
 DEPLOY_SELECT_DELAY = 0.3    # pause after tapping a unit on the bar, before dropping
 
 SLOT_ICON_SCALES = (0.50, 0.60, 0.70, 0.80, 0.90, 1.00, 1.10, 1.20)
-
 
 def _draw_clicks(img, click_positions, colors, ox, oy, scale):
     for i, (key, cx, cy) in enumerate(click_positions or []):
@@ -34,13 +34,12 @@ def _draw_clicks(img, click_positions, colors, ox, oy, scale):
         cv2.putText(img, label, (px + 22, py + 6),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
 
-
 class TroopDeployer:
     """Deploys troops from the bar onto the battlefield.
 
-    ``surrender_fn`` is the battle screen's surrender coroutine, injected so
-    the scenario ``surrender`` node can end the fight without this module
-    importing the battle screen (dependency stays one-way: battle -> deploy).
+    ``surrender_fn`` is the battle screen's surrender method, injected so the
+    scenario ``surrender`` node can end the fight without this module importing
+    the battle screen (dependency stays one-way: battle -> deploy).
     """
 
     def __init__(self, ui_manager, surrender_fn=None):
@@ -301,7 +300,7 @@ class TroopDeployer:
         """True once the deploy phase is over (Return Home shown / no screen)."""
         if screen is None:
             return True
-        rh = "buttons/battle/btn_return_home"
+        rh = RETURN_HOME_TEMPLATES[0]
         return rh in vision.cache and bool(
             vision.find_template(screen, rh, threshold=0.7, use_orb_fallback=False)
         )
@@ -420,3 +419,4 @@ class TroopDeployer:
         if dumped:
             logger.info("[DUMP] leftover troops dumped.")
         return dumped
+

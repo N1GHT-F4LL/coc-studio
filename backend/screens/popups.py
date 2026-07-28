@@ -9,19 +9,15 @@ connecting to this Village" (RELOAD). The latter fires mid-cycle when more
 than one client reads the screen at once (e.g. the browser DeviceView
 streaming while a run is in progress).
 
-Moved here from ``blocks/coc_blocks.py`` so the blocks layer consumes it via
-``screens.facade`` instead of owning screen-recovery logic itself.
+Moved verbatim out of ``blocks/coc_blocks.py`` so the blocks layer consumes
+it via ``screens.facade`` instead of owning screen-recovery logic itself.
 """
-import logging
-
 from core.vision import vision
 
-logger = logging.getLogger(__name__)
-
-RECONNECT_BUTTONS = ("icons/status/reload_game", "icons/status/reload_connection")
+_RECONNECT_BUTTONS = ("icons/status/reload_game", "icons/status/reload_connection")
 
 
-def dismiss_reconnect_popup(ui, log=None, settle=8.0):
+def dismiss_reconnect_popup(ui, logger=None, settle=8.0):
     """Tap any visible reconnect popup's reload button. Returns True if it acted.
 
     Safe to call anywhere a stale session might surface (startup or mid-cycle):
@@ -30,12 +26,13 @@ def dismiss_reconnect_popup(ui, log=None, settle=8.0):
     screen = ui.get_screen()
     if screen is None:
         return False
-    for key in RECONNECT_BUTTONS:
+    for key in _RECONNECT_BUTTONS:
         if key not in vision.cache:
             continue
         loc = vision.find_template(screen, key, threshold=0.8, use_orb_fallback=False)
         if loc:
-            (log or logger).warning("[reconnect] %s popup — tapping reload.", key.rsplit("/", 1)[-1])
+            if logger:
+                logger.warning("[reconnect] %s popup — tapping reload.", key.rsplit("/", 1)[-1])
             ui.click(*loc)
             ui._poll_sleep(settle)
             return True

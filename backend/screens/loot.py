@@ -1,9 +1,9 @@
 """Loot reading — resource-icon detection and OCR of enemy loot numbers.
 
-Extracted from ``AttackScreen`` (formerly ``attack_screen.py`` hosted both
-match-navigation and all loot-reading internals). This module is pure
-screen-in/values-out: it never touches the device, so it can be tested and
-tuned independently of the attack flow.
+Extracted verbatim from ``AttackScreen`` (``attack_screen.py`` previously
+hosted both match-navigation and all loot-reading internals). This module is
+pure screen-in/values-out: it never touches the device, so it can be tested
+and tuned independently of the attack flow.
 """
 import logging
 import os
@@ -21,6 +21,7 @@ LOOT_BOUNDS = {
     "elixir": (0, 3000000),
     "dark_elixir": (0, 50000),
 }
+
 LOOT_ICON_CANDIDATE_TEMPLATES = {
     "gold": (
         "icons/resources/icon_gold",
@@ -38,8 +39,8 @@ LOOT_ICON_CANDIDATE_TEMPLATES = {
         "buildings/storages/icon_de",
     ),
 }
-LOOT_ICON_SCALES = (0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.75, 1.00)
 
+LOOT_ICON_SCALES = (0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.75, 1.00)
 
 class LootReader:
     """Reads (gold, elixir, dark_elixir) + confidences from a scout screen."""
@@ -347,14 +348,14 @@ class LootReader:
                 x1, y1, x2, y2 = [int(v) for v in region]
                 thickness = 3 if selected_region and tuple(region) == tuple(selected_region) else 1
                 cv2.rectangle(canvas, (x1, y1), (x2, y2), color, thickness)
-
+                
                 # Determine region type (ICON or FALLBACK)
                 region_type = "?"
                 if icon_region and tuple(region) == tuple(icon_region):
                     region_type = "ICON"
                 elif fallback_region and tuple(region) == tuple(fallback_region):
                     region_type = "FALLBACK"
-
+                
                 label = f"{key} {region_type}: {meta['value']} c={meta['conf']:.2f}"
                 cv2.putText(
                     canvas,
@@ -406,3 +407,4 @@ class LootReader:
         if x2 <= x1 or y2 <= y1:
             return None
         return [int(x1), int(y1), int(x2), int(y2)]
+
