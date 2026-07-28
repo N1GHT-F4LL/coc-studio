@@ -25,6 +25,10 @@ DEPLOY_SELECT_DELAY = 0.3    # pause after tapping a unit on the bar, before dro
 
 SLOT_ICON_SCALES = (0.50, 0.60, 0.70, 0.80, 0.90, 1.00, 1.10, 1.20)
 
+# Mirror of battle_screen.RETURN_HOME_TEMPLATES[0] — kept local so this module
+# never imports the battle screen (dependency stays one-way: battle -> deploy).
+RETURN_HOME_KEY = "buttons/battle/btn_return_home"
+
 def _draw_clicks(img, click_positions, colors, ox, oy, scale):
     for i, (key, cx, cy) in enumerate(click_positions or []):
         color = colors[i % len(colors)]
@@ -300,7 +304,7 @@ class TroopDeployer:
         """True once the deploy phase is over (Return Home shown / no screen)."""
         if screen is None:
             return True
-        rh = RETURN_HOME_TEMPLATES[0]
+        rh = RETURN_HOME_KEY
         return rh in vision.cache and bool(
             vision.find_template(screen, rh, threshold=0.7, use_orb_fallback=False)
         )
