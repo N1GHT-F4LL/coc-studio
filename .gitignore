@@ -35,3 +35,6 @@ Thumbs.db
 
 # Playwright MCP verification artifacts
 .playwright-mcp/
+
+# Popup-guard rolling debug screenshots (overwritten every scan)
+backend/data/popup_shots/
