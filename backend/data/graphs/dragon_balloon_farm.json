@@ -9,7 +9,7 @@
       "y": 300,
       "params": {
         "zoom_out": true,
-        "timeout": 10
+        "timeout": 45
       },
       "after": [],
       "data_in": {},
@@ -84,6 +84,19 @@
       "params": {},
       "after": [
         "deploy"
+      ],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "treasure",
+      "type": "treasure_event",
+      "label": "Treasure Event check",
+      "x": 1640,
+      "y": 300,
+      "params": {},
+      "after": [
+        "homeret"
       ],
       "data_in": {},
       "on_error": null

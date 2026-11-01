@@ -44,6 +44,9 @@ CAT_TO_FOLDER = {
     "Buttons / Popup": "buttons/popup",
     "Icons / Resources": "icons/resources",
     "Icons / Status": "icons/status",
+    # popup_guard system-popup templates live in their own folder (added
+    # post-M6 without a category — replace/save used to 400 "unknown folder")
+    "Popups": "popups",
 }
 
 

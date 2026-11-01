@@ -7,13 +7,18 @@ class HomeScreen(BaseScreen):
     def is_current_screen(self):
         """Strict two-anchor detection (§13.3): both must hit in one frame.
 
-        Attack! and Shop are on opposite corners — both visible only on the
+        Attack! and Build are on opposite corners — both visible only on the
         village screen. ORB fallback off to prevent false positives on the
         emulator launcher or in-game store.
+
+        2026-11-01: the treasure-event UI update removed the Shop cart from
+        its old spot (btn_shop scores ~0.37 on a real home frame now) — the
+        second anchor is the Build button (bottom-right corner, permanent UI,
+        template captured from a real home frame the same day).
         """
         anchors = [
             "buttons/home/btn_attack",
-            "buttons/home/btn_shop",
+            "buttons/home/btn_build",
         ]
         found = self.ui_manager.scan_all(anchors, use_orb_fallback=False)
         detected = len(found) == len(anchors)

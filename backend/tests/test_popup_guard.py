@@ -232,6 +232,140 @@ def test_treasure_event():
         popup_guard.time = real_time
 
 
+def test_treasure_chest_screen():
+    print("[5b] treasure chest screen: Skip anchor detect + bounded smash loop")
+    skip_tpl = cv2.imread(str(popup_guard.TREASURE_CHEST_SKIP_TPL), cv2.IMREAD_COLOR)
+    assert skip_tpl is not None, "treasure_chest_skip.png missing"
+    chest = make_frame()
+    x1, y1, x2, y2 = popup_guard.TREASURE_CHEST_SKIP_ROI
+    ch, cw = skip_tpl.shape[:2]
+    chest[y2 - ch:y2, x2 - cw:x2] = skip_tpl          # paste inside the ROI corner
+    shots = {"chest": write_frame(chest, Path(tempfile.gettempdir()) / "pg_chest.png"),
+             "home": write_frame(make_frame(), Path(tempfile.gettempdir()) / "pg_chesthome.png")}
+    real_ts, real_tap, real_time = (popup_guard.take_screenshot, popup_guard.tap,
+                                    popup_guard.time)
+    real_counter = popup_guard.read_chest_counter
+    taps = []
+    try:
+        popup_guard.tap = lambda x, y: taps.append((x, y))
+        ft = FakeTime()
+        popup_guard.time = ft
+        popup_guard.read_chest_counter = lambda img: None   # no OCR in unit tests
+        popup_guard.take_screenshot = lambda tag: shots["chest"]
+        check("chest frame -> visible (Skip anchor)",
+              popup_guard.treasure_chest_visible(cv2.imread(shots["chest"])))
+        check("plain frame -> not visible",
+              not popup_guard.treasure_chest_visible(cv2.imread(shots["home"])))
+        check("None frame -> not visible", not popup_guard.treasure_chest_visible(None))
+
+        # smash: 2 chest frames then a home frame -> two 4-tap chests + rewards
+        seq = {"i": 0}
+
+        def seq_shot(tag):
+            seq["i"] += 1
+            return shots["chest"] if seq["i"] <= 2 else shots["home"]
+
+        popup_guard.take_screenshot = seq_shot
+        with contextlib.redirect_stdout(io.StringIO()):
+            n = popup_guard.smash_treasure_chests()
+        one_chest = ([popup_guard.TREASURE_CHEST_TAP]
+                     * popup_guard.TREASURE_CHEST_TAPS_PER_CHEST
+                     + [popup_guard.TREASURE_CHEST_REWARD_TAP])
+        one_sleep = ([popup_guard.TREASURE_CHEST_TAP_PAUSE]
+                     * popup_guard.TREASURE_CHEST_TAPS_PER_CHEST
+                     + [popup_guard.TREASURE_CHEST_REWARD_SETTLE, 1.0])
+        check("smash: 4 rapid chest taps + Continue per chest, stops when gone",
+              taps == one_chest * 2, str(taps))
+        check("smash returns the delivered count", n == 10, str(n))
+        check("smash rhythm: rapid taps + settle + Continue",
+              ft.sleeps == one_sleep * 2, str(ft.sleeps))
+
+        # bound: chest frames forever -> stops at the chest budget
+        popup_guard.take_screenshot = lambda tag: shots["chest"]
+        taps.clear()
+        ft.sleeps.clear()
+        with contextlib.redirect_stdout(io.StringIO()):
+            n = popup_guard.smash_treasure_chests()
+        check("smash bounded by TREASURE_CHEST_MAX_SMASH budget",
+              n == (popup_guard.TREASURE_CHEST_MAX_SMASH
+                    // popup_guard.TREASURE_CHEST_TAPS_PER_CHEST
+                    * (popup_guard.TREASURE_CHEST_TAPS_PER_CHEST + 1))
+              and len(taps) == n, str(n))
+
+        # treasure_event prefers the chest-screen handler over the banner taps
+        seq["i"] = 0
+
+        def seq2_shot(tag):                     # treasure_event's shot + 1 smash
+            seq["i"] += 1
+            return shots["chest"] if seq["i"] <= 2 else shots["home"]
+
+        popup_guard.take_screenshot = seq2_shot
+        taps.clear()
+        ft.sleeps.clear()
+        with contextlib.redirect_stdout(io.StringIO()):
+            popup_guard.treasure_event()
+        check("treasure_event: chest screen -> smash, no banner taps",
+              taps == one_chest
+              and ft.sleeps == [0.2] + one_sleep, f"{taps} {ft.sleeps}")
+
+        # reward reveal entry (Skip + green Continue visible): the blind
+        # Continue tap at the fixed position ends the chest group
+        reward = make_frame()
+        reward[y2 - ch:y2, x2 - cw:x2] = skip_tpl
+        cont_tpl = cv2.imread(str(popup_guard.TREASURE_CHEST_CONTINUE_TPL),
+                              cv2.IMREAD_COLOR)
+        assert cont_tpl is not None, "treasure_chest_continue.png missing"
+        cch, ccw = cont_tpl.shape[:2]
+        # paste at the button's REAL on-screen position (702,783) so the
+        # measured centroid must equal TREASURE_CHEST_REWARD_TAP
+        reward[783:783 + cch, 702:702 + ccw] = cont_tpl
+        shots["reward"] = write_frame(reward,
+                                      Path(tempfile.gettempdir()) / "pg_chestreward.png")
+        seq["i"] = 0
+
+        def seq3_shot(tag):                     # 1 reward frame then home
+            seq["i"] += 1
+            return shots["reward"] if seq["i"] <= 1 else shots["home"]
+
+        popup_guard.take_screenshot = seq3_shot
+        taps.clear()
+        ft.sleeps.clear()
+        with contextlib.redirect_stdout(io.StringIO()):
+            n = popup_guard.smash_treasure_chests()
+        check("reward screen -> fixed Continue position tapped",
+              n == 5 and taps == one_chest
+              and taps[-1] == popup_guard.TREASURE_CHEST_REWARD_TAP, str(taps))
+        # measured: the fixed position IS the Continue centroid on real frames
+        popup_guard.take_screenshot = lambda tag: shots["reward"]
+        check("fixed Continue position matches the real button centroid",
+              popup_guard.treasure_continue_centroid(cv2.imread(shots["reward"]))
+              == tuple(popup_guard.TREASURE_CHEST_REWARD_TAP))
+
+        # counter read: target reached but chests remain -> anchor takes over
+        popup_guard.read_chest_counter = lambda img: 1
+        popup_guard.take_screenshot = lambda tag: shots["chest"]
+        taps.clear()
+        ft.sleeps.clear()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            n = popup_guard.smash_treasure_chests()
+        check("counter target logged",
+              "counter reads 1 chest(s) to smash." in buf.getvalue())
+        check("counted-out message", "all 1 counted chests smashed." in buf.getvalue())
+        check("counter exhausted -> anchor-based continue",
+              "counter exhausted but chests remain" in buf.getvalue())
+        check("smash continued to the budget after counted-out",
+              n == (popup_guard.TREASURE_CHEST_MAX_SMASH
+                    // popup_guard.TREASURE_CHEST_TAPS_PER_CHEST
+                    * (popup_guard.TREASURE_CHEST_TAPS_PER_CHEST + 1)),
+              str(n))
+    finally:
+        popup_guard.take_screenshot = real_ts
+        popup_guard.tap = real_tap
+        popup_guard.time = real_time
+        popup_guard.read_chest_counter = real_counter
+
+
 def test_config_not_hardcoded():
     print("[6] coordinates/ROI/thresholds live in module config, not function bodies")
     src_boot = inspect.getsource(popup_guard.boot_recovery)
@@ -471,6 +605,7 @@ if __name__ == "__main__":
     test_missing_template_continues()
     test_boot_recovery()
     test_treasure_event()
+    test_treasure_chest_screen()
     test_config_not_hardcoded()
     test_scale_sweep()
     test_star_bonus()

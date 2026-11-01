@@ -492,20 +492,20 @@
           "strategy": "points",
           "points": [
             [
-              800,
-              390
+              725,
+              315
             ],
             [
-              800,
-              510
+              1025,
+              315
             ],
             [
-              765,
-              450
+              1025,
+              535
             ],
             [
-              835,
-              450
+              725,
+              535
             ]
           ],
           "template": "units/spells/rage",
@@ -524,16 +524,16 @@
           "strategy": "points",
           "points": [
             [
-              800,
-              450
+              875,
+              360
             ],
             [
-              775,
-              415
+              795,
+              470
             ],
             [
-              825,
-              485
+              955,
+              470
             ]
           ],
           "template": "units/spells/freeze",
@@ -1096,20 +1096,20 @@
           "strategy": "points",
           "points": [
             [
-              800,
-              390
+              622,
+              315
             ],
             [
-              800,
-              510
+              922,
+              315
             ],
             [
-              765,
-              450
+              922,
+              535
             ],
             [
-              835,
-              450
+              622,
+              535
             ]
           ],
           "template": "units/spells/rage",
@@ -1128,16 +1128,16 @@
           "strategy": "points",
           "points": [
             [
-              800,
-              450
+              772,
+              360
             ],
             [
-              775,
-              415
+              692,
+              470
             ],
             [
-              825,
-              485
+              852,
+              470
             ]
           ],
           "template": "units/spells/freeze",
@@ -1700,20 +1700,20 @@
           "strategy": "points",
           "points": [
             [
-              800,
-              390
+              592,
+              180
             ],
             [
-              800,
-              510
+              1012,
+              180
             ],
             [
-              765,
-              450
+              692,
+              400
             ],
             [
-              835,
-              450
+              912,
+              400
             ]
           ],
           "template": "units/spells/rage",
@@ -1732,16 +1732,16 @@
           "strategy": "points",
           "points": [
             [
-              800,
-              450
+              799,
+              240
             ],
             [
-              775,
-              415
+              702,
+              360
             ],
             [
-              825,
-              485
+              897,
+              360
             ]
           ],
           "template": "units/spells/freeze",
@@ -2304,20 +2304,20 @@
           "strategy": "points",
           "points": [
             [
-              800,
-              390
+              660,
+              180
             ],
             [
-              800,
-              510
+              1080,
+              180
             ],
             [
-              765,
-              450
+              760,
+              400
             ],
             [
-              835,
-              450
+              980,
+              400
             ]
           ],
           "template": "units/spells/rage",
@@ -2336,16 +2336,16 @@
           "strategy": "points",
           "points": [
             [
-              800,
-              450
+              867,
+              240
             ],
             [
-              775,
-              415
+              770,
+              360
             ],
             [
-              825,
-              485
+              965,
+              360
             ]
           ],
           "template": "units/spells/freeze",
@@ -2422,10 +2422,26 @@
   "calibration": {
     "design": "outer-border static pattern (user spec 2026-10-29) — deploy never analyses the enemy base at runtime",
     "resolution": "1600x900",
-    "date": "2026-10-31",
+    "date": "2026-11-01",
     "bases_verified": 0,
     "source_frames": "calib/frame_<variant>_{START,END}.png (2026-10-25 run_calib)",
     "dragon_inset_px": 45,
-    "note": "nominal points shifted inward for outward-jitter safety, margin 10px (boundary = calibrated corner-tap edge); cap 50px/point = top of the 30-50px target band"
+    "note": "nominal points shifted inward for outward-jitter safety, margin 10px (boundary = calibrated corner-tap edge); cap 50px/point = top of the 30-50px target band",
+    "spell_points": "recalibrated per-variant over the post-pan base region (rage 4 / freeze 3, intervals unchanged 1.0s / 2.0s)",
+    "spell_frame_relations": {
+      "12-3": [
+        -103,
+        0
+      ],
+      "3-6": [
+        -69,
+        -295
+      ],
+      "6-9_from_3-6": [
+        68,
+        0
+      ],
+      "method": "phase correlation + template match on 2026-10-25 battle frames"
+    }
   }
 }

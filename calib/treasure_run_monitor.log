@@ -1,0 +1,156 @@
+>>> run start requested (dragon_balloon_loop)
+>>> snapshot: running=False status=
+>>> event started
+>>> node loop -> running
+[INFO] [loop_n] dragon_balloon_farm iteration 1/100000
+>>> node home0 -> running
+[INFO] CoC is running.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] reward Continue at (812, 814). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (12 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (24 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] reward Continue at (812, 814). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (36 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (48 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] reward Continue at (812, 814). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (60 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (72 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] reward Continue at (812, 814). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (84 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (96 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] reward Continue at (812, 814). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (108 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (120 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] reward Continue at (812, 814). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (132 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (144 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] reward Continue at (812, 814). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (156 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (168 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] reward Continue at (812, 814). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (180 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (192 ticks) — no system popup on screen.
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] smashing chest: tap 1 at (795, 500). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[WARNING] [ensure_home] treasure-chest event screen up — smashing chests in place (no restart).
+[INFO] [treasure] reward Continue at (812, 814). . .
+[INFO] [treasure] chest screen cleared after 1 tap(s).
+[INFO] [watchdog] scan alive (204 ticks) — no system popup on screen.
+[WARNING] [ensure_home] not home — restarting game.
+[INFO] Restarting com.supercell.clashofclans (force-stop + launch)...
+[INFO] Launching com.supercell.clashofclans...
+[INFO] [watchdog] scan alive (216 ticks) — no system popup on screen.
+[WARNING] [STOP] Stop requested — aborting at the next checkpoint; army cache + session flags cleared, nothing carries over.
+[ERROR] [ensure_home] could not reach home screen.
+>>> node home0 -> done
+>>> node loop -> done
+>>> RUN DONE status=ok error=None

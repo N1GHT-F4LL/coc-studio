@@ -68,6 +68,31 @@ TREASURE_HOME_TAP = (788, 751)        # Return Home button after opening
 TREASURE_HAMMER_ROI = (622, 710, 964, 809)   # bottom banner strip (x1,y1,x2,y2)
 TREASURE_HAMMER_THRESHOLD = 0.8
 
+# Full-screen treasure-chest event (Skip bottom-right, "Tap!" over a locked
+# chest): appears BY ITSELF right after a game restart when chests are pending
+# and covers the village. Anchor = the constant Skip button, cropped from a
+# real device frame (2026-11-01); measured: chest frames >= 0.96 (self 1.00),
+# clean home fixtures <= 0.56.
+TREASURE_CHEST_SKIP_TPL = POPUP_TPL_DIR / "treasure_chest_skip.png"
+TREASURE_CHEST_SKIP_ROI = (1350, 750, 1600, 900)
+TREASURE_CHEST_SKIP_THRESHOLD = 0.75
+# Reward reveal between chests ("Builder Star Jar" etc.): does NOT advance on
+# a chest tap — its green Continue button must be pressed. Template cropped
+# from a real reward frame (2026-11-01): self-match 1.00 at (812,814), chest
+# screen max 0.37.
+TREASURE_CHEST_CONTINUE_TPL = POPUP_TPL_DIR / "treasure_chest_continue.png"
+TREASURE_CHEST_CONTINUE_ROI = (620, 750, 1000, 880)
+TREASURE_CHEST_CONTINUE_THRESHOLD = 0.75
+TREASURE_CHEST_TAP = (795, 500)       # chest body under the "Tap!" hint
+TREASURE_CHEST_TAPS_PER_CHEST = 4     # measured: 4 hammer taps open one chest
+TREASURE_CHEST_TAP_PAUSE = 0.25       # rapid consecutive taps (user spec: liên tục)
+TREASURE_CHEST_REWARD_TAP = (812, 814)  # green Continue, fixed position (measured)
+TREASURE_CHEST_REWARD_SETTLE = 1.2    # break animation before the Continue tap
+TREASURE_CHEST_MAX_SMASH = 60         # chest-tap budget (= 15 chests per attempt)
+# Chest-count badge (bottom-left, cream digit on a dark pill): the digit reads
+# 1.00 confidence at 4x upscale; reward screens have no badge (empty read).
+TREASURE_CHEST_COUNTER_REGION = (20, 795, 75, 855)
+
 COC_PACKAGE = "com.supercell.clashofclans"
 
 # Recovery coordination: the run watchdog thread and the in-block guards both
@@ -399,6 +424,133 @@ def _match_template(img, tpl_path, region=None, threshold=0.8):
         return 0.0
 
 
+def treasure_chest_visible(frame):
+    """True when the full-screen treasure-chest event overlay is up — identified
+    by its constant Skip button (bottom-right corner). This screen shows by
+    itself right after a game restart when chests are pending, and covers the
+    home village (ensure_home used to pay a full force-stop/launch for it)."""
+    if frame is None:
+        return False
+    return _match_template(frame, TREASURE_CHEST_SKIP_TPL,
+                           region=TREASURE_CHEST_SKIP_ROI,
+                           threshold=TREASURE_CHEST_SKIP_THRESHOLD) \
+        >= TREASURE_CHEST_SKIP_THRESHOLD
+
+
+def treasure_continue_centroid(frame):
+    """Centre of the green Continue button on a reward-reveal screen, or None.
+    Checked INSIDE its bottom-centre ROI — the wooden floor shares the button's
+    colour family, so a colour blob search alone misfires (measured)."""
+    if frame is None:
+        return None
+    score = _match_template(frame, TREASURE_CHEST_CONTINUE_TPL,
+                            region=TREASURE_CHEST_CONTINUE_ROI,
+                            threshold=TREASURE_CHEST_CONTINUE_THRESHOLD)
+    if score < TREASURE_CHEST_CONTINUE_THRESHOLD:
+        return None
+    x1, y1, x2, y2 = TREASURE_CHEST_CONTINUE_ROI
+    crop = cv2.cvtColor(frame[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)
+    tpl = imread_template(str(TREASURE_CHEST_CONTINUE_TPL), cv2.IMREAD_GRAYSCALE)
+    if tpl is None:
+        return None
+    res = cv2.matchTemplate(crop, tpl, cv2.TM_CCOEFF_NORMED)
+    _, _, _, ml = cv2.minMaxLoc(res)
+    return (x1 + ml[0] + tpl.shape[1] // 2, y1 + ml[1] + tpl.shape[0] // 2)
+
+
+def read_chest_counter(frame):
+    """OCR the chest-count badge (bottom-left of the chest screen) -> int or
+    None. Digit tokens below 0.5 confidence are junk-filtered; reward screens
+    have no badge and read empty -> None."""
+    if frame is None:
+        return None
+    try:
+        from core.ocr import _get_reader
+        x1, y1, x2, y2 = TREASURE_CHEST_COUNTER_REGION
+        crop = frame[y1:y2, x1:x2]
+        up = cv2.resize(crop, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+        rgb = cv2.cvtColor(up, cv2.COLOR_BGR2RGB)
+        digits = ""
+        for _box, text, conf in _get_reader().readtext(rgb):
+            text = str(text).strip()
+            if text.isdigit() and float(conf) >= 0.5:
+                digits += text
+        return int(digits) if digits else None
+    except Exception:
+        return None
+
+
+def smash_treasure_chests(logger=None):
+    """Open every pending chest on the full-screen chest event: tap the chest,
+    wait out the smash animation, re-check — until the screen is gone or the
+    bounded budget runs out. Returns the number of chest taps delivered.
+    Never raises (same policy as the rest of this module)."""
+    delivered = 0
+    expected = None
+    chests_done = 0
+    try:
+        # One iteration = one chest: 4 RAPID taps (no re-verification between
+        # them — user spec), then the fixed Continue position for the reward
+        # reveal. One screenshot per chest keeps the pace; the loop stops the
+        # moment the event screen is gone (home reachable).
+        for _ in range(TREASURE_CHEST_MAX_SMASH // TREASURE_CHEST_TAPS_PER_CHEST):
+            shot = take_screenshot("treasure_smash")
+            img = imread_unicode(shot) if shot else None
+            if not treasure_chest_visible(img):
+                break
+            if not chests_done:
+                expected = read_chest_counter(img)
+                msg = (f"[treasure] counter reads {expected} chest(s) to smash."
+                       if expected is not None else
+                       "[treasure] counter unreadable — smashing until the screen is gone.")
+                if logger is not None:
+                    logger.info(msg)
+                else:
+                    print(msg)
+            for _ in range(TREASURE_CHEST_TAPS_PER_CHEST):
+                delivered += 1
+                tap(*TREASURE_CHEST_TAP)
+                time.sleep(TREASURE_CHEST_TAP_PAUSE)
+            time.sleep(TREASURE_CHEST_REWARD_SETTLE)
+            delivered += 1
+            tap(*TREASURE_CHEST_REWARD_TAP)   # Continue — no-op if not on a reward
+            time.sleep(1.0)
+            chests_done += 1
+            msg = (f"[treasure] chest {chests_done}"
+                   f"{f'/{expected}' if expected is not None else ''}: "
+                   f"4 taps + Continue ({delivered} taps total). . .")
+            if logger is not None:
+                logger.info(msg)
+            else:
+                print(msg)
+            if expected is not None and chests_done >= expected:
+                done = (f"[treasure] all {expected} counted chests smashed.")
+                if logger is not None:
+                    logger.info(done)
+                else:
+                    print(done)
+                shot = take_screenshot("treasure_smash")
+                img2 = imread_unicode(shot) if shot else None
+                if not treasure_chest_visible(img2):
+                    break                    # counter matched — event really done
+                # counter stale/OCR-wrong — chests remain: fall back to the
+                # anchor as the only stop condition
+                msg = "[treasure] counter exhausted but chests remain — continuing until gone."
+                if logger is not None:
+                    logger.info(msg)
+                else:
+                    print(msg)
+                expected = None
+        done = f"[treasure] chest screen cleared after {delivered} tap(s), {chests_done} chest(s)."
+        if logger is not None:
+            logger.info(done)
+        else:
+            print(done)
+    except Exception:
+        pass
+    return delivered
+
+
 def treasure_event():
     """Layer 3 — the one in-game popup we act on: the Treasure event banner.
     Hammer on the bottom banner → tap the chest 4x, wait for the reward, then
@@ -411,6 +563,14 @@ def treasure_event():
     time.sleep(0.2)
     img = imread_unicode(shot_path)
     if img is None:
+        return
+    # The full-screen chest event puts hammer art inside the banner ROI (the
+    # hammer bar), which used to false-positive the banner check — check the
+    # chest screen FIRST and open the chests in place instead of blind-tapping
+    # the old banner coordinates.
+    if treasure_chest_visible(img):
+        print("Treasure chest event screen detected — smashing chests. . .")
+        smash_treasure_chests()
         return
     score = _match_template(img, hammer_tmpl, region=TREASURE_HAMMER_ROI)
     if score >= TREASURE_HAMMER_THRESHOLD:

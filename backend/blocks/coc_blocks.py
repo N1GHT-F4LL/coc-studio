@@ -137,6 +137,16 @@ class EnsureHome(BlockSpec):
                     continue
                 if home.is_current_screen():
                     return True
+                # The full-screen treasure-chest event covers the village right
+                # after a game restart when chests are pending — smash it IN
+                # PLACE (bounded loop) and keep polling with a fresh budget
+                # instead of paying a force-stop/launch cycle for one overlay.
+                if popup_guard.treasure_chest_visible(ui.get_screen()):
+                    ctx.logger.warning("[ensure_home] treasure-chest event screen "
+                                       "up — smashing chests in place (no restart).")
+                    popup_guard.smash_treasure_chests(ctx.logger)
+                    deadline = time.time() + max(float(timeout), 30.0)
+                    continue
                 ui._poll_sleep(1)
             return False
 
@@ -152,6 +162,31 @@ class EnsureHome(BlockSpec):
         if res is None:
             ctx.vars["home"] = False
             return {"home": False}
+
+        # The full-screen treasure-chest event (Skip bottom-right) covers the
+        # village by itself right after a game restart when chests are pending.
+        # Smash it IN PLACE (bounded tap loop) instead of paying a 1-2 min
+        # force-stop/launch cycle for one overlay.
+        if popup_guard.treasure_chest_visible(ui.get_screen()):
+            ctx.logger.warning("[ensure_home] treasure-chest event screen up — "
+                               "smashing chests in place (no restart).")
+            popup_guard.smash_treasure_chests(ctx.logger)
+            res = poll_home(30)
+            if res:
+                ctx.logger.info("[ensure_home] home reached after smashing chests.")
+                settle()
+                ctx.vars["home"] = True
+                return {"home": True}
+            ctx.logger.warning("[ensure_home] still not home after smashing chests.")
+
+        # Last chest-aware chance before paying for a restart: the post-smash
+        # transition to home (or a slow game load) can outlast the poll budget.
+        res = poll_home(20)
+        if res:
+            ctx.logger.info("[ensure_home] home screen detected (late settle).")
+            settle()
+            ctx.vars["home"] = True
+            return {"home": True}
 
         # Recovery: close popups then restart the game (run_bot HOME_DETECT path).
         ctx.logger.warning("[ensure_home] not home — restarting game.")
