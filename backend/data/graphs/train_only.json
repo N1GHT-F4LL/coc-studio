@@ -1,0 +1,31 @@
+{
+  "name": "train_only",
+  "nodes": [
+    {
+      "id": "home0",
+      "type": "ensure_home",
+      "label": "Ensure Home",
+      "x": 100,
+      "y": 40,
+      "params": { "zoom_out": true, "timeout": 10 },
+      "after": [],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "troops",
+      "type": "ensure_troops",
+      "label": "Ensure Troops (Thrower)",
+      "x": 100,
+      "y": 180,
+      "params": { "scenario": "Thrower", "wait_seconds": 0 },
+      "after": ["home0"],
+      "data_in": {},
+      "on_error": null
+    }
+  ],
+  "meta": {
+    "note": "Train-only: ensure_home -> ensure_troops(Thrower). Verifies all 3 sections (troops+spells+sieges) fill without consuming the army via deploy.",
+    "scenario": "Thrower"
+  }
+}

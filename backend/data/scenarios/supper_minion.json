@@ -1,0 +1,409 @@
+{
+  "name": "supper_minion",
+  "variants": [
+    {
+      "name": "Default",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "n_0",
+          "label": "Super Minion",
+          "type": "super_troop",
+          "after": [
+            "n_8"
+          ],
+          "template": "units/super_troops/super_minion",
+          "taps": 7,
+          "strategy": "line",
+          "x": 300,
+          "y": 0,
+          "x1": 161,
+          "y1": 432,
+          "x2": 668,
+          "y2": 46
+        },
+        {
+          "id": "n_1",
+          "label": "Super Minion",
+          "type": "super_troop",
+          "after": [
+            "n_8"
+          ],
+          "template": "units/super_troops/super_minion",
+          "taps": 7,
+          "strategy": "line",
+          "x1": 982,
+          "y1": 72,
+          "x2": 1453,
+          "y2": 439,
+          "x": 300,
+          "y": 240
+        },
+        {
+          "id": "n_3",
+          "label": "Totem",
+          "type": "spell",
+          "after": [
+            "n_0",
+            "n_23"
+          ],
+          "template": "units/spells/totem",
+          "taps": 2,
+          "strategy": "line",
+          "x1": 564,
+          "y1": 363,
+          "x2": 719,
+          "y2": 238,
+          "x": 540,
+          "y": 120
+        },
+        {
+          "id": "n_4",
+          "label": "Totem",
+          "type": "spell",
+          "after": [
+            "n_1",
+            "n_22"
+          ],
+          "template": "units/spells/totem",
+          "taps": 2,
+          "strategy": "line",
+          "x1": 846,
+          "y1": 230,
+          "x2": 1029,
+          "y2": 365,
+          "x": 540,
+          "y": 240
+        },
+        {
+          "id": "n_5",
+          "label": "Bat Spell",
+          "type": "spell",
+          "after": [
+            "n_3"
+          ],
+          "template": "units/spells/bat",
+          "taps": 1,
+          "strategy": "points",
+          "x1": 860,
+          "y1": 216,
+          "x2": 860,
+          "y2": 216,
+          "points": [
+            [
+              617,
+              337
+            ],
+            [
+              768,
+              259
+            ]
+          ],
+          "x": 780,
+          "y": 120
+        },
+        {
+          "id": "n_6",
+          "label": "Bat Spell",
+          "type": "spell",
+          "after": [
+            "n_4"
+          ],
+          "template": "units/spells/bat",
+          "taps": 2,
+          "strategy": "line",
+          "x1": 567,
+          "y1": 352,
+          "x2": 567,
+          "y2": 352,
+          "x": 780,
+          "y": 240
+        },
+        {
+          "id": "n_7",
+          "label": "Rage x2 (center)",
+          "type": "spell",
+          "after": [
+            "n_5"
+          ],
+          "template": "units/spells/rage",
+          "taps": 2,
+          "strategy": "points",
+          "points": [
+            [
+              800,
+              405
+            ],
+            [
+              800,
+              495
+            ]
+          ],
+          "x": 1020,
+          "y": 180
+        },
+        {
+          "id": "n_8",
+          "label": "Stone Slammer",
+          "type": "siege",
+          "after": [],
+          "template": "units/siege/stone_slammer",
+          "taps": 1,
+          "strategy": "points",
+          "points": [
+            [
+              337,
+              247
+            ]
+          ],
+          "x": 60,
+          "y": 300
+        },
+        {
+          "id": "n_9",
+          "label": "Grand Warden Deploy",
+          "type": "hero",
+          "after": [
+            "n_8"
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "strategy": "line",
+          "x": 300,
+          "y": 600,
+          "x1": 436,
+          "y1": 195,
+          "x2": 436,
+          "y2": 195
+        },
+        {
+          "id": "n_10",
+          "label": "King Deploy",
+          "type": "hero",
+          "after": [
+            "n_8"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 1,
+          "strategy": "line",
+          "x": 300,
+          "y": 480,
+          "x1": 1435,
+          "y1": 458,
+          "x2": 1435,
+          "y2": 458
+        },
+        {
+          "id": "n_11",
+          "label": "RC Deploy",
+          "type": "hero",
+          "after": [
+            "n_10"
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "strategy": "line",
+          "x": 540,
+          "y": 360,
+          "x1": 415,
+          "y1": 199,
+          "x2": 415,
+          "y2": 199
+        },
+        {
+          "id": "n_12",
+          "label": "Dragon Duke Deploy",
+          "type": "hero",
+          "after": [
+            "n_10"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 1,
+          "strategy": "line",
+          "x": 540,
+          "y": 480,
+          "x1": 147,
+          "y1": 413,
+          "x2": 147,
+          "y2": 413
+        },
+        {
+          "id": "n_14",
+          "label": "GW",
+          "type": "hero",
+          "after": [
+            "n_16"
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "strategy": "line",
+          "x": 1020,
+          "y": 300,
+          "x1": 811,
+          "y1": 456,
+          "x2": 811,
+          "y2": 456
+        },
+        {
+          "id": "n_15",
+          "label": "King",
+          "type": "hero",
+          "after": [
+            "n_12"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 1,
+          "strategy": "line",
+          "x": 780,
+          "y": 480
+        },
+        {
+          "id": "n_16",
+          "label": "RC",
+          "type": "hero",
+          "after": [
+            "n_12"
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "strategy": "line",
+          "x": 780,
+          "y": 360,
+          "x1": 609,
+          "y1": 302,
+          "x2": 609,
+          "y2": 302
+        },
+        {
+          "id": "n_18",
+          "label": "Dragon Duke",
+          "type": "hero",
+          "after": [
+            "n_16"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 1,
+          "strategy": "line",
+          "x": 1020,
+          "y": 420,
+          "x1": 401,
+          "y1": 245,
+          "x2": 401,
+          "y2": 245
+        },
+        {
+          "id": "n_19",
+          "label": "Archer",
+          "type": "troop",
+          "after": [
+            "n_7"
+          ],
+          "template": "units/troops/archer",
+          "taps": 6,
+          "strategy": "line",
+          "x1": 590,
+          "y1": 95,
+          "x2": 313,
+          "y2": 306,
+          "x": 1260,
+          "y": 300
+        },
+        {
+          "id": "n_20",
+          "label": "Delay",
+          "type": "delay",
+          "after": [
+            "n_24"
+          ],
+          "template": "",
+          "taps": 1,
+          "strategy": "delay",
+          "seconds": 30,
+          "x": 1980,
+          "y": 300
+        },
+        {
+          "id": "n_21",
+          "label": "Surrender",
+          "type": "surrender",
+          "after": [
+            "n_20"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 2220,
+          "y": 300
+        },
+        {
+          "id": "n_22",
+          "label": "Super Minion",
+          "type": "super_troop",
+          "after": [
+            "n_8"
+          ],
+          "template": "units/super_troops/super_minion",
+          "taps": 7,
+          "strategy": "line",
+          "x1": 1420,
+          "y1": 534,
+          "x2": 1188,
+          "y2": 710,
+          "x": 300,
+          "y": 360
+        },
+        {
+          "id": "n_23",
+          "label": "Super Minion",
+          "type": "super_troop",
+          "after": [
+            "n_8"
+          ],
+          "template": "units/super_troops/super_minion",
+          "taps": 7,
+          "strategy": "line",
+          "x1": 152,
+          "y1": 479,
+          "x2": 431,
+          "y2": 683,
+          "x": 300,
+          "y": 120
+        },
+        {
+          "id": "n_24",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "n_25"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1740,
+          "y": 300
+        },
+        {
+          "id": "n_25",
+          "label": "MECHA",
+          "type": "troop",
+          "after": [
+            "n_19"
+          ],
+          "template": "units/troops/m_e_c_h_a",
+          "taps": 1,
+          "strategy": "points",
+          "x1": 173,
+          "y1": 411,
+          "x2": 173,
+          "y2": 411,
+          "points": [
+            [
+              180,
+              432
+            ]
+          ],
+          "x": 1500,
+          "y": 300
+        }
+      ]
+    }
+  ]
+}

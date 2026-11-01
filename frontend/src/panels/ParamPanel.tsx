@@ -1,0 +1,234 @@
+import type { Node } from "reactflow";
+import type { PortSpec } from "../blocks/types";
+import type { BlockNodeData } from "../canvas/BlockNode";
+import { thumbUrl } from "../api/client";
+
+interface Props {
+  node: Node<BlockNodeData> | null;
+  connectedInputs: Set<string>; // input ports fed by a data edge (literal is overridden)
+  assets: string[];
+  graphs: string[];
+  scenarios: string[];
+  onChangeParam: (nodeId: string, name: string, value: unknown) => void;
+  onChangeLabel: (nodeId: string, label: string) => void;
+  onDelete: (nodeId: string) => void;
+}
+
+// Dropdown of dynamic values (saved graphs / scenarios) for params with a source.
+function SourceSelect({
+  id,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  value: unknown;
+  options: string[];
+  onChange: (v: unknown) => void;
+}) {
+  return (
+    <select id={id} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
+      <option value="">- select -</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+      {/* keep a stale saved value visible even if it's no longer in the list */}
+      {value && !options.includes(String(value)) ? (
+        <option value={String(value)}>{String(value)} (?)</option>
+      ) : null}
+    </select>
+  );
+}
+
+// One form field per spec input. Data-edge inputs (M5) override these literals
+// at run time; here we only edit literal params.
+function Field({
+  p,
+  value,
+  assets,
+  graphs,
+  scenarios,
+  onChange,
+}: {
+  p: PortSpec;
+  value: unknown;
+  assets: string[];
+  graphs: string[];
+  scenarios: string[];
+  onChange: (v: unknown) => void;
+}) {
+  const id = `param-${p.name}`;
+  // Dynamic dropdown (pick a saved graph / scenario) instead of typing a name.
+  if (p.source === "graphs" || p.source === "scenarios") {
+    const opts = p.source === "graphs" ? graphs : scenarios;
+    return (
+      <label className="field" htmlFor={id}>
+        <span>{p.label}</span>
+        <SourceSelect id={id} value={value} options={opts} onChange={onChange} />
+      </label>
+    );
+  }
+  if (p.choices && p.choices.length) {
+    return (
+      <label className="field" htmlFor={id}>
+        <span>{p.label}</span>
+        <select id={id} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
+          {p.choices.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+  if (p.kind === "Template") {
+    return (
+      <label className="field" htmlFor={id}>
+        <span>{p.label}</span>
+        <select id={id} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
+          <option value="">- select asset -</option>
+          {assets.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+        {value ? (
+          <img className="tpl-thumb" src={thumbUrl(String(value))} alt={String(value)} />
+        ) : null}
+      </label>
+    );
+  }
+  if (p.kind === "Bool") {
+    return (
+      <label className="field" htmlFor={id}>
+        <span>{p.label}</span>
+        <input
+          id={id}
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+      </label>
+    );
+  }
+  if (p.kind === "Number") {
+    return (
+      <label className="field" htmlFor={id}>
+        <span>{p.label}</span>
+        <input
+          id={id}
+          type="number"
+          value={value === undefined || value === null ? "" : String(value)}
+          onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+        />
+      </label>
+    );
+  }
+  if (p.kind === "Coord" || p.kind === "Region") {
+    // Comma-separated ints; Coord=2, Region=4.
+    const text = Array.isArray(value) ? value.join(", ") : "";
+    return (
+      <label className="field" htmlFor={id}>
+        <span>
+          {p.label} <em className="muted">({p.kind === "Coord" ? "x, y" : "x1, y1, x2, y2"})</em>
+        </span>
+        <input
+          id={id}
+          type="text"
+          value={text}
+          placeholder={p.kind === "Coord" ? "100, 200" : "0, 70, 420, 360"}
+          onChange={(e) => {
+            const nums = e.target.value
+              .split(",")
+              .map((s) => s.trim())
+              .filter((s) => s !== "")
+              .map(Number);
+            onChange(nums.some(Number.isNaN) ? e.target.value : nums);
+          }}
+        />
+      </label>
+    );
+  }
+  // Template / Text / Trigger fall back to text.
+  return (
+    <label className="field" htmlFor={id}>
+      <span>{p.label}</span>
+      <input
+        id={id}
+        type="text"
+        value={value === undefined || value === null ? "" : String(value)}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
+export function ParamPanel({
+  node,
+  connectedInputs,
+  assets,
+  graphs,
+  scenarios,
+  onChangeParam,
+  onChangeLabel,
+  onDelete,
+}: Props) {
+  if (!node) {
+    return (
+      <aside className="param-panel">
+        <h2>Parameters</h2>
+        <div className="muted">Select a node to edit its parameters.</div>
+      </aside>
+    );
+  }
+  const { spec, params, label } = node.data;
+  return (
+    <aside className="param-panel">
+      <h2>{spec.label}</h2>
+      {spec.description ? <p className="block-desc">{spec.description}</p> : null}
+      <div className="param-meta">
+        <span className="muted">type</span> {spec.type}
+        <br />
+        <span className="muted">id</span> {node.id}
+      </div>
+
+      <label className="field" htmlFor="node-label">
+        <span>Label</span>
+        <input
+          id="node-label"
+          type="text"
+          value={label}
+          onChange={(e) => onChangeLabel(node.id, e.target.value)}
+        />
+      </label>
+
+      {spec.inputs.length === 0 && <div className="muted">No parameters.</div>}
+      {spec.inputs.map((p) =>
+        connectedInputs.has(p.name) ? (
+          <label key={p.name} className="field">
+            <span>{p.label}</span>
+            <input type="text" value="← from data edge" disabled />
+          </label>
+        ) : (
+          <Field
+            key={p.name}
+            p={p}
+            value={params[p.name] ?? p.default}
+            assets={assets}
+            graphs={graphs}
+            scenarios={scenarios}
+            onChange={(v) => onChangeParam(node.id, p.name, v)}
+          />
+        )
+      )}
+
+      <button className="danger" onClick={() => onDelete(node.id)}>
+        Delete node
+      </button>
+    </aside>
+  );
+}

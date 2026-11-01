@@ -1,0 +1,56 @@
+{
+  "screen": [
+    1600,
+    900
+  ],
+  "lines": {
+    "9-12": {
+      "START": [
+        189,
+        542
+      ],
+      "START_frame": "C:\\Users\\antoinenguyen_09\\Downloads\\coc-studio\\calib\\frame_9-12_START.png",
+      "END": [
+        777,
+        103
+      ],
+      "END_frame": "C:\\Users\\antoinenguyen_09\\Downloads\\coc-studio\\calib\\frame_9-12_END.png"
+    },
+    "12-3": {
+      "START": [
+        802,
+        105
+      ],
+      "START_frame": "C:\\Users\\antoinenguyen_09\\Downloads\\coc-studio\\calib\\frame_12-3_START.png",
+      "END": [
+        1401,
+        543
+      ],
+      "END_frame": "C:\\Users\\antoinenguyen_09\\Downloads\\coc-studio\\calib\\frame_12-3_END.png"
+    },
+    "3-6": {
+      "START": [
+        1410,
+        266
+      ],
+      "START_frame": "C:\\Users\\antoinenguyen_09\\Downloads\\coc-studio\\calib\\frame_3-6_START.png",
+      "END": [
+        879,
+        695
+      ],
+      "END_frame": "C:\\Users\\antoinenguyen_09\\Downloads\\coc-studio\\calib\\frame_3-6_END.png"
+    },
+    "6-9": {
+      "START": [
+        757,
+        695
+      ],
+      "START_frame": "C:\\Users\\antoinenguyen_09\\Downloads\\coc-studio\\calib\\frame_6-9_START.png",
+      "END": [
+        218,
+        268
+      ],
+      "END_frame": "C:\\Users\\antoinenguyen_09\\Downloads\\coc-studio\\calib\\frame_6-9_END.png"
+    }
+  }
+}

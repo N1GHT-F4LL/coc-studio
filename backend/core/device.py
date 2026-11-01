@@ -1,0 +1,937 @@
+import subprocess
+import cv2
+import numpy as np
+import time
+import shutil
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+
+PROFILE_ENDPOINTS = {
+    "android_emulator": ["127.0.0.1:5555", "127.0.0.1:5554"],
+    "ldplayer": ["127.0.0.1:5555", "127.0.0.1:16384"],
+    "bluestacks": ["127.0.0.1:5555", "127.0.0.1:21503"],
+    "nox": ["127.0.0.1:62001"],
+    "mumu": ["127.0.0.1:7555"],
+}
+
+PROFILE_EXECUTABLES = {
+    "ldplayer": [
+        r"C:\LDPlayer\LDPlayer9\dnplayer.exe",
+        r"C:\Program Files\LDPlayer\LDPlayer9\dnplayer.exe",
+    ],
+    "bluestacks": [
+        r"C:\Program Files\BlueStacks_nxt\HD-Player.exe",
+        r"C:\Program Files\BlueStacks\HD-Player.exe",
+    ],
+    "nox": [
+        r"C:\Program Files\Nox\bin\Nox.exe",
+        r"C:\Program Files (x86)\Nox\bin\Nox.exe",
+    ],
+    "mumu": [
+        r"C:\Program Files\Netease\MuMuPlayer-12.0\shell\MuMuPlayer.exe",
+        r"C:\Program Files\Netease\MuMuPlayerGlobal-12.0\shell\MuMuPlayerGlobal.exe",
+    ],
+    "android_emulator": [
+        r"C:\Users\Public\Android\Sdk\emulator\emulator.exe",
+    ],
+}
+
+PROFILE_PROCESS_NAMES = {
+    "ldplayer": ["dnplayer.exe"],
+    "bluestacks": ["HD-Player.exe"],
+    "nox": ["Nox.exe"],
+    "mumu": ["MuMuPlayer.exe", "MuMuPlayerGlobal.exe"],
+    "android_emulator": ["emulator.exe"],
+}
+
+
+COC_MAIN_ACTIVITY = "com.supercell.titan.GameApp"
+
+class Device:
+    def __init__(self, serial=None, strict_serial=True, adb_path=None, profile=None, endpoint=None):
+        self.serial = serial
+        self.strict_serial = strict_serial
+        # Detect adb binary path early to avoid FileNotFoundError on subprocess.
+        self.adb_path = adb_path or shutil.which("adb")
+        self.available = bool(self.adb_path)
+        self.connected = False
+        self.last_status_reason = "unknown"
+        # Stored so the transparent shell-recovery path can reconnect the
+        # right endpoints after kill-server/start-server.
+        self.profile = profile
+        self.endpoint = endpoint
+        if not self.available:
+            logger.warning("'adb' not found in PATH. Device operations will be disabled.")
+            logger.info("To enable device control, install Android platform-tools and add 'adb' to your PATH.")
+        # Note: avoid performing heavy side-effects at import-time.
+        # Initialization will not automatically check connection or wake the
+        # screen; callers should invoke those explicitly if desired.
+
+    def _adb_cmd(self, args):
+        if not self.available:
+            raise FileNotFoundError("adb binary not found in PATH")
+        cmd = [self.adb_path]
+        if self.serial:
+            cmd.extend(['-s', self.serial])
+        cmd.extend(args)
+        return cmd
+
+    def _run_adb(self, args, text=True, _recovered=False):
+        if not self.available:
+            return None
+        try:
+            res = subprocess.run(
+                self._adb_cmd(args),
+                capture_output=True,
+                text=text,
+            )
+            # Auto-failover for flaky BlueStacks ADB transport.
+            # If current serial shell is closed, try other ready serials.
+            if (not self.strict_serial) and args and args[0] == 'shell' and self._is_shell_transport_closed(res):
+                failover = self._run_shell_with_failover(args, text=text)
+                if failover is not None:
+                    return failover
+            # Transparent transport recovery: shell-closed is a known BlueStacks
+            # quirk that survives across calls until the adb server is restarted.
+            # Try once per command to kick the transport and retry.
+            if (not _recovered) and args and args[0] == 'shell' and self._is_shell_transport_closed(res):
+                logger.warning("ADB shell transport closed. Attempting recovery (kill-server/start-server)...")
+                if self.try_recover_adb_transport(profile=self.profile, endpoint=self.endpoint):
+                    return self._run_adb(args, text=text, _recovered=True)
+            return res
+        except FileNotFoundError:
+            self.connected = False
+            self.last_status_reason = "adb_missing"
+            return None
+
+    def _is_shell_transport_closed(self, res):
+        if res is None:
+            return False
+        msg = ((res.stdout or "") + " " + (res.stderr or "")).lower()
+        return "error: closed" in msg or "device not found" in msg
+
+    def _list_ready_serials_raw(self):
+        """
+        Read ready device serials directly from `adb devices` without using self.serial.
+        """
+        if not self.available:
+            return []
+        try:
+            res = subprocess.run([self.adb_path, 'devices'], capture_output=True, text=True)
+        except Exception:
+            return []
+        if res.returncode != 0:
+            return []
+        serials = []
+        for line in (res.stdout or "").splitlines()[1:]:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) >= 2 and parts[1] == "device":
+                serials.append(parts[0])
+        return serials
+
+    def shell_health_check(self, serial=None):
+        """
+        Check whether adb shell is usable for a serial.
+        """
+        if not self.available:
+            return False
+        target = serial or self.serial
+        if not target:
+            return False
+        for _ in range(3):
+            try:
+                res = subprocess.run(
+                    [self.adb_path, "-s", target, "shell", "id"],
+                    capture_output=True,
+                    text=True,
+                )
+            except Exception:
+                continue
+            if res.returncode != 0:
+                time.sleep(0.2)
+                continue
+            out = ((res.stdout or "") + " " + (res.stderr or "")).lower()
+            if "uid=" in out and "error: closed" not in out:
+                return True
+            time.sleep(0.2)
+        return False
+
+    def pick_healthy_serial(self, preferred_serial=None):
+        """
+        Choose the best serial by shell health.
+        """
+        ready = self._list_ready_serials_raw()
+        if not ready:
+            return None
+
+        # Prefer configured serial if its shell is healthy.
+        if preferred_serial and preferred_serial in ready and self.shell_health_check(preferred_serial):
+            return preferred_serial
+
+        # Otherwise pick first healthy serial.
+        for serial in ready:
+            if self.shell_health_check(serial):
+                return serial
+        return None
+
+    def try_recover_adb_transport(self, profile=None, endpoint=None):
+        """
+        Best-effort transport recovery for flaky emulator ADB shell.
+        """
+        if not self.available:
+            return False
+        try:
+            subprocess.run([self.adb_path, "kill-server"], capture_output=True, text=True)
+            subprocess.run([self.adb_path, "start-server"], capture_output=True, text=True)
+            if endpoint:
+                subprocess.run([self.adb_path, "connect", endpoint], capture_output=True, text=True)
+            if profile and profile in PROFILE_ENDPOINTS:
+                for ep in PROFILE_ENDPOINTS.get(profile, []):
+                    subprocess.run([self.adb_path, "connect", ep], capture_output=True, text=True)
+        except Exception:
+            return False
+        time.sleep(0.5)
+        return True
+
+    def _run_shell_with_failover(self, shell_args, text=True):
+        """
+        Try shell command on alternative ready serials when current serial transport is closed.
+        """
+        candidates = self._list_ready_serials_raw()
+        if not candidates:
+            return None
+
+        current = self.serial
+        for serial in candidates:
+            if serial == current:
+                continue
+            try:
+                cmd = [self.adb_path, '-s', serial] + shell_args
+                res = subprocess.run(cmd, capture_output=True, text=text)
+            except Exception:
+                continue
+            if res.returncode == 0 and not self._is_shell_transport_closed(res):
+                self.serial = serial
+                logger.warning(f"ADB shell transport on '{current}' was closed. Switched to '{serial}'.")
+                return res
+        return None
+
+    def _has_usable_device(self, devices_output):
+        lines = [line.strip() for line in devices_output.splitlines()[1:] if line.strip()]
+        if not lines:
+            self.last_status_reason = "no_devices"
+            return False
+
+        if self.serial:
+            for line in lines:
+                if line.startswith(f"{self.serial}\tdevice"):
+                    self.last_status_reason = "ok"
+                    return True
+            self.last_status_reason = "serial_not_found_or_unauthorized"
+            return False
+
+        for line in lines:
+            if line.endswith("\tdevice"):
+                self.last_status_reason = "ok"
+                return True
+
+        self.last_status_reason = "unauthorized_or_offline"
+        return False
+
+    def list_devices(self):
+        """
+        Return parsed output of `adb devices`:
+        [{"serial": "...", "state": "device|offline|unauthorized"}]
+        """
+        if not self.available:
+            return []
+        res = self._run_adb(['devices'])
+        if res is None or res.returncode != 0:
+            self.last_status_reason = "adb_command_failed"
+            return []
+
+        devices = []
+        lines = [line.strip() for line in res.stdout.splitlines()[1:] if line.strip()]
+        for line in lines:
+            parts = line.split()
+            if len(parts) >= 2:
+                devices.append({"serial": parts[0], "state": parts[1]})
+        return devices
+
+    def find_serial_with_package(self, package_name):
+        """
+        Try all ready ADB devices and return first serial where package is installed.
+        Returns None if not found or package state cannot be verified.
+        """
+        devices = self.list_devices()
+        ready = [d["serial"] for d in devices if d.get("state") == "device"]
+        original_serial = self.serial
+        try:
+            for serial in ready:
+                self.serial = serial
+                state = self.is_package_installed(package_name)
+                if state is True:
+                    return serial
+        finally:
+            self.serial = original_serial
+        return None
+
+    def start_adb_server(self):
+        if not self.available:
+            return False
+        res = self._run_adb(['start-server'])
+        return bool(res and res.returncode == 0)
+
+    def connect_device(self, endpoint):
+        if not self.available:
+            return False
+        res = self._run_adb(['connect', endpoint])
+        if res is None:
+            return False
+        out = (res.stdout or "") + (res.stderr or "")
+        out = out.lower()
+        return ("connected to" in out) or ("already connected to" in out)
+
+    def select_device(self, preferred_serial=None, auto_select_single=True):
+        """
+        Pick a target device and assign self.serial.
+        Returns True when a usable target is selected.
+        """
+        devices = self.list_devices()
+        ready_devices = [d for d in devices if d["state"] == "device"]
+
+        if preferred_serial:
+            for d in ready_devices:
+                if d["serial"] == preferred_serial:
+                    self.serial = preferred_serial
+                    return True
+            self.last_status_reason = "preferred_serial_not_ready"
+            return False
+
+        if auto_select_single and len(ready_devices) == 1:
+            self.serial = ready_devices[0]["serial"]
+            logger.info(f"Auto-selected ADB device: {self.serial}")
+            return True
+
+        if len(ready_devices) == 0:
+            self.last_status_reason = "no_ready_device"
+            return False
+
+        # Multiple ready devices but no explicit serial configured.
+        self.last_status_reason = "multiple_devices_require_serial"
+        logger.error("Multiple ADB devices detected. Please set device.serial in settings.json")
+        for d in ready_devices:
+            logger.error(f"- {d['serial']}")
+        return False
+
+    def _check_connection(self):
+        if not self.available:
+            logger.debug("Skipping connection check: adb not available.")
+            self.connected = False
+            self.last_status_reason = "adb_missing"
+            return False
+
+        res = self._run_adb(['devices'])
+        if res is None or res.returncode != 0:
+            self.connected = False
+            self.last_status_reason = "adb_command_failed"
+            logger.warning("Failed to query ADB devices.")
+            return False
+
+        self.connected = self._has_usable_device(res.stdout)
+        if not self.connected:
+            logger.warning(f"No usable ADB device detected ({self.last_status_reason}).")
+        return self.connected
+
+    def ensure_connection(self, retries=3, retry_delay=1.0):
+        for attempt in range(1, retries + 1):
+            if self._check_connection():
+                if attempt > 1:
+                    logger.debug(f"ADB device detected on attempt {attempt}/{retries}.")
+                return True
+            if attempt < retries:
+                logger.debug(f"Waiting for ADB device ({attempt}/{retries})...")
+                time.sleep(retry_delay)
+        return False
+
+    def wake_screen(self):
+        if not self.available or not self.connected:
+            return
+        res = self._run_adb(['shell', 'dumpsys', 'power'])
+        if res and ("mHoldingDisplaySuspendBlocker=false" in res.stdout or "Display Power: state=OFF" in res.stdout):
+            self._run_adb(['shell', 'input', 'keyevent', '26'])
+            time.sleep(1)
+
+    def is_app_running(self, package_name="com.supercell.clashofclans"):
+        """Check if app has an active process or is in foreground."""
+        if not self.available or not self.connected:
+            return False
+        try:
+            # Fast path: app is foreground.
+            if self.is_app_foreground(package_name):
+                return True
+
+            # Process check (more reliable than broad dumpsys activity parsing).
+            res_pid = self._run_adb(['shell', 'pidof', package_name])
+            if res_pid and (res_pid.stdout or "").strip():
+                return True
+
+            # Fallback for devices where pidof is unavailable.
+            res_ps = self._run_adb(['shell', 'ps'])
+            if res_ps and package_name in (res_ps.stdout or ""):
+                return True
+
+            return False
+        except Exception as e:
+            logger.debug(f"Failed to check if app is running: {e}")
+            return False
+
+    def is_app_foreground(self, package_name="com.supercell.clashofclans"):
+        """Check if app is in foreground (active/focused window)."""
+        if not self.available or not self.connected:
+            return False
+        try:
+            res = self._run_adb(['shell', 'dumpsys', 'window', 'windows'])
+            if res is None:
+                return False
+            # Look for mCurrentFocus which shows the currently focused app
+            if package_name in res.stdout and "mCurrentFocus" in res.stdout:
+                # More specific check: see if package appears near mCurrentFocus
+                for line in res.stdout.split('\n'):
+                    if 'mCurrentFocus' in line and package_name in line:
+                        logger.debug(f"App {package_name} is in foreground")
+                        return True
+            logger.debug(f"App {package_name} is NOT in foreground")
+            return False
+        except Exception as e:
+            logger.debug(f"Failed to check if app is foreground: {e}")
+            return False
+
+    def resolve_launch_component(self, package_name):
+        """
+        Resolve best launcher component for a package.
+        Returns component string: <package>/<activity> or None.
+        """
+        if not self.available or not self.connected:
+            return None
+
+        # Preferred: package manager resolver.
+        res = self._run_adb(['shell', 'cmd', 'package', 'resolve-activity', '--brief', package_name])
+        if res is not None and res.returncode == 0:
+            for line in reversed((res.stdout or "").splitlines()):
+                line = line.strip()
+                if line.startswith(package_name + "/"):
+                    return line
+
+        # Fallback for environments where cmd package is unreliable.
+        return f"{package_name}/{COC_MAIN_ACTIVITY}"
+
+    def bring_app_to_foreground(self, package_name="com.supercell.clashofclans"):
+        """Bring app to foreground if running but backgrounded."""
+        if not self.available or not self.connected:
+            logger.warning("Cannot bring app to foreground: no active ADB device.")
+            return False
+
+        logger.info(f"Bringing {package_name} to foreground...")
+        component = self.resolve_launch_component(package_name)
+
+        # Strategy 0: explicit known launcher activity (most reliable for CoC).
+        if component:
+            self._run_adb(['shell', 'am', 'start', '-n', component])
+            time.sleep(2)
+            if self.is_app_foreground(package_name):
+                return True
+
+        # Strategy 1: monkey quick launch
+        self._run_adb(['shell', 'monkey', '-p', package_name, '1'])
+        time.sleep(2)
+        if self.is_app_foreground(package_name):
+            return True
+
+        # Strategy 2: launcher intent
+        if component:
+            self._run_adb(['shell', 'am', 'start', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LAUNCHER', '-n', component])
+        else:
+            self._run_adb(['shell', 'am', 'start', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LAUNCHER', '-p', package_name])
+        time.sleep(2)
+        if self.is_app_foreground(package_name):
+            return True
+
+        logger.warning("Could not bring app to foreground.")
+        return False
+
+    def get_screen_size(self):
+        """Return (width, height) reported by `wm size`. Prefers override over physical."""
+        if not self.available or not self.connected:
+            return None
+        res = self._run_adb(['shell', 'wm', 'size'])
+        if res is None or res.returncode != 0:
+            return None
+        text = res.stdout or ""
+        # Override line takes precedence over Physical when both are present.
+        for prefix in ("Override size:", "Physical size:"):
+            for line in text.splitlines():
+                line = line.strip()
+                if line.startswith(prefix):
+                    try:
+                        wh = line.split(":", 1)[1].strip().lower()
+                        w, h = wh.split("x")
+                        return (int(w), int(h))
+                    except Exception:
+                        return None
+        return None
+
+    def get_screen_density(self):
+        """Return DPI reported by `wm density`. Prefers override over physical."""
+        if not self.available or not self.connected:
+            return None
+        res = self._run_adb(['shell', 'wm', 'density'])
+        if res is None or res.returncode != 0:
+            return None
+        text = res.stdout or ""
+        for prefix in ("Override density:", "Physical density:"):
+            for line in text.splitlines():
+                line = line.strip()
+                if line.startswith(prefix):
+                    try:
+                        return int(line.split(":", 1)[1].strip())
+                    except Exception:
+                        return None
+        return None
+
+    def enforce_resolution(self, target_resolution, target_density=None, package_name="com.supercell.clashofclans"):
+        """
+        Lock the device to a known display geometry via `wm size` / `wm density`.
+
+        If the target app is running and size needs to change, force-stop it
+        first so its relaunch picks up the new layout cleanly (CoC does not
+        re-layout robustly on live resolution change).
+
+        target_resolution: "WIDTHxHEIGHT" string, e.g. "1600x900".
+        target_density: integer DPI, or None to leave density untouched.
+        Returns True when the target size is in effect afterwards.
+        """
+        if not self.available or not self.connected:
+            return False
+        try:
+            tw_str, th_str = target_resolution.lower().split("x")
+            tw, th = int(tw_str), int(th_str)
+        except Exception:
+            logger.error(f"Invalid target_resolution '{target_resolution}'. Use WIDTHxHEIGHT (e.g. 1600x900).")
+            return False
+
+        current_size = self.get_screen_size()
+        current_density = self.get_screen_density()
+        size_needs_change = current_size != (tw, th)
+        density_needs_change = target_density is not None and current_density != target_density
+
+        if not (size_needs_change or density_needs_change):
+            logger.debug(f"Display already at {tw}x{th} @ density {current_density}.")
+            return True
+
+        logger.info(
+            f"Enforcing display: size {current_size} -> {tw}x{th}, density {current_density} -> {target_density}"
+        )
+
+        if size_needs_change and self.is_app_running(package_name):
+            logger.warning(f"{package_name} is running; force-stopping before resolution change.")
+            self._run_adb(['shell', 'am', 'force-stop', package_name])
+            time.sleep(1.0)
+
+        if size_needs_change:
+            res = self._run_adb(['shell', 'wm', 'size', f"{tw}x{th}"])
+            if res is None or res.returncode != 0:
+                logger.warning(f"Failed to set wm size to {tw}x{th}.")
+                return False
+
+        if density_needs_change:
+            res = self._run_adb(['shell', 'wm', 'density', str(target_density)])
+            if res is None or res.returncode != 0:
+                logger.warning(f"Failed to set wm density to {target_density}; continuing with size change only.")
+
+        time.sleep(0.5)
+        actual = self.get_screen_size()
+        if actual != (tw, th):
+            logger.warning(f"After wm size, screen is {actual} (expected {tw}x{th}).")
+            return False
+        logger.info(
+            f"Display locked to {tw}x{th}" + (f" @ density {target_density}" if target_density else "")
+        )
+        return True
+
+    def is_package_installed(self, package_name):
+        if not self.available or not self.connected:
+            return None
+        # Primary check.
+        res = self._run_adb(['shell', 'pm', 'list', 'packages', package_name])
+        if res is not None and res.returncode == 0 and package_name in (res.stdout or ""):
+            return True
+
+        # Fallback: some BlueStacks builds intermittently close pm shell command.
+        res_ds = self._run_adb(['shell', 'dumpsys', 'package', package_name])
+        if res_ds is None:
+            self.last_status_reason = "package_check_unavailable"
+            return None
+        if res_ds.returncode != 0:
+            if self._is_shell_transport_closed(res) or self._is_shell_transport_closed(res_ds):
+                self.last_status_reason = "adb_shell_closed"
+                return None
+            return False
+        out = res_ds.stdout or ""
+        return f"Package [{package_name}]" in out or f"package={package_name}" in out
+
+    def launch_game(self, package_name="com.supercell.clashofclans"):
+        if not self.available or not self.connected:
+            logger.warning("Cannot launch game: no active ADB device.")
+            return False
+
+        install_state = self.is_package_installed(package_name)
+        if install_state is None:
+            logger.error("Cannot verify app installation due to unstable ADB shell connection (error: closed).")
+            logger.error("Please restart BlueStacks and ADB, then run the bot again.")
+            return False
+        if not install_state:
+            logger.error("Clash of Clans is not installed on the selected emulator/device. Please install it, then run the bot again.")
+            return False
+
+        logger.info(f"Launching {package_name}...")
+        component = self.resolve_launch_component(package_name)
+
+        # Strategy 0: explicit known activity
+        if component:
+            self._run_adb(['shell', 'am', 'start', '-n', component])
+            time.sleep(4)
+            if self.is_app_running(package_name):
+                return True
+
+        # Strategy 1: monkey launcher
+        self._run_adb(['shell', 'monkey', '-p', package_name, '-c', 'android.intent.category.LAUNCHER', '1'])
+        time.sleep(4)
+        if self.is_app_running(package_name):
+            return True
+
+        # Strategy 2: monkey direct open
+        self._run_adb(['shell', 'monkey', '-p', package_name, '1'])
+        time.sleep(4)
+        if self.is_app_running(package_name):
+            return True
+
+        # Strategy 3: explicit launch intent
+        if component:
+            self._run_adb(['shell', 'am', 'start', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LAUNCHER', '-n', component])
+        else:
+            self._run_adb(['shell', 'am', 'start', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LAUNCHER', '-p', package_name])
+        time.sleep(4)
+        if self.is_app_running(package_name):
+            return True
+
+        logger.error("Launch attempts completed but app is still not running.")
+        return False
+
+    def restart_game(self, package_name="com.supercell.clashofclans"):
+        """
+        Force-stop the app and relaunch it. Used as a recovery path when the
+        bot is stuck on a non-recognized state (e.g. inactivity disconnect
+        popup) and `close_popups` cannot escape it. Returns True when the app
+        is running afterwards.
+        """
+        if not self.available or not self.connected:
+            logger.warning("Cannot restart game: no active ADB device.")
+            return False
+        logger.info(f"Restarting {package_name} (force-stop + launch)...")
+        self._run_adb(['shell', 'am', 'force-stop', package_name])
+        time.sleep(1.5)
+        return self.launch_game(package_name)
+
+    def ensure_coc_ready(self, package_name, settings, save_settings, logger):
+        """
+        Ensure CoC is installed, launched, and foregrounded.
+        Returns True when ready, False otherwise.
+        """
+        install_state = self.is_package_installed(package_name)
+        if install_state is None:
+            logger.error("Cannot verify Clash of Clans installation because ADB shell connection is unstable.")
+            logger.error("Action: restart BlueStacks, then run `adb kill-server`, `adb start-server`, and run the bot again.")
+            return False
+
+        if not install_state:
+            alt_serial = self.find_serial_with_package(package_name)
+            if alt_serial and alt_serial != self.serial:
+                logger.warning(f"CoC not found on current serial. Switching to: {alt_serial}")
+                self.serial = alt_serial
+                settings.setdefault("device", {})
+                settings["device"]["serial"] = alt_serial
+                save_settings(settings)
+                install_state = self.is_package_installed(package_name)
+
+            if not install_state:
+                logger.error("Clash of Clans is not installed on the selected emulator/device. Please install it, then run the bot again.")
+                return False
+
+        if self.is_app_running(package_name):
+            logger.info("CoC is running.")
+            if not self.is_app_foreground(package_name):
+                logger.warning("CoC is running but in background. Bringing to foreground...")
+                if not self.bring_app_to_foreground(package_name):
+                    logger.error("CoC is running but cannot be brought to foreground. Stop bot.")
+                    return False
+            return True
+
+        logger.warning("CoC is not running. Launching game...")
+        if self.launch_game(package_name):
+            return True
+
+        alt_serial = self.find_serial_with_package(package_name)
+        if alt_serial and alt_serial != self.serial:
+            logger.warning(f"Launch failed on current serial. Trying fallback serial: {alt_serial}")
+            self.serial = alt_serial
+            settings.setdefault("device", {})
+            settings["device"]["serial"] = alt_serial
+            save_settings(settings)
+            return self.launch_game(package_name)
+        return False
+
+    def get_screen(self):
+        if not self.available or not self.connected:
+            return None
+        try:
+            pipe = subprocess.Popen(
+                self._adb_cmd(['exec-out', 'screencap', '-p']),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            try:
+                # communicate() drains stdout while enforcing a timeout — a bare
+                # stdout.read() here blocked FOREVER whenever the adb transport
+                # wedged (2026-10-28), silently hanging every caller.
+                image_bytes, _ = pipe.communicate(timeout=20)
+            except subprocess.TimeoutExpired:
+                pipe.kill()
+                pipe.communicate()
+                logger.error("screencap timed out after 20s — adb transport wedged? "
+                             "(returning None instead of hanging)")
+                return None
+            if not image_bytes:
+                return None
+            image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+            screen = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+            return screen
+        except FileNotFoundError:
+            logger.error("adb binary not found when attempting to capture screen.")
+            return None
+
+    def _pixel_to_event(self, px, py, max_x_evt, max_y_evt, sw, sh):
+        ex = max(0, min(max_x_evt, int(px * max_x_evt / sw)))
+        ey = max(0, min(max_y_evt, int(py * max_y_evt / sh)))
+        return ex, ey
+
+    def _find_touch_input_device(self):
+        """
+        Find the multi-touch event device (e.g. /dev/input/event4 on BlueStacks).
+        Returns (path, max_x, max_y) or (None, None, None).
+        Looks for a device exposing ABS_MT_POSITION_X.
+        """
+        if not self.available or not self.connected:
+            return (None, None, None)
+        res = self._run_adb(['shell', 'getevent', '-pl'])
+        if res is None or res.returncode != 0:
+            return (None, None, None)
+        current_path = None
+        current_has_mt_x = False
+        current_max_x = None
+        current_max_y = None
+        for line in (res.stdout or "").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("add device"):
+                # Flush previous if it was MT-capable
+                if current_path and current_has_mt_x:
+                    return (current_path, current_max_x, current_max_y)
+                # Start new device block
+                parts = stripped.split(":", 1)
+                current_path = parts[1].strip() if len(parts) > 1 else None
+                current_has_mt_x = False
+                current_max_x = None
+                current_max_y = None
+            elif "ABS_MT_POSITION_X" in stripped:
+                current_has_mt_x = True
+                # Parse max from "ABS_MT_POSITION_X     : value 0, min 0, max 32767, ..."
+                try:
+                    current_max_x = int(stripped.split("max")[1].split(",")[0].strip())
+                except Exception:
+                    current_max_x = None
+            elif "ABS_MT_POSITION_Y" in stripped:
+                try:
+                    current_max_y = int(stripped.split("max")[1].split(",")[0].strip())
+                except Exception:
+                    current_max_y = None
+        if current_path and current_has_mt_x:
+            return (current_path, current_max_x, current_max_y)
+        return (None, None, None)
+
+    def pinch(self, direction='out', center=None, span_pixels=400, steps=15, repeats=1):
+        """
+        Multi-touch pinch via sendevent using **Protocol B** (slot + tracking-id
+        based, one SYN_REPORT per frame). Protocol A (SYN_MT_REPORT streams) is
+        silently IGNORED by Memu's multi-touch driver — verified by capturing
+        real host clicks (which use slots/tracking-ids, no BTN_TOUCH) and by
+        measuring content scale 1.00 after Protocol-A pinches.
+
+        direction:    'out' fingers move toward center (zoom out),
+                      'in'  fingers move apart from center (zoom in)
+        center:       (x, y) pixel center; defaults to screen midpoint
+        span_pixels:  far-finger distance from center (closer end = 1/4 of this)
+        steps:        number of interpolated frames
+        repeats:      consecutive pinches (each lifts fingers between). Useful
+                      because CoC clamps zoom-out at a max level, so a few
+                      repeats reliably hits the floor regardless of starting zoom.
+        Returns True on success.
+        """
+        if not self.available or not self.connected:
+            return False
+
+        event_dev, max_x_evt, max_y_evt = self._find_touch_input_device()
+        if not event_dev:
+            logger.warning("No multi-touch input device found; cannot pinch.")
+            return False
+
+        size = self.get_screen_size()
+        if not size:
+            logger.warning("Cannot pinch: failed to read screen size.")
+            return False
+        sw, sh = size
+        cx, cy = center or (sw // 2, sh // 2)
+
+        # Most MT devices use a normalized 0..max coordinate space rather than
+        # raw pixels. Map accordingly (on Memu max == screen size, so 1:1).
+        max_x_evt = max_x_evt or sw
+        max_y_evt = max_y_evt or sh
+
+        if direction == 'out':
+            start_d, end_d = span_pixels, max(20, span_pixels // 5)
+        else:
+            start_d, end_d = max(20, span_pixels // 5), span_pixels
+
+        EV_ABS = 3
+        EV_SYN = 0
+        ABS_MT_SLOT = 0x2f
+        ABS_MT_POSITION_X = 0x35
+        ABS_MT_POSITION_Y = 0x36
+        ABS_MT_TOUCH_MAJOR = 0x30
+        ABS_MT_TRACKING_ID = 0x39
+        SYN_REPORT = 0
+
+        def build_script():
+            cmds = []
+            def se(t, c, v):
+                cmds.append(f"sendevent {event_dev} {t} {c} {v}")
+            def frame_finger(slot, x, y):
+                se(EV_ABS, ABS_MT_SLOT, slot)
+                se(EV_ABS, ABS_MT_POSITION_X, x)
+                se(EV_ABS, ABS_MT_POSITION_Y, y)
+                se(EV_ABS, ABS_MT_TOUCH_MAJOR, 10)
+            # finger 1 (slot 0) down at the far end
+            x1, y1 = self._pixel_to_event(cx - start_d, cy, max_x_evt, max_y_evt, sw, sh)
+            x2, y2 = self._pixel_to_event(cx + start_d, cy, max_x_evt, max_y_evt, sw, sh)
+            frame_finger(0, x1, y1)
+            se(EV_ABS, ABS_MT_TRACKING_ID, 0)
+            se(EV_SYN, SYN_REPORT, 0)
+            # finger 2 (slot 1) down
+            frame_finger(1, x2, y2)
+            se(EV_ABS, ABS_MT_TRACKING_ID, 1)
+            se(EV_SYN, SYN_REPORT, 0)
+            # interpolated move frames: both slots updated, one SYN per frame
+            for i in range(1, steps + 1):
+                t = i / max(1, steps)
+                d = int(start_d + (end_d - start_d) * t)
+                x1, y1 = self._pixel_to_event(cx - d, cy, max_x_evt, max_y_evt, sw, sh)
+                x2, y2 = self._pixel_to_event(cx + d, cy, max_x_evt, max_y_evt, sw, sh)
+                frame_finger(0, x1, y1)
+                frame_finger(1, x2, y2)
+                se(EV_SYN, SYN_REPORT, 0)
+                cmds.append("sleep 0.04")
+            # lift both fingers: tracking-id -1 on each slot, then SYN
+            se(EV_ABS, ABS_MT_SLOT, 0)
+            se(EV_ABS, ABS_MT_TRACKING_ID, -1)
+            se(EV_ABS, ABS_MT_SLOT, 1)
+            se(EV_ABS, ABS_MT_TRACKING_ID, -1)
+            se(EV_SYN, SYN_REPORT, 0)
+            return ";".join(cmds)
+
+        logger.info(
+            f"Pinch {direction} x{repeats}: device={event_dev} center=({cx},{cy}) "
+            f"span={start_d}->{end_d} steps={steps}"
+        )
+        script = build_script()
+        for r in range(repeats):
+            res = self._run_adb(['shell', script])
+            if res is None or res.returncode != 0:
+                logger.warning(f"Pinch sendevent script returned non-zero on repeat {r + 1}.")
+                return False
+            if r < repeats - 1:
+                # Let CoC settle so the next pinch starts from a stable camera.
+                time.sleep(0.3)
+        return True
+
+    def _curved_swipe(self, path, duration_ms=300):
+        if not self.available or not self.connected:
+            return False
+        event_dev, max_x_evt, max_y_evt = self._find_touch_input_device()
+        if not event_dev:
+            return False
+        size = self.get_screen_size()
+        if not size:
+            return False
+        sw, sh = size
+        max_x_evt = max_x_evt or sw
+        max_y_evt = max_y_evt or sh
+
+        EV_ABS, EV_SYN = 3, 0
+        ABS_MT_POSITION_X, ABS_MT_POSITION_Y = 0x35, 0x36
+        SYN_REPORT, SYN_MT_REPORT = 0, 2
+
+        sleep_per = max(0.016, duration_ms / 1000 / max(1, len(path) - 1))
+        cmds = []
+        def se(t, c, v): cmds.append(f"sendevent {event_dev} {t} {c} {v}")
+
+        for px, py in path:
+            ex, ey = self._pixel_to_event(px, py, max_x_evt, max_y_evt, sw, sh)
+            se(EV_ABS, ABS_MT_POSITION_X, ex)
+            se(EV_ABS, ABS_MT_POSITION_Y, ey)
+            se(EV_SYN, SYN_MT_REPORT, 0)
+            se(EV_SYN, SYN_REPORT, 0)
+            cmds.append(f"sleep {sleep_per:.3f}")
+        se(EV_SYN, SYN_REPORT, 0)
+
+        script = ";".join(cmds)
+        res = self._run_adb(['shell', script])
+        return res is not None and res.returncode == 0
+
+    def tap(self, x, y):
+        if not self.available or not self.connected:
+            logger.debug("tap skipped: no active ADB device.")
+            return
+        try:
+            self._run_adb(['shell', 'input', 'tap', str(x), str(y)])
+        except FileNotFoundError:
+            logger.error("adb binary not found when attempting to tap.")
+
+    def swipe(self, path):
+        if len(path) < 2:
+            return
+        if len(path) > 2 and self._curved_swipe(path):
+            return
+        start, end = path[0], path[-1]
+        if not self.available or not self.connected:
+            logger.debug("swipe skipped: no active ADB device.")
+            return
+        try:
+            self._run_adb(['shell', 'input', 'swipe',
+                           str(start[0]), str(start[1]),
+                           str(end[0]), str(end[1]), '300'])
+        except FileNotFoundError:
+            logger.error("adb binary not found when attempting to swipe.")

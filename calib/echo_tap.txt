@@ -1,0 +1,4 @@
+could not get driver version for /dev/input/mouse2, Not a typewriter
+could not get driver version for /dev/input/mouse1, Not a typewriter
+could not get driver version for /dev/input/mice, Not a typewriter
+could not get driver version for /dev/input/mouse0, Not a typewriter

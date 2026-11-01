@@ -1,0 +1,2431 @@
+{
+  "name": "dragon_balloon",
+  "variants": [
+    {
+      "name": "9-12",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "9-12_pan",
+          "label": "Pan camera to 9-12 edge",
+          "type": "pan",
+          "after": [],
+          "template": "",
+          "taps": 1,
+          "x1": 800,
+          "y1": 450,
+          "x2": 853,
+          "y2": 562,
+          "x": 40,
+          "y": 160
+        },
+        {
+          "id": "9-12_balloon",
+          "label": "Balloons x14 (9-12 arc)",
+          "type": "troop",
+          "after": [
+            "9-12_pan"
+          ],
+          "strategy": "pattern",
+          "x1": 336,
+          "y1": 432,
+          "x2": 630,
+          "y2": 213,
+          "template": "units/troops/balloon",
+          "taps": 14,
+          "x": 225,
+          "y": 160,
+          "points": [
+            [
+              219,
+              582
+            ],
+            [
+              264,
+              548
+            ],
+            [
+              296,
+              496
+            ],
+            [
+              342,
+              464
+            ],
+            [
+              389,
+              432
+            ],
+            [
+              438,
+              403
+            ],
+            [
+              490,
+              379
+            ],
+            [
+              535,
+              345
+            ],
+            [
+              573,
+              302
+            ],
+            [
+              615,
+              264
+            ],
+            [
+              658,
+              227
+            ],
+            [
+              703,
+              192
+            ],
+            [
+              762,
+              177
+            ],
+            [
+              807,
+              143
+            ]
+          ],
+          "interval": 0
+        },
+        {
+          "id": "9-12_dragon",
+          "label": "Dragons x14 (behind balloons)",
+          "type": "troop",
+          "after": [
+            "9-12_balloon"
+          ],
+          "strategy": "pattern",
+          "x1": 248,
+          "y1": 498,
+          "x2": 718,
+          "y2": 147,
+          "template": "units/troops/dragon",
+          "taps": 14,
+          "x": 410,
+          "y": 160,
+          "points": [
+            [
+              219,
+              582
+            ],
+            [
+              264,
+              548
+            ],
+            [
+              296,
+              496
+            ],
+            [
+              342,
+              464
+            ],
+            [
+              389,
+              432
+            ],
+            [
+              438,
+              403
+            ],
+            [
+              490,
+              379
+            ],
+            [
+              535,
+              345
+            ],
+            [
+              573,
+              302
+            ],
+            [
+              615,
+              264
+            ],
+            [
+              658,
+              227
+            ],
+            [
+              703,
+              192
+            ],
+            [
+              762,
+              177
+            ],
+            [
+              807,
+              143
+            ]
+          ],
+          "interval": 0
+        },
+        {
+          "id": "9-12_slammer",
+          "label": "Stone Slammer",
+          "type": "siege",
+          "after": [
+            "9-12_dragon"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              513,
+              362
+            ]
+          ],
+          "template": "units/siege/stone_slammer",
+          "taps": 3,
+          "x": 595,
+          "y": 160,
+          "threshold": 0.3,
+          "interval": 0
+        },
+        {
+          "id": "9-12_wait",
+          "label": "Wait 2s",
+          "type": "delay",
+          "after": [
+            "9-12_slammer"
+          ],
+          "seconds": 2,
+          "strategy": "delay",
+          "x": 780,
+          "y": 160
+        },
+        {
+          "id": "9-12_minion",
+          "label": "Minion x1",
+          "type": "troop",
+          "after": [
+            "9-12_wait"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              510,
+              358
+            ]
+          ],
+          "template": "units/troops/minion",
+          "taps": 1,
+          "x": 965,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "9-12_queen",
+          "label": "Archer Queen",
+          "type": "hero",
+          "after": [
+            "9-12_minion"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              807,
+              143
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 1,
+          "x": 1150,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/barbarian_king"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "9-12_queen_ab",
+          "label": "Ability: Archer Queen",
+          "type": "hero",
+          "after": [
+            "9-12_queen"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              870,
+              265
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1335,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/barbarian_king"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "9-12_champ",
+          "label": "Royal Champion",
+          "type": "hero",
+          "after": [
+            "9-12_queen_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              219,
+              582
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "x": 1520,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/dragon_duke"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "9-12_champ_ab",
+          "label": "Ability: Royal Champion",
+          "type": "hero",
+          "after": [
+            "9-12_champ"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              480,
+              590
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1705,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/dragon_duke"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "9-12_prince",
+          "label": "Prince",
+          "type": "hero",
+          "after": [
+            "9-12_champ_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              451,
+              402
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 1,
+          "x": 1890,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "9-12_prince_ab",
+          "label": "Ability: Prince",
+          "type": "hero",
+          "after": [
+            "9-12_prince"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              594,
+              486
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 2075,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "9-12_warden",
+          "label": "Grand Warden",
+          "type": "hero",
+          "after": [
+            "9-12_prince_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              569,
+              315
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "x": 40,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "9-12_warden_ab",
+          "label": "Ability: Grand Warden",
+          "type": "hero",
+          "after": [
+            "9-12_warden"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              676,
+              429
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 225,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "9-12_king",
+          "label": "Barbarian King",
+          "type": "hero",
+          "after": [
+            "9-12_warden_ab"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 1,
+          "strategy": "pattern",
+          "points": [
+            [
+              807,
+              143
+            ]
+          ],
+          "x": 410,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "9-12_king_ab",
+          "label": "Ability: Barbarian King",
+          "type": "hero",
+          "after": [
+            "9-12_king"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 0,
+          "strategy": "points",
+          "points": [
+            [
+              471,
+              331
+            ]
+          ],
+          "threshold": 0.4,
+          "x": 595,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "9-12_duke",
+          "label": "Dragon Duke",
+          "type": "hero",
+          "after": [
+            "9-12_king_ab"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 1,
+          "strategy": "pattern",
+          "points": [
+            [
+              219,
+              582
+            ]
+          ],
+          "x": 780,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "9-12_duke_ab",
+          "label": "Ability: Dragon Duke",
+          "type": "hero",
+          "after": [
+            "9-12_duke"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 0,
+          "strategy": "points",
+          "points": [
+            [
+              495,
+              314
+            ]
+          ],
+          "threshold": 0.4,
+          "x": 965,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "9-12_rage",
+          "label": "Rage x4 (center)",
+          "type": "spell",
+          "after": [
+            "9-12_duke_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              800,
+              390
+            ],
+            [
+              800,
+              510
+            ],
+            [
+              765,
+              450
+            ],
+            [
+              835,
+              450
+            ]
+          ],
+          "template": "units/spells/rage",
+          "taps": 4,
+          "x": 1150,
+          "y": 370,
+          "interval": 1.0
+        },
+        {
+          "id": "9-12_freeze",
+          "label": "Freeze x3 (center)",
+          "type": "spell",
+          "after": [
+            "9-12_rage"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              800,
+              450
+            ],
+            [
+              775,
+              415
+            ],
+            [
+              825,
+              485
+            ]
+          ],
+          "template": "units/spells/freeze",
+          "taps": 3,
+          "x": 1335,
+          "y": 370,
+          "interval": 2.0
+        },
+        {
+          "id": "9-12_ensure",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "9-12_freeze"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1520,
+          "y": 370
+        },
+        {
+          "id": "9-12_endwait",
+          "label": "Delay",
+          "type": "delay",
+          "after": [
+            "9-12_ensure"
+          ],
+          "template": "",
+          "taps": 1,
+          "strategy": "delay",
+          "seconds": 30,
+          "x": 1705,
+          "y": 370
+        },
+        {
+          "id": "9-12_surrender",
+          "label": "Surrender",
+          "type": "surrender",
+          "after": [
+            "9-12_endwait"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1890,
+          "y": 370
+        }
+      ],
+      "calibration": {
+        "centre": [
+          510,
+          359
+        ],
+        "inset_normal": [
+          0.598,
+          0.801
+        ],
+        "centre_est_from_pan": [
+          868,
+          479
+        ],
+        "edge_start_rc": [
+          189,
+          542
+        ],
+        "edge_end_aq": [
+          777,
+          103
+        ],
+        "dragon_inset_px": 45
+      }
+    },
+    {
+      "name": "12-3",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "12-3_pan",
+          "label": "Pan camera to 12-3 edge",
+          "type": "pan",
+          "after": [],
+          "template": "",
+          "taps": 1,
+          "x1": 800,
+          "y1": 450,
+          "x2": 751,
+          "y2": 563,
+          "x": 40,
+          "y": 160
+        },
+        {
+          "id": "12-3_balloon",
+          "label": "Balloons x14 (12-3 arc)",
+          "type": "troop",
+          "after": [
+            "12-3_pan"
+          ],
+          "strategy": "pattern",
+          "x1": 952,
+          "y1": 214,
+          "x2": 1251,
+          "y2": 434,
+          "template": "units/troops/balloon",
+          "taps": 14,
+          "x": 225,
+          "y": 160,
+          "points": [
+            [
+              772,
+              145
+            ],
+            [
+              818,
+              179
+            ],
+            [
+              878,
+              194
+            ],
+            [
+              923,
+              229
+            ],
+            [
+              968,
+              265
+            ],
+            [
+              1010,
+              303
+            ],
+            [
+              1049,
+              346
+            ],
+            [
+              1096,
+              381
+            ],
+            [
+              1149,
+              405
+            ],
+            [
+              1198,
+              434
+            ],
+            [
+              1246,
+              465
+            ],
+            [
+              1293,
+              497
+            ],
+            [
+              1325,
+              549
+            ],
+            [
+              1371,
+              583
+            ]
+          ],
+          "interval": 0
+        },
+        {
+          "id": "12-3_dragon",
+          "label": "Dragons x14 (behind balloons)",
+          "type": "troop",
+          "after": [
+            "12-3_balloon"
+          ],
+          "strategy": "pattern",
+          "x1": 862,
+          "y1": 149,
+          "x2": 1341,
+          "y2": 499,
+          "template": "units/troops/dragon",
+          "taps": 14,
+          "x": 410,
+          "y": 160,
+          "points": [
+            [
+              772,
+              145
+            ],
+            [
+              818,
+              179
+            ],
+            [
+              878,
+              194
+            ],
+            [
+              923,
+              229
+            ],
+            [
+              968,
+              265
+            ],
+            [
+              1010,
+              303
+            ],
+            [
+              1049,
+              346
+            ],
+            [
+              1096,
+              381
+            ],
+            [
+              1149,
+              405
+            ],
+            [
+              1198,
+              434
+            ],
+            [
+              1246,
+              465
+            ],
+            [
+              1293,
+              497
+            ],
+            [
+              1325,
+              549
+            ],
+            [
+              1371,
+              583
+            ]
+          ],
+          "interval": 0
+        },
+        {
+          "id": "12-3_slammer",
+          "label": "Stone Slammer",
+          "type": "siege",
+          "after": [
+            "12-3_dragon"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1072,
+              364
+            ]
+          ],
+          "template": "units/siege/stone_slammer",
+          "taps": 3,
+          "x": 595,
+          "y": 160,
+          "threshold": 0.3,
+          "interval": 0
+        },
+        {
+          "id": "12-3_wait",
+          "label": "Wait 2s",
+          "type": "delay",
+          "after": [
+            "12-3_slammer"
+          ],
+          "seconds": 2,
+          "strategy": "delay",
+          "x": 780,
+          "y": 160
+        },
+        {
+          "id": "12-3_minion",
+          "label": "Minion x1",
+          "type": "troop",
+          "after": [
+            "12-3_wait"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1075,
+              360
+            ]
+          ],
+          "template": "units/troops/minion",
+          "taps": 1,
+          "x": 965,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "12-3_queen",
+          "label": "Archer Queen",
+          "type": "hero",
+          "after": [
+            "12-3_minion"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1371,
+              583
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 1,
+          "x": 1150,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/barbarian_king"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "12-3_queen_ab",
+          "label": "Ability: Archer Queen",
+          "type": "hero",
+          "after": [
+            "12-3_queen"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1055,
+              565
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1335,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/barbarian_king"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "12-3_champ",
+          "label": "Royal Champion",
+          "type": "hero",
+          "after": [
+            "12-3_queen_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              772,
+              145
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "x": 1520,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/dragon_duke"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "12-3_champ_ab",
+          "label": "Ability: Royal Champion",
+          "type": "hero",
+          "after": [
+            "12-3_champ"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              705,
+              270
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1705,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/dragon_duke"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "12-3_prince",
+          "label": "Prince",
+          "type": "hero",
+          "after": [
+            "12-3_champ_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1015,
+              317
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 1,
+          "x": 1890,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "12-3_prince_ab",
+          "label": "Ability: Prince",
+          "type": "hero",
+          "after": [
+            "12-3_prince"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              890,
+              355
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 2075,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "12-3_warden",
+          "label": "Grand Warden",
+          "type": "hero",
+          "after": [
+            "12-3_prince_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1135,
+              404
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "x": 40,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "12-3_warden_ab",
+          "label": "Ability: Grand Warden",
+          "type": "hero",
+          "after": [
+            "12-3_warden"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              965,
+              415
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 225,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "12-3_king",
+          "label": "Barbarian King",
+          "type": "hero",
+          "after": [
+            "12-3_warden_ab"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 1,
+          "strategy": "pattern",
+          "points": [
+            [
+              1371,
+              583
+            ]
+          ],
+          "x": 410,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "12-3_king_ab",
+          "label": "Ability: Barbarian King",
+          "type": "hero",
+          "after": [
+            "12-3_king"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 0,
+          "strategy": "points",
+          "points": [
+            [
+              1090,
+              315
+            ]
+          ],
+          "threshold": 0.4,
+          "x": 595,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "12-3_duke",
+          "label": "Dragon Duke",
+          "type": "hero",
+          "after": [
+            "12-3_king_ab"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 1,
+          "strategy": "pattern",
+          "points": [
+            [
+              772,
+              145
+            ]
+          ],
+          "x": 780,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "12-3_duke_ab",
+          "label": "Ability: Dragon Duke",
+          "type": "hero",
+          "after": [
+            "12-3_duke"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 0,
+          "strategy": "points",
+          "points": [
+            [
+              1113,
+              333
+            ]
+          ],
+          "threshold": 0.4,
+          "x": 965,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "12-3_rage",
+          "label": "Rage x4 (center)",
+          "type": "spell",
+          "after": [
+            "12-3_duke_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              800,
+              390
+            ],
+            [
+              800,
+              510
+            ],
+            [
+              765,
+              450
+            ],
+            [
+              835,
+              450
+            ]
+          ],
+          "template": "units/spells/rage",
+          "taps": 4,
+          "x": 1150,
+          "y": 370,
+          "interval": 1.0
+        },
+        {
+          "id": "12-3_freeze",
+          "label": "Freeze x3 (center)",
+          "type": "spell",
+          "after": [
+            "12-3_rage"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              800,
+              450
+            ],
+            [
+              775,
+              415
+            ],
+            [
+              825,
+              485
+            ]
+          ],
+          "template": "units/spells/freeze",
+          "taps": 3,
+          "x": 1335,
+          "y": 370,
+          "interval": 2.0
+        },
+        {
+          "id": "12-3_ensure",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "12-3_freeze"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1520,
+          "y": 370
+        },
+        {
+          "id": "12-3_endwait",
+          "label": "Delay",
+          "type": "delay",
+          "after": [
+            "12-3_ensure"
+          ],
+          "template": "",
+          "taps": 1,
+          "strategy": "delay",
+          "seconds": 30,
+          "x": 1705,
+          "y": 370
+        },
+        {
+          "id": "12-3_surrender",
+          "label": "Surrender",
+          "type": "surrender",
+          "after": [
+            "12-3_endwait"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1890,
+          "y": 370
+        }
+      ],
+      "calibration": {
+        "centre": [
+          1075,
+          360
+        ],
+        "inset_normal": [
+          -0.59,
+          0.807
+        ],
+        "centre_est_from_pan": [
+          766,
+          480
+        ],
+        "edge_start_rc": [
+          802,
+          105
+        ],
+        "edge_end_aq": [
+          1401,
+          543
+        ],
+        "dragon_inset_px": 45
+      }
+    },
+    {
+      "name": "3-6",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "3-6_pan",
+          "label": "Pan camera to 3-6 edge",
+          "type": "pan",
+          "after": [],
+          "template": "",
+          "taps": 1,
+          "x1": 800,
+          "y1": 450,
+          "x2": 785,
+          "y2": 267,
+          "x": 40,
+          "y": 160
+        },
+        {
+          "id": "3-6_balloon",
+          "label": "Balloons x14 (3-6 arc)",
+          "type": "troop",
+          "after": [
+            "3-6_pan"
+          ],
+          "strategy": "pattern",
+          "x1": 1277,
+          "y1": 373,
+          "x2": 1012,
+          "y2": 588,
+          "template": "units/troops/balloon",
+          "taps": 14,
+          "x": 225,
+          "y": 160,
+          "points": [
+            [
+              1379,
+              227
+            ],
+            [
+              1338,
+              260
+            ],
+            [
+              1311,
+              311
+            ],
+            [
+              1269,
+              343
+            ],
+            [
+              1227,
+              373
+            ],
+            [
+              1182,
+              401
+            ],
+            [
+              1134,
+              425
+            ],
+            [
+              1093,
+              458
+            ],
+            [
+              1059,
+              500
+            ],
+            [
+              1022,
+              538
+            ],
+            [
+              983,
+              573
+            ],
+            [
+              944,
+              608
+            ],
+            [
+              889,
+              623
+            ],
+            [
+              848,
+              656
+            ]
+          ],
+          "interval": 0
+        },
+        {
+          "id": "3-6_dragon",
+          "label": "Dragons x14 (behind balloons)",
+          "type": "troop",
+          "after": [
+            "3-6_balloon"
+          ],
+          "strategy": "pattern",
+          "x1": 1357,
+          "y1": 309,
+          "x2": 932,
+          "y2": 652,
+          "template": "units/troops/dragon",
+          "taps": 14,
+          "x": 410,
+          "y": 160,
+          "points": [
+            [
+              1379,
+              227
+            ],
+            [
+              1338,
+              260
+            ],
+            [
+              1311,
+              311
+            ],
+            [
+              1269,
+              343
+            ],
+            [
+              1227,
+              373
+            ],
+            [
+              1182,
+              401
+            ],
+            [
+              1134,
+              425
+            ],
+            [
+              1093,
+              458
+            ],
+            [
+              1059,
+              500
+            ],
+            [
+              1022,
+              538
+            ],
+            [
+              983,
+              573
+            ],
+            [
+              944,
+              608
+            ],
+            [
+              889,
+              623
+            ],
+            [
+              848,
+              656
+            ]
+          ],
+          "interval": 0
+        },
+        {
+          "id": "3-6_slammer",
+          "label": "Stone Slammer",
+          "type": "siege",
+          "after": [
+            "3-6_dragon"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1113,
+              442
+            ]
+          ],
+          "template": "units/siege/stone_slammer",
+          "taps": 3,
+          "x": 595,
+          "y": 160,
+          "threshold": 0.3,
+          "interval": 0
+        },
+        {
+          "id": "3-6_wait",
+          "label": "Wait 2s",
+          "type": "delay",
+          "after": [
+            "3-6_slammer"
+          ],
+          "seconds": 2,
+          "strategy": "delay",
+          "x": 780,
+          "y": 160
+        },
+        {
+          "id": "3-6_minion",
+          "label": "Minion x1",
+          "type": "troop",
+          "after": [
+            "3-6_wait"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1116,
+              445
+            ]
+          ],
+          "template": "units/troops/minion",
+          "taps": 1,
+          "x": 965,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "3-6_queen",
+          "label": "Archer Queen",
+          "type": "hero",
+          "after": [
+            "3-6_minion"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              848,
+              656
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 1,
+          "x": 1150,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/barbarian_king"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "3-6_queen_ab",
+          "label": "Ability: Archer Queen",
+          "type": "hero",
+          "after": [
+            "3-6_queen"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1165,
+              545
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1335,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/barbarian_king"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "3-6_champ",
+          "label": "Royal Champion",
+          "type": "hero",
+          "after": [
+            "3-6_queen_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1379,
+              227
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "x": 1520,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/dragon_duke"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "3-6_champ_ab",
+          "label": "Ability: Royal Champion",
+          "type": "hero",
+          "after": [
+            "3-6_champ"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1485,
+              345
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1705,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/dragon_duke"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "3-6_prince",
+          "label": "Prince",
+          "type": "hero",
+          "after": [
+            "3-6_champ_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1169,
+              403
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 1,
+          "x": 1890,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "3-6_prince_ab",
+          "label": "Ability: Prince",
+          "type": "hero",
+          "after": [
+            "3-6_prince"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1405,
+              438
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 2075,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "3-6_warden",
+          "label": "Grand Warden",
+          "type": "hero",
+          "after": [
+            "3-6_prince_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              1063,
+              488
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "x": 40,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "3-6_warden_ab",
+          "label": "Ability: Grand Warden",
+          "type": "hero",
+          "after": [
+            "3-6_warden"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1330,
+              478
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 225,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "3-6_king",
+          "label": "Barbarian King",
+          "type": "hero",
+          "after": [
+            "3-6_warden_ab"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 1,
+          "strategy": "pattern",
+          "points": [
+            [
+              848,
+              656
+            ]
+          ],
+          "x": 410,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "3-6_king_ab",
+          "label": "Ability: Barbarian King",
+          "type": "hero",
+          "after": [
+            "3-6_king"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 0,
+          "strategy": "points",
+          "points": [
+            [
+              1155,
+              472
+            ]
+          ],
+          "threshold": 0.4,
+          "x": 595,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "3-6_duke",
+          "label": "Dragon Duke",
+          "type": "hero",
+          "after": [
+            "3-6_king_ab"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 1,
+          "strategy": "pattern",
+          "points": [
+            [
+              1379,
+              227
+            ]
+          ],
+          "x": 780,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "3-6_duke_ab",
+          "label": "Ability: Dragon Duke",
+          "type": "hero",
+          "after": [
+            "3-6_duke"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 0,
+          "strategy": "points",
+          "points": [
+            [
+              1134,
+              489
+            ]
+          ],
+          "threshold": 0.4,
+          "x": 965,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "3-6_rage",
+          "label": "Rage x4 (center)",
+          "type": "spell",
+          "after": [
+            "3-6_duke_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              800,
+              390
+            ],
+            [
+              800,
+              510
+            ],
+            [
+              765,
+              450
+            ],
+            [
+              835,
+              450
+            ]
+          ],
+          "template": "units/spells/rage",
+          "taps": 4,
+          "x": 1150,
+          "y": 370,
+          "interval": 1.0
+        },
+        {
+          "id": "3-6_freeze",
+          "label": "Freeze x3 (center)",
+          "type": "spell",
+          "after": [
+            "3-6_rage"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              800,
+              450
+            ],
+            [
+              775,
+              415
+            ],
+            [
+              825,
+              485
+            ]
+          ],
+          "template": "units/spells/freeze",
+          "taps": 3,
+          "x": 1335,
+          "y": 370,
+          "interval": 2.0
+        },
+        {
+          "id": "3-6_ensure",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "3-6_freeze"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1520,
+          "y": 370
+        },
+        {
+          "id": "3-6_endwait",
+          "label": "Delay",
+          "type": "delay",
+          "after": [
+            "3-6_ensure"
+          ],
+          "template": "",
+          "taps": 1,
+          "strategy": "delay",
+          "seconds": 30,
+          "x": 1705,
+          "y": 370
+        },
+        {
+          "id": "3-6_surrender",
+          "label": "Surrender",
+          "type": "surrender",
+          "after": [
+            "3-6_endwait"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1890,
+          "y": 370
+        }
+      ],
+      "calibration": {
+        "centre": [
+          1116,
+          446
+        ],
+        "inset_normal": [
+          -0.628,
+          -0.778
+        ],
+        "centre_est_from_pan": [
+          800,
+          184
+        ],
+        "edge_start_rc": [
+          1410,
+          266
+        ],
+        "edge_end_aq": [
+          879,
+          695
+        ],
+        "dragon_inset_px": 45
+      }
+    },
+    {
+      "name": "6-9",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "6-9_pan",
+          "label": "Pan camera to 6-9 edge",
+          "type": "pan",
+          "after": [],
+          "template": "",
+          "taps": 1,
+          "x1": 800,
+          "y1": 450,
+          "x2": 853,
+          "y2": 267,
+          "x": 40,
+          "y": 160
+        },
+        {
+          "id": "6-9_balloon",
+          "label": "Balloons x14 (6-9 arc)",
+          "type": "troop",
+          "after": [
+            "6-9_pan"
+          ],
+          "strategy": "pattern",
+          "x1": 622,
+          "y1": 588,
+          "x2": 353,
+          "y2": 375,
+          "template": "units/troops/balloon",
+          "taps": 14,
+          "x": 225,
+          "y": 160,
+          "points": [
+            [
+              788,
+              656
+            ],
+            [
+              747,
+              623
+            ],
+            [
+              691,
+              608
+            ],
+            [
+              651,
+              574
+            ],
+            [
+              611,
+              538
+            ],
+            [
+              574,
+              501
+            ],
+            [
+              539,
+              459
+            ],
+            [
+              498,
+              426
+            ],
+            [
+              449,
+              402
+            ],
+            [
+              404,
+              374
+            ],
+            [
+              361,
+              344
+            ],
+            [
+              318,
+              312
+            ],
+            [
+              290,
+              262
+            ],
+            [
+              249,
+              229
+            ]
+          ],
+          "interval": 0
+        },
+        {
+          "id": "6-9_dragon",
+          "label": "Dragons x14 (behind balloons)",
+          "type": "troop",
+          "after": [
+            "6-9_balloon"
+          ],
+          "strategy": "pattern",
+          "x1": 703,
+          "y1": 652,
+          "x2": 272,
+          "y2": 311,
+          "template": "units/troops/dragon",
+          "taps": 14,
+          "x": 410,
+          "y": 160,
+          "points": [
+            [
+              788,
+              656
+            ],
+            [
+              747,
+              623
+            ],
+            [
+              691,
+              608
+            ],
+            [
+              651,
+              574
+            ],
+            [
+              611,
+              538
+            ],
+            [
+              574,
+              501
+            ],
+            [
+              539,
+              459
+            ],
+            [
+              498,
+              426
+            ],
+            [
+              449,
+              402
+            ],
+            [
+              404,
+              374
+            ],
+            [
+              361,
+              344
+            ],
+            [
+              318,
+              312
+            ],
+            [
+              290,
+              262
+            ],
+            [
+              249,
+              229
+            ]
+          ],
+          "interval": 0
+        },
+        {
+          "id": "6-9_slammer",
+          "label": "Stone Slammer",
+          "type": "siege",
+          "after": [
+            "6-9_dragon"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              519,
+              443
+            ]
+          ],
+          "template": "units/siege/stone_slammer",
+          "taps": 3,
+          "x": 595,
+          "y": 160,
+          "threshold": 0.3,
+          "interval": 0
+        },
+        {
+          "id": "6-9_wait",
+          "label": "Wait 2s",
+          "type": "delay",
+          "after": [
+            "6-9_slammer"
+          ],
+          "seconds": 2,
+          "strategy": "delay",
+          "x": 780,
+          "y": 160
+        },
+        {
+          "id": "6-9_minion",
+          "label": "Minion x1",
+          "type": "troop",
+          "after": [
+            "6-9_wait"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              516,
+              447
+            ]
+          ],
+          "template": "units/troops/minion",
+          "taps": 1,
+          "x": 965,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "6-9_queen",
+          "label": "Archer Queen",
+          "type": "hero",
+          "after": [
+            "6-9_minion"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              249,
+              229
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 1,
+          "x": 1150,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/barbarian_king"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "6-9_queen_ab",
+          "label": "Ability: Archer Queen",
+          "type": "hero",
+          "after": [
+            "6-9_queen"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              105,
+              330
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1335,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/barbarian_king"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "6-9_champ",
+          "label": "Royal Champion",
+          "type": "hero",
+          "after": [
+            "6-9_queen_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              788,
+              656
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "x": 1520,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/dragon_duke"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "6-9_champ_ab",
+          "label": "Ability: Royal Champion",
+          "type": "hero",
+          "after": [
+            "6-9_champ"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              430,
+              540
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1705,
+          "y": 160,
+          "fallbacks": [
+            "units/heroes/dragon_duke"
+          ],
+          "interval": 0
+        },
+        {
+          "id": "6-9_prince",
+          "label": "Prince",
+          "type": "hero",
+          "after": [
+            "6-9_champ_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              569,
+              489
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 1,
+          "x": 1890,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "6-9_prince_ab",
+          "label": "Ability: Prince",
+          "type": "hero",
+          "after": [
+            "6-9_prince"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              249,
+              489
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 2075,
+          "y": 160,
+          "interval": 0
+        },
+        {
+          "id": "6-9_warden",
+          "label": "Grand Warden",
+          "type": "hero",
+          "after": [
+            "6-9_prince_ab"
+          ],
+          "strategy": "pattern",
+          "points": [
+            [
+              462,
+              404
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "x": 40,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "6-9_warden_ab",
+          "label": "Ability: Grand Warden",
+          "type": "hero",
+          "after": [
+            "6-9_warden"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              177,
+              447
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 225,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "6-9_king",
+          "label": "Barbarian King",
+          "type": "hero",
+          "after": [
+            "6-9_warden_ab"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 1,
+          "strategy": "pattern",
+          "points": [
+            [
+              249,
+              229
+            ]
+          ],
+          "x": 410,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "6-9_king_ab",
+          "label": "Ability: Barbarian King",
+          "type": "hero",
+          "after": [
+            "6-9_king"
+          ],
+          "template": "units/heroes/barbarian_king",
+          "taps": 0,
+          "strategy": "points",
+          "points": [
+            [
+              498,
+              490
+            ]
+          ],
+          "threshold": 0.4,
+          "x": 595,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "6-9_duke",
+          "label": "Dragon Duke",
+          "type": "hero",
+          "after": [
+            "6-9_king_ab"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 1,
+          "strategy": "pattern",
+          "points": [
+            [
+              788,
+              656
+            ]
+          ],
+          "x": 780,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "6-9_duke_ab",
+          "label": "Ability: Dragon Duke",
+          "type": "hero",
+          "after": [
+            "6-9_duke"
+          ],
+          "template": "units/heroes/dragon_duke",
+          "taps": 0,
+          "strategy": "points",
+          "points": [
+            [
+              477,
+              473
+            ]
+          ],
+          "threshold": 0.4,
+          "x": 965,
+          "y": 370,
+          "interval": 0
+        },
+        {
+          "id": "6-9_rage",
+          "label": "Rage x4 (center)",
+          "type": "spell",
+          "after": [
+            "6-9_duke_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              800,
+              390
+            ],
+            [
+              800,
+              510
+            ],
+            [
+              765,
+              450
+            ],
+            [
+              835,
+              450
+            ]
+          ],
+          "template": "units/spells/rage",
+          "taps": 4,
+          "x": 1150,
+          "y": 370,
+          "interval": 1.0
+        },
+        {
+          "id": "6-9_freeze",
+          "label": "Freeze x3 (center)",
+          "type": "spell",
+          "after": [
+            "6-9_rage"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              800,
+              450
+            ],
+            [
+              775,
+              415
+            ],
+            [
+              825,
+              485
+            ]
+          ],
+          "template": "units/spells/freeze",
+          "taps": 3,
+          "x": 1335,
+          "y": 370,
+          "interval": 2.0
+        },
+        {
+          "id": "6-9_ensure",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "6-9_freeze"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1520,
+          "y": 370
+        },
+        {
+          "id": "6-9_endwait",
+          "label": "Delay",
+          "type": "delay",
+          "after": [
+            "6-9_ensure"
+          ],
+          "template": "",
+          "taps": 1,
+          "strategy": "delay",
+          "seconds": 30,
+          "x": 1705,
+          "y": 370
+        },
+        {
+          "id": "6-9_surrender",
+          "label": "Surrender",
+          "type": "surrender",
+          "after": [
+            "6-9_endwait"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1890,
+          "y": 370
+        }
+      ],
+      "calibration": {
+        "centre": [
+          515,
+          446
+        ],
+        "inset_normal": [
+          0.621,
+          -0.784
+        ],
+        "centre_est_from_pan": [
+          868,
+          184
+        ],
+        "edge_start_rc": [
+          757,
+          695
+        ],
+        "edge_end_aq": [
+          218,
+          268
+        ],
+        "dragon_inset_px": 45
+      }
+    }
+  ],
+  "designed_capacity": 352,
+  "calibration": {
+    "design": "outer-border static pattern (user spec 2026-10-29) — deploy never analyses the enemy base at runtime",
+    "resolution": "1600x900",
+    "date": "2026-10-31",
+    "bases_verified": 0,
+    "source_frames": "calib/frame_<variant>_{START,END}.png (2026-10-25 run_calib)",
+    "dragon_inset_px": 45,
+    "note": "nominal points shifted inward for outward-jitter safety, margin 10px (boundary = calibrated corner-tap edge); cap 50px/point = top of the 30-50px target band"
+  }
+}

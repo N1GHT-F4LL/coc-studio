@@ -1,0 +1,20 @@
+{
+  "name": "dragon_balloon_loop",
+  "nodes": [
+    {
+      "id": "loop",
+      "type": "loop_n",
+      "label": "Farm dragon_balloon (endless)",
+      "x": 340,
+      "y": 300,
+      "params": {
+        "graph_ref": "dragon_balloon_farm",
+        "times": 100000
+      },
+      "after": [],
+      "data_in": {},
+      "on_error": null
+    }
+  ],
+  "meta": {}
+}

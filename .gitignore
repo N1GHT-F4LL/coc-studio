@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+backend/static/
+
+# Runtime artifacts
+tools/
+_probe/
+backend/logs/
+logs/
+backend/_calib/
+backend/data/coord_cache.json
+backend/data/scenario_state.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/settings.local.json
+.claude/worktrees/
+
+# Playwright MCP verification artifacts
+.playwright-mcp/

@@ -1,0 +1,78 @@
+{
+  "name": "farm_cycle",
+  "nodes": [
+    {
+      "id": "home0",
+      "type": "ensure_home",
+      "label": "Ensure Home",
+      "x": 80,
+      "y": 300,
+      "params": {
+        "zoom_out": true,
+        "timeout": 10
+      },
+      "after": [],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "collect",
+      "type": "collect_resources",
+      "label": "Collect Resources",
+      "x": 340,
+      "y": 300,
+      "params": {},
+      "after": [
+        "home0"
+      ],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "find",
+      "type": "find_match",
+      "label": "Find Match",
+      "x": 600,
+      "y": 300,
+      "params": {
+        "min_gold": 0,
+        "min_elixir": 500000,
+        "min_dark_elixir": null
+      },
+      "after": [
+        "collect"
+      ],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "deploy",
+      "type": "deploy",
+      "label": "Deploy Troops",
+      "x": 860,
+      "y": 300,
+      "params": {
+        "scenario": "supper_minion"
+      },
+      "after": [
+        "find"
+      ],
+      "data_in": {},
+      "on_error": null
+    },
+    {
+      "id": "homeret",
+      "type": "return_home",
+      "label": "Return Home",
+      "x": 1120,
+      "y": 300,
+      "params": {},
+      "after": [
+        "deploy"
+      ],
+      "data_in": {},
+      "on_error": null
+    }
+  ],
+  "meta": {}
+}

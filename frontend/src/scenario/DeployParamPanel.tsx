@@ -1,0 +1,245 @@
+import { thumbUrl } from "../api/client";
+import {
+  DEPLOY_TYPES,
+  TYPE_FOLDER,
+  type DeployNode as DeployNodeT,
+  type DeployType,
+  type Strategy,
+} from "./types";
+
+interface Props {
+  node: DeployNodeT | null;
+  assets: string[];
+  onChange: (id: string, patch: Partial<DeployNodeT>) => void;
+  onDelete: (id: string) => void;
+  // Hand off to the live device picker (replaces the centre canvas while active).
+  onPickPoints?: (id: string) => void;
+  onPickLine?: (id: string) => void;
+}
+
+export function DeployParamPanel({
+  node,
+  assets,
+  onChange,
+  onDelete,
+  onPickPoints,
+  onPickLine,
+}: Props) {
+  if (!node) {
+    return (
+      <aside className="param-panel">
+        <h2>Deploy unit</h2>
+        <div className="muted">Select a unit to edit it, or “+ Unit” to add one.</div>
+      </aside>
+    );
+  }
+
+  const isDelay = node.type === "delay";
+  const isSurrender = node.type === "surrender";
+  const isEnsure = node.type === "ensure_deployed";
+  const isPan = node.type === "pan";
+  const noTemplate = isDelay || isSurrender || isEnsure || isPan; // control nodes — no template/taps/strategy
+  const set = (patch: Partial<DeployNodeT>) => onChange(node.id, patch);
+
+  // Templates relevant to this unit type (e.g. units/troops/* for a troop).
+  const folder = noTemplate
+    ? null
+    : TYPE_FOLDER[node.type as Exclude<DeployType, "delay" | "surrender" | "ensure_deployed" | "pan">];
+  const typeAssets = folder ? assets.filter((a) => a.startsWith(folder + "/")) : [];
+
+  return (
+    <aside className="param-panel">
+      <h2>Deploy unit</h2>
+      <div className="param-meta">
+        <span className="muted">id</span> {node.id}
+      </div>
+
+      <label className="field">
+        <span>Label</span>
+        <input value={node.label} onChange={(e) => set({ label: e.target.value })} />
+      </label>
+
+      <label className="field">
+        <span>Type</span>
+        <select
+          value={node.type}
+          onChange={(e) => {
+            const t = e.target.value as DeployType;
+            // Switching between control nodes (delay/surrender/pan) and unit nodes
+            // flips the relevant fields.
+            if (t === "delay") set({ type: t, strategy: "delay", seconds: node.seconds ?? 1 });
+            else if (t === "surrender" || t === "ensure_deployed" || t === "pan")
+              set({ type: t, strategy: undefined });
+            else set({ type: t, strategy: node.strategy === "delay" ? "line" : node.strategy });
+          }}
+        >
+          {DEPLOY_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {isEnsure ? (
+        <div className="block-desc">
+          Deploys any troops the planned drops left over: re-scans the troop bar
+          and dumps every unit still on it along the front, until the bar is
+          clear. Place it after your drops (before a surrender node). No effect if
+          everything was already deployed.
+        </div>
+      ) : isPan ? (
+        <>
+          <div className="block-desc">
+            Pans the battle map (camera): one raw swipe (x1, y1) → (x2, y2).
+            Place pan node(s) FIRST in the variant — right after the deploy
+            block's zoom-out, before any drop — and remember the variant's drop
+            coordinates must match the panned view.
+          </div>
+          <label className="field">
+            <span>
+              Swipe <em className="muted">(x1, y1 → x2, y2)</em>
+            </span>
+            <input
+              type="text"
+              value={[node.x1, node.y1, node.x2, node.y2]
+                .map((v) => (v === undefined ? "" : v))
+                .join(", ")}
+              placeholder="800, 450, 800, 610"
+              onChange={(e) => {
+                const n = e.target.value
+                  .split(",")
+                  .map((s) => Number(s.trim()));
+                if (n.length === 4 && n.every((v) => !Number.isNaN(v))) {
+                  set({ x1: n[0], y1: n[1], x2: n[2], y2: n[3] });
+                }
+              }}
+            />
+          </label>
+        </>
+      ) : isSurrender ? (
+        <div className="block-desc">
+          Ends the attack: taps the surrender / end-battle button and confirms
+          (Okay). Returning home is left to the graph's Return Home block. Pair it
+          with a delay node to deploy, wait, then bail out.
+        </div>
+      ) : isDelay ? (
+        <label className="field">
+          <span>Seconds</span>
+          <input
+            type="number"
+            min={0}
+            value={node.seconds ?? 0}
+            onChange={(e) => set({ seconds: Number(e.target.value) || 0 })}
+          />
+        </label>
+      ) : (
+        <>
+          <label className="field">
+            <span>Template</span>
+            <select
+              value={node.template ?? ""}
+              onChange={(e) => set({ template: e.target.value })}
+            >
+              <option value="">- select unit -</option>
+              {typeAssets.map((a) => (
+                <option key={a} value={a}>
+                  {a.split("/").pop()}
+                </option>
+              ))}
+              {node.template && !typeAssets.includes(node.template) ? (
+                <option value={node.template}>{node.template} (?)</option>
+              ) : null}
+            </select>
+            {node.template ? (
+              <img className="tpl-thumb" src={thumbUrl(node.template)} alt={node.template} />
+            ) : null}
+          </label>
+
+          <label className="field">
+            <span>
+              Taps <em className="muted">(count to train / drop)</em>
+            </span>
+            <input
+              type="number"
+              min={0}
+              value={node.taps ?? 0}
+              onChange={(e) => set({ taps: Number(e.target.value) || 0 })}
+            />
+          </label>
+
+          <label className="field">
+            <span>Strategy</span>
+            <select
+              value={node.strategy ?? "line"}
+              onChange={(e) => set({ strategy: e.target.value as Strategy })}
+            >
+              <option value="line">line (spread along a line)</option>
+              <option value="points">points (tap fixed spots)</option>
+            </select>
+          </label>
+
+          {node.strategy === "points" ? (
+            <label className="field">
+              <span>
+                Points <em className="muted">(x,y per line)</em>
+              </span>
+              <textarea
+                className="points-area"
+                value={(node.points ?? []).map((p) => `${p[0]}, ${p[1]}`).join("\n")}
+                placeholder={"142, 428\n200, 410"}
+                onChange={(e) => {
+                  const pts = e.target.value
+                    .split("\n")
+                    .map((ln) => ln.split(",").map((s) => Number(s.trim())))
+                    .filter((a) => a.length === 2 && a.every((n) => !Number.isNaN(n))) as [
+                    number,
+                    number
+                  ][];
+                  set({ points: pts });
+                }}
+              />
+              {onPickPoints ? (
+                <button type="button" onClick={() => onPickPoints(node.id)}>
+                  Pick on device
+                </button>
+              ) : null}
+            </label>
+          ) : (
+            <label className="field">
+              <span>
+                Line <em className="muted">(x1, y1, x2, y2)</em>
+              </span>
+              <div className="field-row">
+                <input
+                  type="text"
+                  value={[node.x1, node.y1, node.x2, node.y2]
+                    .map((v) => (v === undefined ? "" : v))
+                    .join(", ")}
+                  placeholder="1213, 267, 1015, 120"
+                  onChange={(e) => {
+                    const n = e.target.value
+                      .split(",")
+                      .map((s) => Number(s.trim()));
+                    if (n.length === 4 && n.every((v) => !Number.isNaN(v))) {
+                      set({ x1: n[0], y1: n[1], x2: n[2], y2: n[3] });
+                    }
+                  }}
+                />
+                {onPickLine ? (
+                  <button type="button" onClick={() => onPickLine(node.id)}>
+                    Pick
+                  </button>
+                ) : null}
+              </div>
+            </label>
+          )}
+        </>
+      )}
+
+      <button className="danger" onClick={() => onDelete(node.id)}>
+        Delete unit
+      </button>
+    </aside>
+  );
+}

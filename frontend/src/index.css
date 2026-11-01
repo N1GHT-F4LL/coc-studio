@@ -1,0 +1,510 @@
+:root {
+  --bg: #1e2127;
+  --panel: #262a31;
+  --panel-2: #2d323b;
+  --border: #3a404a;
+  --text: #e6e9ee;
+  --muted: #8b929c;
+  --accent: #2b7de0;
+  --leader: #5b626d; /* port callout leader lines */
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.app { display: flex; flex-direction: column; height: 100%; }
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  /* Stay a single row: controls must not be squeezed below their text (which
+     wraps "Bot Builder" -> two lines and doubles the bar height). Clip any
+     genuine overflow rather than showing a horizontal scrollbar. */
+  flex-wrap: nowrap;
+  overflow-x: hidden;
+}
+/* Fixed-size, never-wrapping controls so the bar height can't grow. */
+.toolbar strong,
+.toolbar .mode-tabs,
+.toolbar button,
+.toolbar select,
+.toolbar input,
+.toolbar label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.toolbar strong { margin-right: 8px; }
+.toolbar-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
+
+/* Status lights cluster, pushed to the right edge of the top bar. */
+.lights { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+
+/* --- device tab: sidebar (configure/flow) + content (status + live screen) --- */
+.device-tab { flex: 1; min-height: 0; display: flex; }
+.device-sidebar {
+  width: 300px; flex: 0 0 300px; background: var(--panel);
+  border-right: 1px solid var(--border); overflow-y: auto; padding: 14px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.device-step { display: flex; flex-direction: column; gap: 6px; }
+.device-step-title {
+  font-size: 12px; text-transform: uppercase; color: var(--muted);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
+}
+.device-step-title .inline-btn { margin-left: auto; font-size: 12px; padding: 2px 8px; text-transform: none; }
+.device-wide { width: 100%; }
+.device-step select, .device-step input { width: 100%; }
+
+.device-table { width: 100%; border-collapse: collapse; }
+.device-table tr { cursor: pointer; border-bottom: 1px solid var(--border); }
+.device-table tr:hover { background: var(--panel-2); }
+.device-table tr.selected { background: #1f3a2f; }
+.device-table td { padding: 6px 5px; font-size: 12px; }
+.device-table td.serial { font-family: monospace; }
+
+.device-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.device-statusbar {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  border-bottom: 1px solid var(--border); font-size: 14px;
+}
+.device-reason { color: var(--muted); font-size: 13px; }
+.device-reason.warn { color: #e0a32b; }
+.device-screen { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #14171c; }
+.device-screen-canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+.device-screen-empty { padding: 40px; }
+
+/* Offline overlay shown in stream views (Bot Builder dock, battle-canvas) when
+   the device isn't connected — directs the user to the Device tab. */
+.device-offline {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+  background: rgba(20, 23, 28, 0.85);
+}
+.status-light { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.status-light.clickable { cursor: pointer; }
+.status-light.clickable:hover { color: var(--text); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #555; flex: 0 0 auto; }
+.dot.on { background: #1fa37a; }
+.dot.off { background: #555; }
+.dot.run { background: #2b7de0; box-shadow: 0 0 6px #2b7de0; }
+.dot.warn { background: #e0a32b; }
+.dot.err { background: #d4356b; }
+
+input, select, button {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 9px;
+}
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+.graph-name { min-width: 160px; }
+
+.body { display: flex; flex: 1; min-height: 0; }
+
+.palette, .param-panel {
+  width: 220px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 10px;
+}
+.param-panel { border-right: none; border-left: 1px solid var(--border); }
+.palette h2, .param-panel h2 { font-size: 13px; text-transform: uppercase; color: var(--muted); margin: 4px 0 10px; }
+
+.palette-group { margin-bottom: 12px; }
+.palette-cat { font-size: 11px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+.palette-item { display: block; width: 100%; text-align: left; margin-bottom: 4px; }
+
+.center { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.canvas { flex: 1; min-width: 0; min-height: 0; position: relative; }
+
+/* Faint centred logo watermark behind the flow canvases (Bot Builder +
+   Attack Plan). Sits below the ReactFlow content (z-index 0, later DOM paints
+   over it) and never intercepts clicks. */
+.canvas::before,
+.scenario-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/logo.png") center / min(42%, 380px) no-repeat;
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+}
+/* Keep the ReactFlow surface above the watermark so nodes/edges stay crisp and
+   clickable (the pane is transparent, so the faint logo still shows through). */
+.canvas > div,
+.scenario-canvas > div { position: relative; z-index: 1; }
+.right {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  border-left: 1px solid var(--border);
+  min-height: 0;
+}
+/* ParamPanel must fill the right column (its shared base width is 220px). */
+.right .param-panel { border-left: none; flex: 1 1 auto; min-height: 0; width: 100%; }
+
+/* bottom dock with Console | Device tabs */
+.dock {
+  height: 280px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.dock-tabs { display: flex; gap: 4px; padding: 6px 10px 0; }
+.dock-tabs button {
+  border-radius: 6px 6px 0 0;
+  border-bottom-color: transparent;
+  background: var(--panel-2);
+  font-size: 12px;
+}
+.dock-tabs button.active { border-color: var(--accent); color: var(--accent); }
+.dock-title { text-transform: uppercase; font-size: 11px; color: var(--muted); }
+.dock-body { flex: 1; min-height: 0; }
+.dock-pane { flex: 1; min-height: 0; min-width: 0; height: 100%; }
+.dock-pane > * { width: 100%; height: 100%; }
+
+/* run console (fills its dock pane) */
+.run-console {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+.run-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.run-bar .run-title { margin-left: auto; color: var(--muted); text-transform: uppercase; font-size: 11px; }
+button.run { border-color: #1fa37a; }
+button.run:disabled, button.stop:disabled, .run-bar button:disabled { opacity: 0.5; cursor: default; }
+button.stop { border-color: #d4356b; }
+.run-status { font-weight: 600; }
+.run-body { display: flex; flex: 1; min-height: 0; }
+.run-logs { flex: 1; overflow-y: auto; padding: 6px 10px; font-family: Consolas, monospace; font-size: 12px; line-height: 1.5; }
+.run-vars { width: 220px; border-left: 1px solid var(--border); overflow-y: auto; padding: 6px 10px; font-family: Consolas, monospace; font-size: 12px; }
+.run-vars-title { color: var(--muted); text-transform: uppercase; font-size: 11px; margin-bottom: 4px; }
+.var-row { display: flex; gap: 6px; }
+.var-key { color: var(--accent); }
+.var-val { color: var(--text); word-break: break-all; }
+.log { display: flex; gap: 8px; }
+.log-level { color: var(--muted); min-width: 52px; }
+.log-name { color: #6b9; min-width: 70px; }
+.log-msg { white-space: pre-wrap; }
+.log-warning .log-level { color: #e0a32b; }
+.log-error .log-level, .log-error .log-msg { color: #ff6b8a; }
+
+/* device view (lives in the bottom dock) */
+.device-view { display: flex; flex-direction: column; min-height: 0; }
+.device-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
+.device-bar > span:first-child { text-transform: uppercase; font-size: 11px; color: var(--muted); }
+.device-info { margin-left: auto; font-size: 11px; }
+/* Canvas anchored top-left so the crop/pick overlay (canvas-relative px) lines up. */
+.device-stage { position: relative; line-height: 0; flex: 1; min-height: 0; overflow: hidden; }
+.device-stage.picking { cursor: crosshair; }
+.device-canvas {
+  display: block; background: #000;
+  width: auto; height: auto;
+  max-width: 100%; max-height: 100%;
+}
+.crop-rect { position: absolute; border: 1px solid #2bd4a3; background: #2bd4a322; pointer-events: none; }
+.asset-form { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); }
+.asset-form input, .asset-form select { width: 100%; }
+.field-row { display: flex; gap: 6px; align-items: center; }
+.field-row input { flex: 1 1 auto; min-width: 0; }   /* allow shrink so the Pick button fits */
+.field-row button { flex: 0 0 auto; white-space: nowrap; }
+/* keep every form control inside the panel width */
+.field > input, .field > select { width: 100%; }
+.palette, .param-panel { overflow-x: hidden; }
+.tpl-thumb {
+  margin-top: 6px;
+  max-width: 100%;
+  max-height: 64px;
+  background: #0a0c0f;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  align-self: flex-start;
+  image-rendering: pixelated;
+}
+.device-bar button.active { border-color: #2bd4a3; color: #2bd4a3; }
+
+.muted { color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+.field > span { font-size: 12px; color: var(--muted); }
+.field em { font-style: normal; }
+.block-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #c2c8d0;
+  background: var(--panel-2);
+  border-left: 2px solid var(--accent);
+  border-radius: 4px;
+  padding: 7px 9px;
+  margin: 0 0 12px;
+}
+.param-meta { font-size: 12px; margin-bottom: 12px; line-height: 1.6; }
+button.danger { width: 100%; margin-top: 12px; border-color: #d4356b; }
+button.danger:hover { background: #3a2530; }
+
+/* nodes */
+.block-node {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  min-width: 130px;
+  text-align: center;
+}
+/* Elevate the hovered/selected node so its port callouts render above the
+   neighbouring nodes instead of being clipped behind them. */
+.react-flow__node:hover, .react-flow__node.selected { z-index: 1000 !important; }
+.block-node.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.block-node.run-running { border-color: #2b7de0; box-shadow: 0 0 0 2px #2b7de0, 0 0 14px #2b7de0aa; }
+.block-node.run-done { border-color: #1fa37a; box-shadow: 0 0 0 1px #1fa37a; }
+.block-node.run-error { border-color: #d4356b; box-shadow: 0 0 0 2px #d4356b; }
+.block-node.run-skipped { opacity: 0.45; border-style: dashed; }
+.branch-label {
+  position: absolute;
+  bottom: -4px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--muted);
+}
+/* Branch label for the horizontal layout — stacked on the right edge. */
+.branch-label-v {
+  position: absolute;
+  right: -2px;
+  transform: translate(100%, -50%);
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* Port callouts: label boxes floating above (inputs) / below (outputs) the
+   node with a leader to each port dot. Shown on node hover/select. The hovered
+   node is elevated (see .block-node:hover) so callouts clear neighbour nodes. */
+.port-callouts { display: none; }
+.callout-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.callout-box {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%); /* centred: left = box centre */
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 3px 11px 3px 9px;
+  height: 24px;
+  box-sizing: border-box;
+  font-size: 11px;
+  color: var(--text);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+/* slim kind-coloured accent bar on the leading edge — the only colour */
+.callout-box::before {
+  content: "";
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--kind, var(--muted));
+}
+/* Anchor the box by its node-facing edge so the horizontal leader lands on it:
+   left wing extends leftward (anchor right edge), right wing rightward. */
+.callout-box.callout-left { transform: translate(-100%, -50%); }
+.callout-box.callout-right { transform: translate(0, -50%); }
+.callout-name { font-weight: 600; letter-spacing: 0.2px; }
+.callout-kind { color: var(--muted); font-size: 10px; }
+.block-title { font-weight: 600; }
+.block-type { font-size: 11px; color: var(--muted); }
+.ctl-handle { width: 10px; height: 10px; background: #444b54; border: 1px solid #6b7280; }
+.react-flow__handle { width: 9px; height: 9px; }
+
+/* --- top-bar mode tabs --- */
+.mode-tabs { display: inline-flex; gap: 4px; }
+.mode-tabs button { padding: 4px 12px; }
+.mode-tabs button.active { border-color: var(--accent); color: var(--accent); }
+
+/* --- scenario editor --- */
+.scenario-editor { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.scenario-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.scenario-bar .variant-name { min-width: 120px; }
+.scenario-bar .weight { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+.scenario-bar .weight input { width: 56px; }
+.scenario-bar button.danger-inline { border-color: #d4356b; }
+.scenario-bar button.danger-inline:hover { background: #3a2530; }
+
+.scenario-preview {
+  padding: 5px 12px; font-size: 12px; background: var(--panel-2);
+  border-bottom: 1px solid var(--border); color: var(--text);
+}
+.scenario-body { display: flex; flex: 1; min-height: 0; }
+.scenario-center { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.scenario-canvas { flex: 1; min-height: 0; position: relative; }
+.scenario-right { width: 260px; background: var(--panel); border-left: 1px solid var(--border); overflow-y: auto; padding: 10px; }
+
+/* deploy nodes */
+.deploy-node {
+  background: var(--panel-2); border: 2px solid #6b7280; border-radius: 8px;
+  padding: 8px 10px; min-width: 160px;
+}
+.deploy-node.selected { box-shadow: 0 0 0 1px var(--accent); }
+.deploy-node-row { display: flex; align-items: center; gap: 8px; }
+.deploy-thumb { width: 34px; height: 34px; object-fit: contain; border-radius: 4px; background: #1a1d22; }
+.deploy-badge {
+  width: 34px; height: 34px; border-radius: 4px; display: flex; align-items: center;
+  justify-content: center; font-weight: 700; color: #fff;
+}
+.deploy-node-text { min-width: 0; }
+.deploy-node-title { font-weight: 600; font-size: 13px; }
+.deploy-node-sub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.points-area { width: 100%; min-height: 70px; resize: vertical; font: inherit; }
+.tpl-thumb { display: block; margin-top: 6px; max-width: 100%; max-height: 80px; border-radius: 4px; }
+
+/* --- asset manager tab: categories | thumbnail grid | detail+actions --- */
+.asset-tab { flex: 1; min-height: 0; display: flex; }
+.asset-sidebar {
+  width: 220px; flex: 0 0 220px; background: var(--panel);
+  border-right: 1px solid var(--border); overflow-y: auto; padding: 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.asset-side-title { font-size: 12px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.asset-sidebar button { text-align: left; background: none; border: none; padding: 5px 8px; border-radius: 6px; }
+.asset-sidebar button:hover { background: var(--panel-2); border: none; }
+.asset-sidebar button.active { background: var(--panel-2); color: var(--accent); }
+
+.asset-grid-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.asset-grid-bar {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.asset-grid-bar > span:first-child { color: var(--muted); font-size: 12px; margin-right: auto; }
+.asset-grid {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 12px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px;
+  align-content: start;
+}
+.asset-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+}
+.asset-cell:hover { border-color: var(--accent); }
+.asset-cell.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.asset-cell img { width: 64px; height: 64px; object-fit: contain; background: #14171c; border-radius: 4px; }
+.asset-cell-name { font-size: 11px; color: var(--muted); max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.asset-detail {
+  width: 320px; flex: 0 0 320px; background: var(--panel);
+  border-left: 1px solid var(--border); overflow-y: auto; padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.asset-preview { max-width: 100%; max-height: 180px; object-fit: contain; background: #14171c; border-radius: 6px; align-self: center; }
+.asset-detail .danger { margin-top: 4px; }
+
+/* Capture mode: the live device crop surface fills the centre (big enough to
+   aim a crop) in place of the thumbnail grid. */
+.asset-capture-stage { flex: 1; min-height: 0; display: flex; background: #14171c; }
+.asset-capture-stage .device-view { flex: 1; min-height: 0; }
+.asset-capture-stage .device-stage { background: #14171c; }
+
+/* --- About tab --- */
+.about-tab { flex: 1; min-height: 0; overflow-y: auto; display: flex; justify-content: center; padding: 40px 24px; }
+.about-card {
+  width: 100%; max-width: 1040px; display: flex; flex-direction: column; gap: 28px;
+}
+/* Hero: logo on the left, name + tagline + intro on the right, so the row uses
+   the full width instead of a narrow centred column. */
+.about-hero {
+  display: flex; align-items: center; gap: 32px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px 32px;
+}
+.about-logo { width: 132px; height: 132px; object-fit: contain; flex: 0 0 auto; }
+.about-hero-text { min-width: 0; }
+.about-title { margin: 0; font-size: 32px; letter-spacing: 0.5px; }
+.about-tagline { margin: 4px 0 0; color: var(--accent); font-size: 15px; }
+.about-lead { margin: 12px 0 0; color: #c2c8d0; line-height: 1.7; }
+.about-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;
+}
+.about-feature {
+  background: var(--panel); border: 1px solid var(--border); border-left: 2px solid var(--accent);
+  border-radius: 8px; padding: 14px 16px;
+}
+.about-feature-title { font-weight: 600; margin-bottom: 6px; }
+.about-feature-body { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.about-tech {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 13px; color: var(--muted);
+}
+.about-tech-label { text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; color: var(--accent); }
+.about-footer {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding-top: 18px; border-top: 1px solid var(--border); font-size: 12px;
+}
+@media (max-width: 680px) {
+  .about-hero { flex-direction: column; text-align: center; }
+}
+
+/* loot threshold popover (TopBar) */
+.loot-wrap {
+  position: relative;
+}
+.loot-pop {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  z-index: 60;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 170px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.loot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.loot-row span {
+  width: 44px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.loot-err {
+  color: #d4356b;
+  font-size: 12px;
+}
+
+/* The loot popover hangs BELOW the toolbar: overflow-x hidden would turn
+   overflow-y into a scroll container and clip it invisible. `clip` keeps the
+   same horizontal clipping without becoming a scroll container, and the
+   toolbar gets a stacking order above the canvas. */
+.toolbar {
+  overflow-x: clip;
+  overflow-y: visible;
+  position: relative;
+  z-index: 500;
+}
+.loot-pop {
+  z-index: 1000;
+}

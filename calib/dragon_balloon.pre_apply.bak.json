@@ -1,0 +1,1397 @@
+{
+  "name": "dragon_balloon",
+  "variants": [
+    {
+      "name": "9-12",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "9-12_pan1",
+          "label": "Pan camera (up, then left, leg 1)",
+          "type": "pan",
+          "after": [],
+          "x1": 800,
+          "y1": 450,
+          "x2": 800,
+          "y2": 610,
+          "x": 40,
+          "y": 160
+        },
+        {
+          "id": "9-12_pan2",
+          "label": "Pan camera (up, then left, leg 2)",
+          "type": "pan",
+          "after": [
+            "9-12_pan1"
+          ],
+          "x1": 800,
+          "y1": 450,
+          "x2": 1000,
+          "y2": 450,
+          "x": 270,
+          "y": 160
+        },
+        {
+          "id": "9-12_balloon",
+          "label": "Balloons x14 (9-12 arc)",
+          "type": "troop",
+          "after": [
+            "9-12_pan2"
+          ],
+          "strategy": "line",
+          "x1": 180,
+          "y1": 710,
+          "x2": 185,
+          "y2": 710,
+          "template": "units/troops/balloon",
+          "taps": 14,
+          "x": 500,
+          "y": 160
+        },
+        {
+          "id": "9-12_dragon",
+          "label": "Dragons x14 (behind balloons)",
+          "type": "troop",
+          "after": [
+            "9-12_balloon"
+          ],
+          "strategy": "line",
+          "x1": 130,
+          "y1": 710,
+          "x2": 135,
+          "y2": 710,
+          "template": "units/troops/dragon",
+          "taps": 14,
+          "x": 730,
+          "y": 160
+        },
+        {
+          "id": "9-12_slammer",
+          "label": "Stone Slammer",
+          "type": "siege",
+          "after": [
+            "9-12_dragon"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              167,
+              710
+            ]
+          ],
+          "template": "units/siege/stone_slammer",
+          "taps": 1,
+          "x": 960,
+          "y": 160
+        },
+        {
+          "id": "9-12_wait",
+          "label": "Wait 2s",
+          "type": "delay",
+          "after": [
+            "9-12_slammer"
+          ],
+          "seconds": 2,
+          "strategy": "delay",
+          "x": 1190,
+          "y": 160
+        },
+        {
+          "id": "9-12_minion",
+          "label": "Minion x1",
+          "type": "troop",
+          "after": [
+            "9-12_wait"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              108,
+              710
+            ]
+          ],
+          "template": "units/troops/minion",
+          "taps": 1,
+          "x": 1420,
+          "y": 160
+        },
+        {
+          "id": "9-12_queen",
+          "label": "Archer Queen",
+          "type": "hero",
+          "after": [
+            "9-12_minion"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              173,
+              710
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 1,
+          "x": 1650,
+          "y": 160
+        },
+        {
+          "id": "9-12_queen_ab",
+          "label": "Ability: Archer Queen",
+          "type": "hero",
+          "after": [
+            "9-12_queen"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              870,
+              265
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1880,
+          "y": 160
+        },
+        {
+          "id": "9-12_champ",
+          "label": "Royal Champion",
+          "type": "hero",
+          "after": [
+            "9-12_queen_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              164,
+              710
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "x": 40,
+          "y": 380
+        },
+        {
+          "id": "9-12_champ_ab",
+          "label": "Ability: Royal Champion",
+          "type": "hero",
+          "after": [
+            "9-12_champ"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              480,
+              590
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 270,
+          "y": 380
+        },
+        {
+          "id": "9-12_prince",
+          "label": "Prince",
+          "type": "hero",
+          "after": [
+            "9-12_champ_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              97,
+              710
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 1,
+          "x": 500,
+          "y": 380
+        },
+        {
+          "id": "9-12_prince_ab",
+          "label": "Ability: Prince",
+          "type": "hero",
+          "after": [
+            "9-12_prince"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              594,
+              486
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 730,
+          "y": 380
+        },
+        {
+          "id": "9-12_warden",
+          "label": "Grand Warden",
+          "type": "hero",
+          "after": [
+            "9-12_prince_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              99,
+              710
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "x": 960,
+          "y": 380
+        },
+        {
+          "id": "9-12_warden_ab",
+          "label": "Ability: Grand Warden",
+          "type": "hero",
+          "after": [
+            "9-12_warden"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              676,
+              429
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1190,
+          "y": 380
+        },
+        {
+          "id": "9-12_rage",
+          "label": "Rage x4 (shared spell point)",
+          "type": "spell",
+          "after": [
+            "9-12_warden_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              265,
+              710
+            ]
+          ],
+          "template": "units/spells/rage",
+          "taps": 4,
+          "x": 1420,
+          "y": 380
+        },
+        {
+          "id": "9-12_freeze",
+          "label": "Freeze x3 (shared spell point)",
+          "type": "spell",
+          "after": [
+            "9-12_rage"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              265,
+              710
+            ]
+          ],
+          "template": "units/spells/freeze",
+          "taps": 3,
+          "x": 1650,
+          "y": 380
+        },
+        {
+          "id": "9-12_ensure",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "9-12_freeze"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1880,
+          "y": 380
+        },
+        {
+          "id": "9-12_endwait",
+          "label": "Delay",
+          "type": "delay",
+          "after": [
+            "9-12_ensure"
+          ],
+          "template": "",
+          "taps": 1,
+          "strategy": "delay",
+          "seconds": 30,
+          "x": 40,
+          "y": 600
+        },
+        {
+          "id": "9-12_surrender",
+          "label": "Surrender",
+          "type": "surrender",
+          "after": [
+            "9-12_endwait"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 270,
+          "y": 600
+        }
+      ]
+    },
+    {
+      "name": "12-3",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "12-3_pan1",
+          "label": "Pan camera (up, then right, leg 1)",
+          "type": "pan",
+          "after": [],
+          "x1": 800,
+          "y1": 450,
+          "x2": 800,
+          "y2": 610,
+          "x": 40,
+          "y": 160
+        },
+        {
+          "id": "12-3_pan2",
+          "label": "Pan camera (up, then right, leg 2)",
+          "type": "pan",
+          "after": [
+            "12-3_pan1"
+          ],
+          "x1": 800,
+          "y1": 450,
+          "x2": 600,
+          "y2": 450,
+          "x": 270,
+          "y": 160
+        },
+        {
+          "id": "12-3_balloon",
+          "label": "Balloons x14 (12-3 arc)",
+          "type": "troop",
+          "after": [
+            "12-3_pan2"
+          ],
+          "strategy": "line",
+          "x1": 10,
+          "y1": 710,
+          "x2": 10,
+          "y2": 710,
+          "template": "units/troops/balloon",
+          "taps": 14,
+          "x": 500,
+          "y": 160
+        },
+        {
+          "id": "12-3_dragon",
+          "label": "Dragons x14 (behind balloons)",
+          "type": "troop",
+          "after": [
+            "12-3_balloon"
+          ],
+          "strategy": "line",
+          "x1": 10,
+          "y1": 710,
+          "x2": 10,
+          "y2": 710,
+          "template": "units/troops/dragon",
+          "taps": 14,
+          "x": 730,
+          "y": 160
+        },
+        {
+          "id": "12-3_slammer",
+          "label": "Stone Slammer",
+          "type": "siege",
+          "after": [
+            "12-3_dragon"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              710
+            ]
+          ],
+          "template": "units/siege/stone_slammer",
+          "taps": 1,
+          "x": 960,
+          "y": 160
+        },
+        {
+          "id": "12-3_wait",
+          "label": "Wait 2s",
+          "type": "delay",
+          "after": [
+            "12-3_slammer"
+          ],
+          "seconds": 2,
+          "strategy": "delay",
+          "x": 1190,
+          "y": 160
+        },
+        {
+          "id": "12-3_minion",
+          "label": "Minion x1",
+          "type": "troop",
+          "after": [
+            "12-3_wait"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              710
+            ]
+          ],
+          "template": "units/troops/minion",
+          "taps": 1,
+          "x": 1420,
+          "y": 160
+        },
+        {
+          "id": "12-3_queen",
+          "label": "Archer Queen",
+          "type": "hero",
+          "after": [
+            "12-3_minion"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              64,
+              710
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 1,
+          "x": 1650,
+          "y": 160
+        },
+        {
+          "id": "12-3_queen_ab",
+          "label": "Ability: Archer Queen",
+          "type": "hero",
+          "after": [
+            "12-3_queen"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1055,
+              565
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1880,
+          "y": 160
+        },
+        {
+          "id": "12-3_champ",
+          "label": "Royal Champion",
+          "type": "hero",
+          "after": [
+            "12-3_queen_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              710
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "x": 40,
+          "y": 380
+        },
+        {
+          "id": "12-3_champ_ab",
+          "label": "Ability: Royal Champion",
+          "type": "hero",
+          "after": [
+            "12-3_champ"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              705,
+              270
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 270,
+          "y": 380
+        },
+        {
+          "id": "12-3_prince",
+          "label": "Prince",
+          "type": "hero",
+          "after": [
+            "12-3_champ_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              710
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 1,
+          "x": 500,
+          "y": 380
+        },
+        {
+          "id": "12-3_prince_ab",
+          "label": "Ability: Prince",
+          "type": "hero",
+          "after": [
+            "12-3_prince"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              890,
+              355
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 730,
+          "y": 380
+        },
+        {
+          "id": "12-3_warden",
+          "label": "Grand Warden",
+          "type": "hero",
+          "after": [
+            "12-3_prince_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              710
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "x": 960,
+          "y": 380
+        },
+        {
+          "id": "12-3_warden_ab",
+          "label": "Ability: Grand Warden",
+          "type": "hero",
+          "after": [
+            "12-3_warden"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              965,
+              415
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1190,
+          "y": 380
+        },
+        {
+          "id": "12-3_rage",
+          "label": "Rage x4 (shared spell point)",
+          "type": "spell",
+          "after": [
+            "12-3_warden_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              710
+            ]
+          ],
+          "template": "units/spells/rage",
+          "taps": 4,
+          "x": 1420,
+          "y": 380
+        },
+        {
+          "id": "12-3_freeze",
+          "label": "Freeze x3 (shared spell point)",
+          "type": "spell",
+          "after": [
+            "12-3_rage"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              710
+            ]
+          ],
+          "template": "units/spells/freeze",
+          "taps": 3,
+          "x": 1650,
+          "y": 380
+        },
+        {
+          "id": "12-3_ensure",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "12-3_freeze"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1880,
+          "y": 380
+        },
+        {
+          "id": "12-3_endwait",
+          "label": "Delay",
+          "type": "delay",
+          "after": [
+            "12-3_ensure"
+          ],
+          "template": "",
+          "taps": 1,
+          "strategy": "delay",
+          "seconds": 30,
+          "x": 40,
+          "y": 600
+        },
+        {
+          "id": "12-3_surrender",
+          "label": "Surrender",
+          "type": "surrender",
+          "after": [
+            "12-3_endwait"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 270,
+          "y": 600
+        }
+      ]
+    },
+    {
+      "name": "3-6",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "3-6_pan1",
+          "label": "Pan camera (down, then left, leg 1)",
+          "type": "pan",
+          "after": [],
+          "x1": 800,
+          "y1": 450,
+          "x2": 800,
+          "y2": 290,
+          "x": 40,
+          "y": 160
+        },
+        {
+          "id": "3-6_pan2",
+          "label": "Pan camera (down, then left, leg 2)",
+          "type": "pan",
+          "after": [
+            "3-6_pan1"
+          ],
+          "x1": 800,
+          "y1": 450,
+          "x2": 1000,
+          "y2": 450,
+          "x": 270,
+          "y": 160
+        },
+        {
+          "id": "3-6_balloon",
+          "label": "Balloons x14 (3-6 arc)",
+          "type": "troop",
+          "after": [
+            "3-6_pan2"
+          ],
+          "strategy": "line",
+          "x1": 447,
+          "y1": 510,
+          "x2": 438,
+          "y2": 544,
+          "template": "units/troops/balloon",
+          "taps": 14,
+          "x": 500,
+          "y": 160
+        },
+        {
+          "id": "3-6_dragon",
+          "label": "Dragons x14 (behind balloons)",
+          "type": "troop",
+          "after": [
+            "3-6_balloon"
+          ],
+          "strategy": "line",
+          "x1": 496,
+          "y1": 520,
+          "x2": 486,
+          "y2": 558,
+          "template": "units/troops/dragon",
+          "taps": 14,
+          "x": 730,
+          "y": 160
+        },
+        {
+          "id": "3-6_slammer",
+          "label": "Stone Slammer",
+          "type": "siege",
+          "after": [
+            "3-6_dragon"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              457,
+              531
+            ]
+          ],
+          "template": "units/siege/stone_slammer",
+          "taps": 1,
+          "x": 960,
+          "y": 160
+        },
+        {
+          "id": "3-6_wait",
+          "label": "Wait 2s",
+          "type": "delay",
+          "after": [
+            "3-6_slammer"
+          ],
+          "seconds": 2,
+          "strategy": "delay",
+          "x": 1190,
+          "y": 160
+        },
+        {
+          "id": "3-6_minion",
+          "label": "Minion x1",
+          "type": "troop",
+          "after": [
+            "3-6_wait"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              515,
+              545
+            ]
+          ],
+          "template": "units/troops/minion",
+          "taps": 1,
+          "x": 1420,
+          "y": 160
+        },
+        {
+          "id": "3-6_queen",
+          "label": "Archer Queen",
+          "type": "hero",
+          "after": [
+            "3-6_minion"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              450,
+              559
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 1,
+          "x": 1650,
+          "y": 160
+        },
+        {
+          "id": "3-6_queen_ab",
+          "label": "Ability: Archer Queen",
+          "type": "hero",
+          "after": [
+            "3-6_queen"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1165,
+              545
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1880,
+          "y": 160
+        },
+        {
+          "id": "3-6_champ",
+          "label": "Royal Champion",
+          "type": "hero",
+          "after": [
+            "3-6_queen_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              464,
+              479
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "x": 40,
+          "y": 380
+        },
+        {
+          "id": "3-6_champ_ab",
+          "label": "Ability: Royal Champion",
+          "type": "hero",
+          "after": [
+            "3-6_champ"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1485,
+              345
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 270,
+          "y": 380
+        },
+        {
+          "id": "3-6_prince",
+          "label": "Prince",
+          "type": "hero",
+          "after": [
+            "3-6_champ_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              527,
+              539
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 1,
+          "x": 500,
+          "y": 380
+        },
+        {
+          "id": "3-6_prince_ab",
+          "label": "Ability: Prince",
+          "type": "hero",
+          "after": [
+            "3-6_prince"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1405,
+              438
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 730,
+          "y": 380
+        },
+        {
+          "id": "3-6_warden",
+          "label": "Grand Warden",
+          "type": "hero",
+          "after": [
+            "3-6_prince_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              523,
+              555
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "x": 960,
+          "y": 380
+        },
+        {
+          "id": "3-6_warden_ab",
+          "label": "Ability: Grand Warden",
+          "type": "hero",
+          "after": [
+            "3-6_warden"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              1330,
+              478
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1190,
+          "y": 380
+        },
+        {
+          "id": "3-6_rage",
+          "label": "Rage x4 (shared spell point)",
+          "type": "spell",
+          "after": [
+            "3-6_warden_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              360,
+              514
+            ]
+          ],
+          "template": "units/spells/rage",
+          "taps": 4,
+          "x": 1420,
+          "y": 380
+        },
+        {
+          "id": "3-6_freeze",
+          "label": "Freeze x3 (shared spell point)",
+          "type": "spell",
+          "after": [
+            "3-6_rage"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              360,
+              514
+            ]
+          ],
+          "template": "units/spells/freeze",
+          "taps": 3,
+          "x": 1650,
+          "y": 380
+        },
+        {
+          "id": "3-6_ensure",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "3-6_freeze"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1880,
+          "y": 380
+        },
+        {
+          "id": "3-6_endwait",
+          "label": "Delay",
+          "type": "delay",
+          "after": [
+            "3-6_ensure"
+          ],
+          "template": "",
+          "taps": 1,
+          "strategy": "delay",
+          "seconds": 30,
+          "x": 40,
+          "y": 600
+        },
+        {
+          "id": "3-6_surrender",
+          "label": "Surrender",
+          "type": "surrender",
+          "after": [
+            "3-6_endwait"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 270,
+          "y": 600
+        }
+      ]
+    },
+    {
+      "name": "6-9",
+      "weight": 1,
+      "nodes": [
+        {
+          "id": "6-9_pan1",
+          "label": "Pan camera (down, then right, leg 1)",
+          "type": "pan",
+          "after": [],
+          "x1": 800,
+          "y1": 450,
+          "x2": 800,
+          "y2": 290,
+          "x": 40,
+          "y": 160
+        },
+        {
+          "id": "6-9_pan2",
+          "label": "Pan camera (down, then right, leg 2)",
+          "type": "pan",
+          "after": [
+            "6-9_pan1"
+          ],
+          "x1": 800,
+          "y1": 450,
+          "x2": 600,
+          "y2": 450,
+          "x": 270,
+          "y": 160
+        },
+        {
+          "id": "6-9_balloon",
+          "label": "Balloons x14 (6-9 arc)",
+          "type": "troop",
+          "after": [
+            "6-9_pan2"
+          ],
+          "strategy": "line",
+          "x1": 10,
+          "y1": 494,
+          "x2": 10,
+          "y2": 486,
+          "template": "units/troops/balloon",
+          "taps": 14,
+          "x": 500,
+          "y": 160
+        },
+        {
+          "id": "6-9_dragon",
+          "label": "Dragons x14 (behind balloons)",
+          "type": "troop",
+          "after": [
+            "6-9_balloon"
+          ],
+          "strategy": "line",
+          "x1": 10,
+          "y1": 444,
+          "x2": 10,
+          "y2": 435,
+          "template": "units/troops/dragon",
+          "taps": 14,
+          "x": 730,
+          "y": 160
+        },
+        {
+          "id": "6-9_slammer",
+          "label": "Stone Slammer",
+          "type": "siege",
+          "after": [
+            "6-9_dragon"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              475
+            ]
+          ],
+          "template": "units/siege/stone_slammer",
+          "taps": 1,
+          "x": 960,
+          "y": 160
+        },
+        {
+          "id": "6-9_wait",
+          "label": "Wait 2s",
+          "type": "delay",
+          "after": [
+            "6-9_slammer"
+          ],
+          "seconds": 2,
+          "strategy": "delay",
+          "x": 1190,
+          "y": 160
+        },
+        {
+          "id": "6-9_minion",
+          "label": "Minion x1",
+          "type": "troop",
+          "after": [
+            "6-9_wait"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              415
+            ]
+          ],
+          "template": "units/troops/minion",
+          "taps": 1,
+          "x": 1420,
+          "y": 160
+        },
+        {
+          "id": "6-9_queen",
+          "label": "Archer Queen",
+          "type": "hero",
+          "after": [
+            "6-9_minion"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              540
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 1,
+          "x": 1650,
+          "y": 160
+        },
+        {
+          "id": "6-9_queen_ab",
+          "label": "Ability: Archer Queen",
+          "type": "hero",
+          "after": [
+            "6-9_queen"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              105,
+              330
+            ]
+          ],
+          "template": "units/heroes/archer_queen",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1880,
+          "y": 160
+        },
+        {
+          "id": "6-9_champ",
+          "label": "Royal Champion",
+          "type": "hero",
+          "after": [
+            "6-9_queen_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              50,
+              559
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 1,
+          "x": 40,
+          "y": 380
+        },
+        {
+          "id": "6-9_champ_ab",
+          "label": "Ability: Royal Champion",
+          "type": "hero",
+          "after": [
+            "6-9_champ"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              430,
+              540
+            ]
+          ],
+          "template": "units/heroes/royal_champion",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 270,
+          "y": 380
+        },
+        {
+          "id": "6-9_prince",
+          "label": "Prince",
+          "type": "hero",
+          "after": [
+            "6-9_champ_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              407
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 1,
+          "x": 500,
+          "y": 380
+        },
+        {
+          "id": "6-9_prince_ab",
+          "label": "Ability: Prince",
+          "type": "hero",
+          "after": [
+            "6-9_prince"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              249,
+              489
+            ]
+          ],
+          "template": "units/heroes/prince",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 730,
+          "y": 380
+        },
+        {
+          "id": "6-9_warden",
+          "label": "Grand Warden",
+          "type": "hero",
+          "after": [
+            "6-9_prince_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              403
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 1,
+          "x": 960,
+          "y": 380
+        },
+        {
+          "id": "6-9_warden_ab",
+          "label": "Ability: Grand Warden",
+          "type": "hero",
+          "after": [
+            "6-9_warden"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              177,
+              447
+            ]
+          ],
+          "template": "units/heroes/grand_warden",
+          "taps": 0,
+          "threshold": 0.4,
+          "x": 1190,
+          "y": 380
+        },
+        {
+          "id": "6-9_rage",
+          "label": "Rage x4 (shared spell point)",
+          "type": "spell",
+          "after": [
+            "6-9_warden_ab"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              524
+            ]
+          ],
+          "template": "units/spells/rage",
+          "taps": 4,
+          "x": 1420,
+          "y": 380
+        },
+        {
+          "id": "6-9_freeze",
+          "label": "Freeze x3 (shared spell point)",
+          "type": "spell",
+          "after": [
+            "6-9_rage"
+          ],
+          "strategy": "points",
+          "points": [
+            [
+              10,
+              524
+            ]
+          ],
+          "template": "units/spells/freeze",
+          "taps": 3,
+          "x": 1650,
+          "y": 380
+        },
+        {
+          "id": "6-9_ensure",
+          "label": "Ensure Deployed",
+          "type": "ensure_deployed",
+          "after": [
+            "6-9_freeze"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 1880,
+          "y": 380
+        },
+        {
+          "id": "6-9_endwait",
+          "label": "Delay",
+          "type": "delay",
+          "after": [
+            "6-9_ensure"
+          ],
+          "template": "",
+          "taps": 1,
+          "strategy": "delay",
+          "seconds": 30,
+          "x": 40,
+          "y": 600
+        },
+        {
+          "id": "6-9_surrender",
+          "label": "Surrender",
+          "type": "surrender",
+          "after": [
+            "6-9_endwait"
+          ],
+          "template": "",
+          "taps": 1,
+          "x": 270,
+          "y": 600
+        }
+      ]
+    }
+  ]
+}
