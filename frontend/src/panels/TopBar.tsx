@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { DeviceStatus } from "../api/client";
 import { getSettings, putSettings } from "../api/client";
 
-export type AppMode = "editor" | "scenario" | "asset" | "device" | "about";
+export type AppMode = "editor" | "scenario" | "asset" | "device" | "multi" | "about";
 
 // Compact display: 100000 -> 100K
 const fmtK = (v: number) => (v >= 1000 ? `${Math.round(v / 1000)}K` : `${v}`);
@@ -199,6 +199,13 @@ export function TopBar({
           title="Connect & manage the emulator / device"
         >
           Device
+        </button>
+        <button
+          className={mode === "multi" ? "active" : ""}
+          onClick={() => onMode("multi")}
+          title="Multi-Village: rotate farming between Supercell ID accounts"
+        >
+          Multi-Village
         </button>
         <button
           className={mode === "about" ? "active" : ""}

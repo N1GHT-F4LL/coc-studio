@@ -67,6 +67,88 @@ def ensure_village_zoom(ctx):
         ctx.logger.warning("[find_match] zoom-out did not land — attacking at the current zoom.")
 
 
+@register("mv_rotation")
+class MvRotation(BlockSpec):
+    """Multi-Village rotation — first node of the farm cycle.
+
+    No-op unless data/multi_village.json has enabled=true and the switch
+    interval has elapsed. When due: rotate to the next enabled+configured
+    village via the Supercell ID switcher (FLAG_SECURE — desktop self-capture
+    OCR locates the account row by name, see multi_village.py), apply that
+    village's saved scenario + farm thresholds, and emit an mv_active event so
+    the web UI points its editor at the village the bot is really farming.
+
+    Refuses to run when an enabled village has NO saved config (nothing to
+    farm it with — acceptance #10 scoped to what actually blocks rotation).
+    A village that is merely not `confirmed` (no verified Apply switch yet)
+    is NOT a blocker: every switch verifies the account (wait_home + the
+    wrong-village identity check) and the first successful switch captures
+    its home snapshot. Single-village mode (enabled=false) never reaches any
+    of this code.
+    """
+    label = "MV Rotation"
+    category = "CoC"
+    inputs = []
+    outputs = [Port("switched", Kind.Number)]
+
+    def run(self, ctx, inputs):
+        import multi_village as mv
+        cfg = mv.load_config()
+        if not cfg.get("enabled"):
+            return {"switched": 0}
+
+        # enabled + no config -> nothing to farm it with -> refuse, naming it.
+        bad = [v for v in cfg.get("villages", [])
+               if v.get("enabled") and not v.get("config")]
+        if bad:
+            names = ", ".join(f"Village_{v['idx']} ({v.get('name')})"
+                              for v in bad)
+            ctx.logger.error("[MV] enabled village(s) missing config: %s — run "
+                             "refuses to start. Open the Multi-Village tab, Load "
+                             "each one, set the scenario + thresholds and Save "
+                             "(Apply is optional — the first rotation switch "
+                             "verifies the account).", names)
+            raise RuntimeError(f"Multi-Village: village(s) without config: {names}")
+
+        state = mv.get_state()
+        if state["current_village_idx"] is None:
+            # fresh backend: assume the game sits on the first enabled village
+            # and align the live settings with its saved config. Persisted
+            # runtime state (multi_village.json) survives restarts, so this
+            # only fires once per genuinely-new position.
+            first = mv.enabled_villages(cfg)
+            if first:
+                mv.assume_village(first[0]["idx"], ctx)
+        if state["current_village_idx"] is not None:
+            mv.note_cycle(state["current_village_idx"])   # the previous cycle ran here
+
+        unconfirmed = [v for v in cfg.get("villages", [])
+                       if v.get("enabled") and v.get("config")
+                       and not v.get("confirmed")]
+        if unconfirmed and not ctx.vars.get("mv_unconfirmed_warned"):
+            ctx.vars["mv_unconfirmed_warned"] = True
+            names = ", ".join(f"Village_{v['idx']} ({v.get('name')})"
+                              for v in unconfirmed)
+            ctx.logger.warning("[MV] not confirmed yet (no verified Apply switch — "
+                               "the first rotation switch verifies them): %s.", names)
+
+        idx = mv.do_rotation(ctx)
+        if idx is None:
+            # every village failed this window — escalate like a dead cycle
+            runs = int(ctx.vars.get("noprogress_runs", 0)) + 1
+            ctx.vars["noprogress_runs"] = runs
+            ctx.logger.error("[MV] all switch attempts failed this window "
+                             "(%d/%d) — run stops for review.",
+                             runs, MAX_NO_PROGRESS_RUNS)
+            if runs >= MAX_NO_PROGRESS_RUNS and ctx.stop_event is not None:
+                ctx.stop_event.set()
+            return {"switched": -1}
+        if idx:
+            ctx.emit({"type": "mv_active", "idx": idx,
+                      "name": (mv.village(mv.load_config(), idx) or {}).get("name", "")})
+        return {"switched": idx}
+
+
 @register("ensure_home")
 class EnsureHome(BlockSpec):
     """Make CoC ready and land on the village home screen (run_bot startup).
@@ -242,7 +324,7 @@ class EnsureTroops(BlockSpec):
         if popup_guard.guard_and_recover(ctx.logger):
             ctx.vars["troops_ready"] = False
             return {"ready": False}
-        scenario = (inputs.get("scenario") or "").strip()
+        scenario = (ctx.vars.get("mv_scenario") if ctx.vars else None) or (inputs.get("scenario") or "").strip()
         if not scenario:
             ctx.logger.warning("[ensure_troops] no scenario set — skipping (ready=False).")
             ctx.vars["troops_ready"] = False
@@ -670,7 +752,7 @@ class Deploy(BlockSpec):
             ctx.logger.info("[deploy] no match held — skipping (match_found is false).")
             return {"deployed": False}
 
-        scenario = (inputs.get("scenario") or "").strip()
+        scenario = (ctx.vars.get("mv_scenario") if ctx.vars else None) or (inputs.get("scenario") or "").strip()
         if not scenario:
             deployed = AttackScreen(ctx.ui_manager, ctx.settings).deploy()
             return {"deployed": bool(deployed)}

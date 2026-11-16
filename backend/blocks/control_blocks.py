@@ -27,7 +27,12 @@ def _load_graph(name):
 
 
 def _run_subgraph(ctx, graph):
-    """Run a sub-graph with the same context, swallowing its terminal done event."""
+    """Run a sub-graph with the same context, swallowing its terminal done event.
+
+    Returns the inner run status ("ok" | "error" | "stopped") — the caller
+    decides fail-stop handling (the old code ignored it, so a failing cycle
+    spun into the next iteration forever, e.g. the mv_rotation refusal spam
+    of 2026-11-16)."""
     outer_emit = ctx.emit
 
     def sub_emit(ev):
@@ -96,7 +101,14 @@ class LoopN(BlockSpec):
             if ctx.stopped():
                 break
             ctx.logger.info("[loop_n] %s iteration %d/%d", name, i + 1, times)
-            _run_subgraph(ctx, graph)
+            status = _run_subgraph(ctx, graph)
+            if status == "error":
+                # fail-stop: a failed cycle must never spin into the next one —
+                # the executor routes this raise through on_error / aborts the run.
+                raise RuntimeError(f"loop_n: sub-graph '{name}' failed at "
+                                   f"iteration {i + 1}/{times} — aborting the loop.")
+            if status == "stopped":
+                break
         return {}
 
 
@@ -122,5 +134,10 @@ class LoopUntil(BlockSpec):
             if ctx.stopped() or ctx.vars.get(var):
                 break
             ctx.logger.info("[loop_until] %s iteration %d (until %s)", name, i + 1, var)
-            _run_subgraph(ctx, graph)
+            status = _run_subgraph(ctx, graph)
+            if status == "error":
+                raise RuntimeError(f"loop_until: sub-graph '{name}' failed at "
+                                   f"iteration {i + 1} — aborting the loop.")
+            if status == "stopped":
+                break
         return {}

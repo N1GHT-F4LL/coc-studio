@@ -94,6 +94,11 @@ export function useRunner(opts: Opts = {}) {
             logs: [...s.logs, { level: ev.level ?? "INFO", name: ev.name ?? "run", msg: ev.msg }]
               .slice(-MAX_LOGS),
           };
+        case "mv_active":
+          // the rotation switched the game account — the Multi-Village tab
+          // listens for this to re-point its editor at the real village
+          window.dispatchEvent(new CustomEvent("mv-active", { detail: ev.idx }));
+          return s;
         case "vars":
           return { ...s, vars: ev.vars ?? {} };
         case "done":

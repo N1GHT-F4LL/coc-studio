@@ -38,3 +38,9 @@ Thumbs.db
 
 # Popup-guard rolling debug screenshots (overwritten every scan)
 backend/data/popup_shots/
+
+# Bulk calibration/debug frames (hundreds of MB, regenerable)
+backend/data/calib_debug/
+
+# Per-village runtime counters (stats_v{idx}.json)
+backend/data/stats_v*.json

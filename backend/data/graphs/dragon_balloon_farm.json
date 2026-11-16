@@ -2,6 +2,17 @@
   "name": "dragon_balloon_farm",
   "nodes": [
     {
+      "id": "mvin",
+      "type": "mv_rotation",
+      "label": "MV Rotation",
+      "x": 0,
+      "y": 300,
+      "params": {},
+      "after": [],
+      "data_in": {},
+      "on_error": null
+    },
+    {
       "id": "home0",
       "type": "ensure_home",
       "label": "Ensure Home",
@@ -11,7 +22,9 @@
         "zoom_out": true,
         "timeout": 45
       },
-      "after": [],
+      "after": [
+        "mvin"
+      ],
       "data_in": {},
       "on_error": null
     },

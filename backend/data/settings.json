@@ -32,49 +32,37 @@
     "clan_games": false
   },
   "attack": {
-    "loot_by_icon": {
-      "_note": "Auto-locate resource icons then OCR numbers by relative offsets.",
-      "threshold": 0.62,
-      "x_start_offset": -8,
-      "x_end_offset": 236,
-      "y_half_height": 19,
-      "search_roi": [
-        0,
-        70,
-        420,
-        360
-      ],
-      "per_resource": {
-        "dark_elixir": {
-          "threshold": 0.7,
-          "y_half_height": 16
-        }
-      }
-    },
-    "loot_regions": {
-      "_note": "Fallback OCR regions if icon detect misses.",
+    "loot_rois": {
+      "_note": "Loot numbers on the 1600x900 scout screen \u2014 calibrated from real frames (2026-11-02, data/calib_debug/loot_frames). Fixed game UI: crop + digits-only OCR, no icon anchoring.",
       "gold": [
-        0,
-        120,
-        250,
+        74,
+        102,
+        215,
         160
       ],
       "elixir": [
-        0,
-        160,
-        250,
-        210
+        74,
+        142,
+        215,
+        198
       ],
       "dark_elixir": [
-        0,
-        220,
-        250,
-        260
-      ]
+        74,
+        206,
+        160,
+        254
+      ],
+      "pad": {
+        "top": 20,
+        "bottom": 20,
+        "left": 30,
+        "right": 30
+      },
+      "upscale": 2
     },
     "deploy": {
       "mode": "slot",
-      "active_scenario": "Thrower_",
+      "active_scenario": "dragon_balloon",
       "troop_bar_region": [
         0,
         730,

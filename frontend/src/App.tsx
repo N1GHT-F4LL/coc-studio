@@ -38,6 +38,7 @@ import { ScenarioEditor } from "./scenario/ScenarioEditor";
 import { AssetManager } from "./asset/AssetManager";
 import { DevicePanel } from "./panels/DevicePanel";
 import { About } from "./about/About";
+import { MultiVillage } from "./multi/MultiVillage";
 import { DeviceStreamProvider } from "./device/DeviceStreamContext";
 import { RunStateContext } from "./run/RunStateContext";
 import { useRunner } from "./run/useRunner";
@@ -343,6 +344,9 @@ export default function App() {
       {mode === "device" && (
         <DevicePanel device={device} onStatus={setDevice} onMessage={setStatus} />
       )}
+      <div style={{ display: mode === "multi" ? "contents" : "none" }}>
+        <MultiVillage onMessage={setStatus} />
+      </div>
       {mode === "about" && <About />}
 
       <div className="body" style={mode !== "editor" ? { display: "none" } : undefined}>

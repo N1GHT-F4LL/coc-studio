@@ -24,8 +24,11 @@ def _draw_clicks(img, click_positions, colors, ox, oy, scale):
         cv2.putText(img, label, (px + 22, py + 6),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
 
-BATTLE_END_TIMEOUT = 170    # tier-2 boundary (spec 2026-11-01): quá 170s -> dọn
-                            # dẹp mềm (dump + surrender), KHÔNG restart app
+BATTLE_END_TIMEOUT = 170    # tier-2 boundary (spec 2026-11-01; state-aware
+                            # cleanup 2026-11-16): quá 170s -> dọn THEO MÀN HÌNH
+                            # THỰC: battle UI -> dump+surrender; Return Home ->
+                            # tap; đã về làng -> không làm gì; không nhận ra ->
+                            # restart app (rate-limited)
 BATTLE_POLL_SLEEP = 1.5     # wait_for_end tick
 DUMP_FAST_ROUNDS = 2        # tier-2 cleanup: số vòng dump nhanh khi timeout
 DEPLOY_POPUP_CHECK_EVERY = 5  # kiểm popup mỗi N slot trong deploy loop
@@ -294,9 +297,13 @@ class BattleScreen(BaseScreen):
              relaunch -> dismiss, qua popup_guard có rate limit) rồi thoát
              vòng chờ. Popup hệ thống không tự hồi phục — chậm 1s là chậm.
           2. Return Home hiển thị -> battle kết thúc, trả về toạ độ.
-          3. quá BATTLE_END_TIMEOUT -> TẦNG mềm: dọn quân sót (dump nhanh) +
-             surrender + về home — KHÔNG BAO GIỜ restart app (kẹt mơ hồ có
-             thể tự hồi phục; restart đánh cược trạng thái game).
+          3. quá BATTLE_END_TIMEOUT -> TẦNG mềm: dọn dẹp THEO MÀN HÌNH THỰC
+             (_cleanup_after_timeout, 2026-11-16): còn battle UI -> dump nhanh +
+             surrender; Return Home -> tap; đã về làng -> không làm gì; màn
+             không nhận ra -> restart app (user directive — thay quy tắc
+             "không bao giờ restart" của thiết kế 2026-11-01: game có thể tự
+             kết thúc trận và nhảy về làng giữa lúc chờ, dump mù khi đó = tap
+             bậy vào các nút dưới đáy màn hình làng).
           4. chưa gì -> sleep ngắn, lặp lại.
 
         Trả về toạ độ Return Home (nhánh 2) hoặc None (nhánh 1/3 — caller kết
@@ -328,15 +335,111 @@ class BattleScreen(BaseScreen):
                         return loc
             # nhánh 4 — chưa gì xảy ra
             self.ui_manager._poll_sleep(BATTLE_POLL_SLEEP)
-        # nhánh 3 — TẦNG mềm: timeout -> dọn dẹp thật, không phó mặc cho chu kỳ sau
+        # nhánh 3 — TẦNG mềm: timeout -> dọn dẹp thật THEO MÀN HÌNH THỰC, không
+        # phó mặc cho chu kỳ sau (game có thể đã tự kết thúc trận + về làng).
         logger.warning(f"[BATTLE] timeout after {BATTLE_END_TIMEOUT:.0f}s — cleaning up "
-                       "(dump leftover + surrender); no app restart.")
+                       "(state-aware: battle -> dump+surrender, Return Home -> tap, "
+                       "home -> nothing, unknown -> app restart).")
         try:
-            self.dump_remaining({}, max_rounds=DUMP_FAST_ROUNDS)
-            self.surrender(return_home=True)
+            self._cleanup_after_timeout()
         except Exception as e:
             logger.warning(f"[BATTLE] tier-2 cleanup failed ({e}) — ending the cycle.")
         return None
+
+    def _first_template_loc(self, screen, candidates, threshold=0.7):
+        """Single-frame locator for the tier-2 cleanup — NO polling (wait_for_end
+        already polled the full battle timeout before getting here)."""
+        for tpl in self._existing_templates(candidates):
+            loc = vision.find_template(screen, tpl, threshold=threshold,
+                                       use_orb_fallback=False)
+            if loc:
+                return loc
+        return None
+
+    def _on_home_village(self):
+        """The `[ensure_home] home screen detected.` check — the same strict
+        two-anchor HomeScreen detection the startup path uses."""
+        from screens.home_screen import HomeScreen
+        return HomeScreen(self.ui_manager).is_current_screen()
+
+    def _await_home_after_cleanup(self, timeout=30):
+        """Bounded post-cleanup settle: tap Return Home when it appears, stop at
+        the home village. Never re-enters wait_for_end (the old
+        surrender -> wait_for_end -> cleanup chain re-dumped on home forever) —
+        the worst case hands the state to the next ensure_home, which restarts
+        if needed."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.ui_manager._stopped():
+                return
+            screen = self.ui_manager.get_screen()
+            if screen is not None:
+                rh = self._first_template_loc(screen, RETURN_HOME_TEMPLATES)
+                if rh is not None:
+                    self.tap_return_home(rh)
+                    self.ui_manager._poll_sleep(2.0)
+                    continue
+                if self._on_home_village():
+                    logger.info("[BATTLE] cleanup: back on the home village.")
+                    return
+            self.ui_manager._poll_sleep(BATTLE_POLL_SLEEP)
+        logger.warning("[BATTLE] cleanup: home village not confirmed within %ss — "
+                       "ensure_home will take over.", timeout)
+
+    def _cleanup_after_timeout(self):
+        """Tier-2 (timeout) cleanup branched by what is ACTUALLY on screen
+        (user spec 2026-11-16 — supersedes the blind dump+surrender):
+
+          1. surrender/end-battle button -> real battle: dump leftover +
+             surrender (return_home=False — never recurse into this cleanup),
+             then tap Return Home when it appears.
+          2. no battle button but Return Home visible -> battle already ended:
+             tap it.
+          3. neither, but the home village is detected -> nothing to clean (the
+             game ended the battle by itself and jumped home mid-wait).
+          4. none of the above -> unknown state: restart Clash of Clans right
+             away (rate-limited like every boot_recovery); the next ensure_home
+             re-lands and verifies home.
+        """
+        screen = self.ui_manager.get_screen()
+        if screen is None:
+            logger.warning("[BATTLE] cleanup: no frame — leaving recovery to ensure_home.")
+            return
+        if self._first_template_loc(screen, SURRENDER_BUTTONS) is not None:
+            logger.info("[BATTLE] cleanup: battle UI still up — dump leftover + surrender.")
+            self.dump_remaining({}, max_rounds=DUMP_FAST_ROUNDS)
+            self.surrender(return_home=False)
+            self._await_home_after_cleanup()
+            return
+        rh = self._first_template_loc(screen, RETURN_HOME_TEMPLATES)
+        if rh is not None:
+            logger.info("[BATTLE] cleanup: battle already ended — tapping Return Home.")
+            self.tap_return_home(rh)
+            self.ui_manager._poll_sleep(2.0)
+            self._await_home_after_cleanup()
+            return
+        if self._on_home_village():
+            logger.info("[BATTLE] cleanup: already back on the home village — the game "
+                        "ended the battle by itself; nothing to dump/surrender.")
+            return
+        # One re-check after a tick so a transition frame cannot trigger a restart.
+        self.ui_manager._poll_sleep(BATTLE_POLL_SLEEP)
+        screen = self.ui_manager.get_screen()
+        if screen is not None and (
+                self._first_template_loc(screen, SURRENDER_BUTTONS) is not None
+                or self._first_template_loc(screen, RETURN_HOME_TEMPLATES) is not None
+                or self._on_home_village()):
+            logger.info("[BATTLE] cleanup: screen settled on re-check — rerunning the branch.")
+            self._cleanup_after_timeout()
+            return
+        if popup_guard.recovery_rate_exceeded():
+            logger.warning("[BATTLE] cleanup: unknown screen but the recovery rate limit "
+                           "is hit — not restarting; the next ensure_home/noprogress "
+                           "tier owns recovery.")
+            return
+        logger.warning("[BATTLE] cleanup: no battle UI, no Return Home, not home — "
+                       "unknown state: restarting Clash of Clans now.")
+        popup_guard.boot_recovery()
 
     def tap_return_home(self, loc):
         self.ui_manager.click(*loc)

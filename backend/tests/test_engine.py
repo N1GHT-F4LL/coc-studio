@@ -252,6 +252,53 @@ def test_skip_propagation():
     check({"a", "b"} <= skipped, "both a and b emitted skipped")
 
 
+def test_loop_fail_stop():
+    print("\n[control] loop_n fail-stop: inner error aborts the loop (no infinite spam)")
+    import blocks.control_blocks as cb
+    sub = Graph.from_dict({"name": "sub", "nodes": [
+        _node("s1", type="_test_marker", params={"_id": "s1"}),
+        _node("boom", after=["s1"], type="_test_boom"),
+        _node("never", after=["boom"], type="_test_marker", params={"_id": "never"}),
+    ]})
+    real_load = cb._load_graph
+    cb._load_graph = lambda name: sub
+    g = Graph.from_dict({"name": "loop", "nodes": [
+        _node("loop", type="loop_n", params={"graph_ref": "sub", "times": 5}),
+        _node("after_loop", after=["loop"], type="_test_marker",
+              params={"_id": "after_loop"}),
+    ]})
+    events = []
+    ctx = make_ctx(events)
+    try:
+        status = run_graph(g, ctx)
+    finally:
+        cb._load_graph = real_load
+    check(status == "error", f"status error (got {status})")
+    order = ctx.vars.get("order", [])
+    check(order.count("s1") == 1,
+          f"sub-graph ran exactly ONCE then aborted (ran {order.count('s1')}x)")
+    check("never" not in order, "inner post-boom node never ran")
+    check("after_loop" not in order, "nothing after the loop ran (fail-stop)")
+    err = [e for e in events if e.get("state") == "error"]
+    check(any(e.get("id") == "loop" for e in err), "loop node emitted error")
+
+    # ok-path sanity: without the failure the loop runs all N iterations
+    sub_ok = Graph.from_dict({"name": "sub_ok", "nodes": [
+        _node("m", type="_test_marker", params={"_id": "s1"}),
+    ]})
+    cb._load_graph = lambda name: sub_ok
+    events2 = []
+    ctx2 = make_ctx(events2)
+    try:
+        status2 = run_graph(Graph.from_dict({"name": "loop2", "nodes": [
+            _node("loop", type="loop_n", params={"graph_ref": "sub_ok", "times": 5}),
+        ]}), ctx2)
+    finally:
+        cb._load_graph = real_load
+    check(status2 == "ok", f"no failure -> loop completes (got {status2})")
+    check(ctx2.vars["order"].count("s1") == 5, "ok-path runs all 5 iterations")
+
+
 if __name__ == "__main__":
     test_registry_specs()
     test_topo_order()
@@ -264,5 +311,6 @@ if __name__ == "__main__":
     test_data_edge_orders()
     test_if_branch()
     test_skip_propagation()
+    test_loop_fail_stop()
     print(f"\n=== {_passed} passed, {_failed} failed ===")
     sys.exit(1 if _failed else 0)

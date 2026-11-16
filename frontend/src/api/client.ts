@@ -233,3 +233,85 @@ export interface AssetUsage {
 export async function assetUsage(rel: string): Promise<AssetUsage> {
   return json<AssetUsage>(await fetch(`/api/assets/usage/${assetPath(rel)}`));
 }
+
+// --- Multi-Village (Supercell ID rotation) --------------------------------
+
+export interface MVVillageConfig {
+  scenario: string;
+  farm: { min_gold: number; min_elixir: number; min_dark_elixir: number };
+}
+
+export interface MVVillage {
+  idx: number;
+  name: string;
+  enabled: boolean;
+  confirmed: boolean;
+  config: MVVillageConfig | null;
+}
+
+export interface MVState {
+  config: {
+    enabled: boolean;
+    interval_option: string;
+    interval_mins: number;
+    villages: MVVillage[];
+    coords: Record<string, unknown>;
+  };
+  active_village_idx: number | null;
+  current_village_idx: number | null;
+  stats: Record<number, { cycles: number; switches: number; last_cycle_ts: number }>;
+  template_ready: boolean;
+  coords_calibrated: boolean;
+}
+
+export async function fetchMV(): Promise<MVState> {
+  return json<MVState>(await fetch("/api/multi_village"));
+}
+
+export async function putMVConfig(config: MVState["config"]): Promise<void> {
+  await json<{ ok: boolean }>(
+    await fetch("/api/multi_village/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    })
+  );
+}
+
+export async function loadMV(idx: number): Promise<{ config: MVVillageConfig }> {
+  return json(await fetch(`/api/multi_village/load/${idx}`, { method: "POST" }));
+}
+
+export async function saveMV(
+  idx: number,
+  config: MVVillageConfig
+): Promise<{ ok: boolean }> {
+  return json(
+    await fetch(`/api/multi_village/save/${idx}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config }),
+    })
+  );
+}
+
+export async function applyMV(
+  idx: number,
+  config: MVVillageConfig
+): Promise<{ ok: boolean; confirmed: boolean }> {
+  return json(
+    await fetch(`/api/multi_village/apply/${idx}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config }),
+    })
+  );
+}
+
+export async function deleteAllMV(): Promise<{ removed_icons: number }> {
+  return json(await fetch("/api/multi_village/delete_all", { method: "POST" }));
+}
+
+export function mvIconUrl(idx: number): string {
+  return `/api/multi_village/icon/${idx}`;
+}

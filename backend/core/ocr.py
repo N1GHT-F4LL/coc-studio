@@ -85,6 +85,59 @@ def _extract_digit_candidates(ocr_items):
     return out
 
 
+def read_digits_in_roi(frame_bgr, roi, pad=(20, 20, 30, 30), upscale=2.0):
+    """Single-pass digits-only OCR of a fixed ROI (x1, y1, x2, y2).
+
+    Design (2026-11-02 loot rework): the scout screen is fixed game UI — the
+    three loot numbers sit in calibrated ROIs, so no icon anchoring, no
+    multi-scale, no preprocessing variants. Exactly ONE readtext call with a
+    digits-only allowlist on: crop -> black pad (top, bottom, left, right) ->
+    x{upscale} INTER_CUBIC.
+
+    detail=1 (not 0) so the mean segment confidence can be returned — the
+    allowlist + single-variant rules are unchanged.
+
+    Parse rules: join segments -> strip spaces -> drop when length <= 1 or the
+    string starts with '0' -> lstrip('0') -> int. Returns (int|None, conf).
+    """
+    try:
+        x1, y1, x2, y2 = [int(v) for v in roi]
+        h, w = frame_bgr.shape[:2]
+        x1, x2 = max(0, min(w, x1)), max(0, min(w, x2))
+        y1, y2 = max(0, min(h, y1)), max(0, min(h, y2))
+        if x2 - x1 < 2 or y2 - y1 < 2:
+            return None, 0.0
+        crop = frame_bgr[y1:y2, x1:x2]
+        pt, pb, pl, pr = [int(v) for v in pad]
+        crop = cv2.copyMakeBorder(crop, pt, pb, pl, pr,
+                                  cv2.BORDER_CONSTANT, value=(0, 0, 0))
+        up = cv2.resize(crop, None, fx=float(upscale), fy=float(upscale),
+                        interpolation=cv2.INTER_CUBIC)
+        items = _get_reader().readtext(
+            up,
+            detail=1,
+            allowlist="0123456789",
+            paragraph=False,
+            batch_size=1,
+        )
+        texts, confs = [], []
+        for item in items:
+            if len(item) < 3:
+                continue
+            text = str(item[1] or "").strip()
+            if text:
+                texts.append(text)
+                confs.append(float(item[2] or 0.0))
+        joined = "".join(texts).replace(" ", "")
+        if len(joined) <= 1 or joined.startswith("0"):
+            return None, 0.0
+        value = int(joined.lstrip("0"))
+        conf = sum(confs) / len(confs) if confs else 0.0
+        return value, conf
+    except Exception:
+        return None, 0.0
+
+
 def read_number_with_confidence(
     screen_bgr,
     region,

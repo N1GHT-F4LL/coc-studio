@@ -1,0 +1,210 @@
+{
+  "enabled": true,
+  "interval_option": "30 minutes",
+  "interval_mins": 45,
+  "villages": [
+    {
+      "idx": 1,
+      "name": "Antoine",
+      "enabled": true,
+      "confirmed": true,
+      "config": {
+        "scenario": "dragon_balloon",
+        "farm": {
+          "min_gold": 100000,
+          "min_elixir": 100000,
+          "min_dark_elixir": 500
+        }
+      },
+      "scid_row": {
+        "swipes": 0,
+        "tap_y": 509
+      }
+    },
+    {
+      "idx": 2,
+      "name": "Nghiays",
+      "enabled": true,
+      "confirmed": true,
+      "config": {
+        "scenario": "dragon_balloon",
+        "farm": {
+          "min_gold": 100000,
+          "min_elixir": 100000,
+          "min_dark_elixir": 500
+        }
+      },
+      "scid_row": {
+        "swipes": 0,
+        "tap_y": 654
+      }
+    },
+    {
+      "idx": 3,
+      "name": "Namhp123",
+      "enabled": true,
+      "confirmed": false,
+      "config": {
+        "scenario": "dragon_balloon",
+        "farm": {
+          "min_gold": 100000,
+          "min_elixir": 100000,
+          "min_dark_elixir": 500
+        }
+      },
+      "scid_row": {
+        "swipes": 0,
+        "tap_y": 799
+      }
+    },
+    {
+      "idx": 4,
+      "name": "you know",
+      "enabled": true,
+      "confirmed": false,
+      "config": {
+        "scenario": "dragon_balloon",
+        "farm": {
+          "min_gold": 100000,
+          "min_elixir": 100000,
+          "min_dark_elixir": 500
+        }
+      },
+      "scid_row": {
+        "swipes": 1,
+        "tap_y": 703
+      }
+    },
+    {
+      "idx": 5,
+      "name": "nghia",
+      "enabled": true,
+      "confirmed": false,
+      "config": {
+        "scenario": "dragon_balloon",
+        "farm": {
+          "min_gold": 100000,
+          "min_elixir": 100000,
+          "min_dark_elixir": 500
+        }
+      },
+      "scid_row": {
+        "swipes": 2,
+        "tap_y": 611
+      }
+    },
+    {
+      "idx": 6,
+      "name": "De Quan 2.0",
+      "enabled": true,
+      "confirmed": false,
+      "config": {
+        "scenario": "dragon_balloon",
+        "farm": {
+          "min_gold": 100000,
+          "min_elixir": 100000,
+          "min_dark_elixir": 500
+        }
+      },
+      "scid_row": {
+        "swipes": 3,
+        "tap_y": 517
+      }
+    },
+    {
+      "idx": 7,
+      "name": "Duyen Tran 8",
+      "enabled": true,
+      "confirmed": false,
+      "config": {
+        "scenario": "dragon_balloon",
+        "farm": {
+          "min_gold": 100000,
+          "min_elixir": 100000,
+          "min_dark_elixir": 500
+        }
+      },
+      "scid_row": {
+        "swipes": 3,
+        "tap_y": 660
+      }
+    },
+    {
+      "idx": 8,
+      "name": "Chu Tich CLAN",
+      "enabled": true,
+      "confirmed": false,
+      "config": {
+        "scenario": "dragon_balloon",
+        "farm": {
+          "min_gold": 100000,
+          "min_elixir": 100000,
+          "min_dark_elixir": 500
+        }
+      },
+      "scid_row": {
+        "swipes": 4,
+        "tap_y": 568
+      }
+    },
+    {
+      "idx": 9,
+      "name": "Th4nh",
+      "enabled": true,
+      "confirmed": false,
+      "config": {
+        "scenario": "dragon_balloon",
+        "farm": {
+          "min_gold": 100000,
+          "min_elixir": 100000,
+          "min_dark_elixir": 500
+        }
+      },
+      "scid_row": {
+        "swipes": 4,
+        "tap_y": 713
+      }
+    }
+  ],
+  "coords": {
+    "_note": "1600x900 MEmu — calibrated 2026-11",
+    "scid_hut": [
+      83,
+      92
+    ],
+    "settings_tab": [
+      1263,
+      65
+    ],
+    "swap_button": [
+      1050,
+      170
+    ],
+    "settings_close_x": [
+      1400,
+      72
+    ],
+    "exit_dialog_cancel": [
+      612,
+      576
+    ],
+    "scid_switch_id": [
+      1335,
+      375
+    ],
+    "scid_first_row": [
+      1300,
+      570
+    ],
+    "scid_row_height_px": 148,
+    "scid_confirm_yes": null,
+    "scid_close_x": [
+      1548,
+      51
+    ]
+  },
+  "runtime": {
+    "current_village_idx": 1,
+    "last_switch_ts": 1794857809.5959203
+  }
+}

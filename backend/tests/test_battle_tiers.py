@@ -3,7 +3,12 @@
 Run:  cd backend && ..\\.venv\\Scripts\\python.exe tests\\test_battle_tiers.py
 
 Tầng 1 (restart): system popup -> boot_recovery ngay tại vòng chờ.
-Tầng 2 (mềm): battle timeout -> dump fast + surrender, KHÔNG restart app.
+Tầng 2 (mềm): battle timeout -> dọn THEO MÀN HÌNH THỰC (_cleanup_after_timeout,
+     spec 2026-11-16): battle UI -> dump fast + surrender; Return Home -> tap;
+     đã về làng -> không làm gì; màn không nhận ra -> restart app (rate-limited).
+     (Thiết kế 2026-11-01 "blind dump+surrender, KHÔNG restart" đã bị thay thế:
+     game có thể tự kết thúc trận + nhảy về làng giữa lúc chờ — dump mù khi đó
+     tap bậy thanh dưới đáy màn hình làng trong vòng lặp vô hạn.)
 Tầng 3 (dừng có kiểm soát): 3 chu kỳ bất thường liên tiếp -> stop_event;
      2 bất thường + 1 bình thường -> counter reset.
 Kèm audit: không còn `while True` thiếu lối thoát trong luồng attack.
@@ -70,30 +75,180 @@ class Ctx:
         self.stop_event = self
 
 
+def _inject_vision_tpl(key, img):
+    """Temporarily put a template into vision.cache -> returns a restore fn."""
+    from core.vision import vision
+    had = key in vision.cache
+    old = vision.cache.get(key)
+    vision.cache[key] = img
+
+    def restore():
+        if had:
+            vision.cache[key] = old
+        else:
+            vision.cache.pop(key, None)
+    return restore
+
+
+def _pattern_tpl(h=40, w=80, seed=7):
+    """2-D grayscale patterned template — find_template matches the GRAY frame,
+    and a uniform template makes TM_CCOEFF_NORMED divide by zero variance."""
+    return np.random.default_rng(seed).integers(40, 220, (h, w), dtype=np.uint8)
+
+
+def _paste_tpl(frame, tpl, y, x):
+    """Paste the gray pattern into all 3 BGR channels (gray conversion of the
+    frame then reproduces the pattern exactly)."""
+    frame[y:y + tpl.shape[0], x:x + tpl.shape[1]] = np.stack([tpl, tpl, tpl], axis=-1)
+
+
 def test_tier2_timeout_cleanup():
-    print("[1] battle never ends -> timeout -> dump(fast) + surrender, NO app restart")
+    print("[1] timeout via wait_for_end: battle UI up -> dump(fast) + "
+          "surrender(return_home=False), NO restart")
     real = (bsm.BATTLE_END_TIMEOUT, bsm.BATTLE_POLL_SLEEP)
     bsm.BATTLE_END_TIMEOUT = 2
-    bsm.BATTLE_POLL_SLEEP = 0.1
-    frame = np.zeros((900, 1600, 3), np.uint8)   # plain: no Return Home, no popup
-    ui = FakeUI(frame)
-    bs = BattleScreen(ui)
-    calls = {"dump": [], "surrender": [], "boot": []}
-    bs.dump_remaining = lambda cfg, max_rounds=4: calls["dump"].append(max_rounds)
-    bs.surrender = lambda return_home=True: calls["surrender"].append(return_home)
-    popup_guard.boot_recovery = lambda: calls["boot"].append(1)
+    bsm.BATTLE_POLL_SLEEP = 0.05
+    boot = []
+    popup_guard.boot_recovery = lambda: boot.append(1)
+    tpl = _pattern_tpl(40, 80)
+    restore = _inject_vision_tpl("buttons/battle/btn_surrender", tpl)
     try:
+        frame = np.zeros((900, 1600, 3), np.uint8)
+        _paste_tpl(frame, tpl, 400, 700)
+        ui = FakeUI(frame)
+        bs = BattleScreen(ui)
+        calls = {"dump": [], "surrender": [], "await": 0}
+        bs.dump_remaining = lambda cfg, max_rounds=4: calls["dump"].append(max_rounds)
+        bs.surrender = lambda return_home=True: calls["surrender"].append(return_home)
+        bs._await_home_after_cleanup = lambda timeout=30: calls.__setitem__(
+            "await", calls["await"] + 1)
         import time as _t
         t0 = _t.monotonic()
         loc = bs.wait_for_end()
         elapsed = _t.monotonic() - t0
     finally:
         bsm.BATTLE_END_TIMEOUT, bsm.BATTLE_POLL_SLEEP = real
+        restore()
     check("returns None after the timeout", loc is None)
     check("timeout honored (~2s, not 170s)", 1.5 <= elapsed < 6, f"{elapsed:.1f}s")
     check("dump-leftover ran ONCE with fast rounds", calls["dump"] == [2], str(calls["dump"]))
-    check("surrender(return_home=True) ran", calls["surrender"] == [True])
-    check("NO app restart in the tier-2 path", calls["boot"] == [], str(calls["boot"]))
+    check("surrender(return_home=False) — wait_for_end never recurses",
+          calls["surrender"] == [False], str(calls))
+    check("post-surrender settle ran once", calls["await"] == 1, str(calls))
+    check("NO app restart while the battle UI is up", boot == [], str(boot))
+
+
+def test_tier2_cleanup_return_home():
+    print("[1b] timeout cleanup, Return Home visible -> tap it (no dump/surrender)")
+    tpl = _pattern_tpl(40, 120, seed=11)
+    restore = _inject_vision_tpl("buttons/battle/btn_return_home", tpl)
+    boot = []
+    popup_guard.boot_recovery = lambda: boot.append(1)
+    try:
+        frame = np.zeros((900, 1600, 3), np.uint8)
+        _paste_tpl(frame, tpl, 500, 800)
+        expected = (860, 520)   # pasted template centre
+        ui = FakeUI(frame)
+        ui.scan_all = lambda anchors, use_orb_fallback=False, threshold=None: {}
+        bs = BattleScreen(ui)
+        calls = {"dump": [], "surrender": [], "await": 0}
+        bs.dump_remaining = lambda cfg, max_rounds=4: calls["dump"].append(max_rounds)
+        bs.surrender = lambda return_home=True: calls["surrender"].append(return_home)
+        bs._await_home_after_cleanup = lambda timeout=30: calls.__setitem__(
+            "await", calls["await"] + 1)
+        bs._cleanup_after_timeout()
+        check("Return Home tapped at the template centre", expected in ui.clicks,
+              str(ui.clicks))
+        check("no dump / no surrender / no restart / settle ran",
+              calls["dump"] == [] and calls["surrender"] == []
+              and calls["await"] == 1 and boot == [], f"{calls} boot={boot}")
+    finally:
+        restore()
+
+
+def test_tier2_cleanup_already_home():
+    print("[1c] timeout cleanup, already back on the home village -> do NOTHING "
+          "(the game ended the battle by itself)")
+    boot = []
+    popup_guard.boot_recovery = lambda: boot.append(1)
+    ui = FakeUI(np.zeros((900, 1600, 3), np.uint8))
+    ui.scan_all = lambda anchors, use_orb_fallback=False, threshold=None: {
+        "buttons/home/btn_attack": (106, 848),
+        "buttons/home/btn_build": (1425, 740),
+    }
+    bs = BattleScreen(ui)
+    calls = {"dump": [], "surrender": []}
+    bs.dump_remaining = lambda cfg, max_rounds=4: calls["dump"].append(max_rounds)
+    bs.surrender = lambda return_home=True: calls["surrender"].append(return_home)
+    bs._cleanup_after_timeout()
+    check("home detected -> no dump / no surrender / no clicks / no restart",
+          calls["dump"] == [] and calls["surrender"] == []
+          and ui.clicks == [] and boot == [],
+          f"{calls} clicks={ui.clicks} boot={boot}")
+
+
+def test_tier2_cleanup_unknown_restarts():
+    print("[1d] timeout cleanup, screen unrecognizable -> restart the app "
+          "(rate-limited); NO bottom-bar taps")
+    real_rate = popup_guard.recovery_rate_exceeded
+    popup_guard.recovery_rate_exceeded = lambda: False
+    boot = []
+    popup_guard.boot_recovery = lambda: boot.append(1)
+    ui = FakeUI(np.zeros((900, 1600, 3), np.uint8))
+    ui.scan_all = lambda anchors, use_orb_fallback=False, threshold=None: {}
+    bs = BattleScreen(ui)
+    calls = {"dump": [], "surrender": []}
+    bs.dump_remaining = lambda cfg, max_rounds=4: calls["dump"].append(max_rounds)
+    bs.surrender = lambda return_home=True: calls["surrender"].append(return_home)
+    try:
+        bs._cleanup_after_timeout()
+    finally:
+        popup_guard.recovery_rate_exceeded = real_rate
+    check("unknown screen -> app restarted", boot == [1], str(boot))
+    check("NO dump / NO surrender / NO clicks on the unknown screen",
+          calls["dump"] == [] and calls["surrender"] == [] and ui.clicks == [],
+          f"{calls} clicks={ui.clicks}")
+
+    boot2 = []
+    popup_guard.boot_recovery = lambda: boot2.append(1)
+    popup_guard.recovery_rate_exceeded = lambda: True
+    try:
+        ui2 = FakeUI(np.zeros((900, 1600, 3), np.uint8))
+        ui2.scan_all = lambda anchors, use_orb_fallback=False, threshold=None: {}
+        bs2 = BattleScreen(ui2)
+        bs2._cleanup_after_timeout()
+        check("rate limit hit -> no restart (watchdog/noprogress own recovery)",
+              boot2 == [], str(boot2))
+    finally:
+        popup_guard.recovery_rate_exceeded = real_rate
+
+
+def test_cleanup_await_home():
+    print("[1e] post-cleanup settle: taps Return Home when it appears / stops at home")
+    tpl = _pattern_tpl(40, 120, seed=11)
+    restore = _inject_vision_tpl("buttons/battle/btn_return_home", tpl)
+    try:
+        frame = np.zeros((900, 1600, 3), np.uint8)
+        _paste_tpl(frame, tpl, 500, 800)
+        expected = (860, 520)
+        ui = FakeUI(frame)
+        ui.scan_all = lambda anchors, use_orb_fallback=False, threshold=None: {}
+        bs = BattleScreen(ui)
+        bs._await_home_after_cleanup(timeout=0.4)
+        check("settle taps Return Home when it is up", expected in ui.clicks,
+              str(ui.clicks[:5]))
+
+        ui2 = FakeUI(np.zeros((900, 1600, 3), np.uint8))
+        ui2.scan_all = lambda anchors, use_orb_fallback=False, threshold=None: {
+            "buttons/home/btn_attack": (106, 848),
+            "buttons/home/btn_build": (1425, 740),
+        }
+        bs2 = BattleScreen(ui2)
+        bs2._await_home_after_cleanup(timeout=2)
+        check("settle stops at the home village (no clicks)", ui2.clicks == [],
+              str(ui2.clicks))
+    finally:
+        restore()
 
 
 def test_tier1_popup_restart():
@@ -265,6 +420,10 @@ def test_audit_wait_loops():
 
 if __name__ == "__main__":
     test_tier2_timeout_cleanup()
+    test_tier2_cleanup_return_home()
+    test_tier2_cleanup_already_home()
+    test_tier2_cleanup_unknown_restarts()
+    test_cleanup_await_home()
     test_tier1_popup_restart()
     test_tier1_rate_gate()
     test_guard_wiring()
