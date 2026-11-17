@@ -1,0 +1,9 @@
+{
+  "offset": [
+    2.47,
+    3.38
+  ],
+  "scale": 1.01433,
+  "shot": "calib/shot_home.png",
+  "inliers": 5
+}

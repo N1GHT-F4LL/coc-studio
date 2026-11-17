@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "interval_option": "30 minutes",
-  "interval_mins": 45,
+  "interval_mins": 6,
   "villages": [
     {
       "idx": 1,
@@ -205,6 +205,6 @@
   },
   "runtime": {
     "current_village_idx": 1,
-    "last_switch_ts": 1794857809.5959203
+    "last_switch_ts": 1794932939.6493738
   }
 }
