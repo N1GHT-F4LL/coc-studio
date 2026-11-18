@@ -578,6 +578,25 @@ class BattleScreen(BaseScreen):
         # dragon/slammer/minion taps fired after the watchdog relaunch).
         boot_mark = scenario_store.get_session_flag("game_rebooted") or 0
 
+        # --- battle-camera normalisation (user spec 2026-11-18) --------------
+        # Entering a battle can reset the pinch zoom, and every plan point/pan
+        # was calibrated at the fully zoomed-out view — so ALWAYS zoom out
+        # before the hero-lineup scan. The deploy bar is fixed UI: the pinch
+        # never moves it, so bar matching is unaffected.
+        dev = getattr(self.ui_manager, "device", None)
+        serial = getattr(dev, "serial", None)
+        if serial:
+            try:
+                from zoom_out import multi_zoom_out
+                logger.info("ZOOMING OUT . . .")
+                if multi_zoom_out(serial):
+                    logger.info("[DEPLOY] battle camera zoomed out (u2 pinch).")
+                else:
+                    logger.warning("[DEPLOY] battle zoom-out did not land — "
+                                   "deploying at the current zoom.")
+            except Exception as e:
+                logger.warning(f"[DEPLOY] battle zoom-out skipped ({e})")
+
         # --- hero lineup: decide EVERY hero substitution up front ------------
         # Regenerating heroes don't appear on the battle bar at all, so one
         # scan of the untouched bar at deploy start is the ground truth for
@@ -708,36 +727,39 @@ class BattleScreen(BaseScreen):
                         continue
 
                     if slot.get("type") == "pan":
-                        # Camera pan of the battle map: ONE slow swipe
-                        # (x1,y1)->(x2,y2), then VERIFY the actual content shift
-                        # (drags coast a little) and correct the residual once,
-                        # so the view matches what the plan assumed.
+                        # Camera pan of the battle map — THREE passes (user
+                        # spec 2026-11-18): the extra swipes push the camera to
+                        # the very edge of the map so the drop tiles sit as far
+                        # from the base as the view allows, minimising red-zone
+                        # contact. Each pass verifies the actual content shift
+                        # (drags coast a little) and corrects the residual once.
                         x1, y1, x2, y2 = (int(slot.get(k) or 0) for k in ("x1", "y1", "x2", "y2"))
-                        logger.info(f"[DEPLOY] pan map ({x1},{y1})->({x2},{y2})")
-                        try:
-                            f0 = self.ui_manager.get_screen()
-                            self.ui_manager.device._run_adb(
-                                ['shell', 'input', 'swipe',
-                                 str(x1), str(y1), str(x2), str(y2), '900'])
-                            self.ui_manager._poll_sleep(1.0)
-                            f1 = self.ui_manager.get_screen()
-                            intended = (x2 - x1, y2 - y1)
-                            measured = _content_shift(f0, f1) if f0 is not None and f1 is not None else None
-                            if measured is None:
-                                logger.warning("[DEPLOY] pan shift not measurable — trusting the swipe")
-                            else:
-                                res = (intended[0] - measured[0], intended[1] - measured[1])
-                                logger.info(f"[DEPLOY] pan shift measured {measured}, intended {intended}")
-                                if abs(res[0]) > 25 or abs(res[1]) > 25:
-                                    logger.info(f"[DEPLOY] correcting pan residual {res}")
-                                    self.ui_manager.device._run_adb(
-                                        ['shell', 'input', 'swipe', '800', '450',
-                                         str(800 + res[0]), str(450 + res[1]), '700'])
-                                    self.ui_manager._poll_sleep(0.8)
-                        except Exception as e:
-                            logger.warning(f"[DEPLOY] pan verify skipped ({e})")
-                            self.ui_manager.device.swipe([(x1, y1), (x2, y2)])
-                        self.ui_manager._poll_sleep(0.6)
+                        for pan_round in (1, 2, 3):
+                            logger.info(f"[DEPLOY] pan map ({x1},{y1})->({x2},{y2})")
+                            try:
+                                f0 = self.ui_manager.get_screen()
+                                self.ui_manager.device._run_adb(
+                                    ['shell', 'input', 'swipe',
+                                     str(x1), str(y1), str(x2), str(y2), '900'])
+                                self.ui_manager._poll_sleep(1.0)
+                                f1 = self.ui_manager.get_screen()
+                                intended = (x2 - x1, y2 - y1)
+                                measured = _content_shift(f0, f1) if f0 is not None and f1 is not None else None
+                                if measured is None:
+                                    logger.warning("[DEPLOY] pan shift not measurable — trusting the swipe")
+                                else:
+                                    res = (intended[0] - measured[0], intended[1] - measured[1])
+                                    logger.info(f"[DEPLOY] pan shift measured {measured}, intended {intended}")
+                                    if abs(res[0]) > 25 or abs(res[1]) > 25:
+                                        logger.info(f"[DEPLOY] correcting pan residual {res}")
+                                        self.ui_manager.device._run_adb(
+                                            ['shell', 'input', 'swipe', '800', '450',
+                                             str(800 + res[0]), str(450 + res[1]), '700'])
+                                        self.ui_manager._poll_sleep(0.8)
+                            except Exception as e:
+                                logger.warning(f"[DEPLOY] pan verify skipped ({e})")
+                                self.ui_manager.device.swipe([(x1, y1), (x2, y2)])
+                            self.ui_manager._poll_sleep(0.6)
                         any_deployed = True
                         continue
 

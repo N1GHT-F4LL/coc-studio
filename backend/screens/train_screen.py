@@ -78,10 +78,30 @@ ROSTER_CLOSE_TAP = (800, 130)
 
 class TrainScreen(BaseScreen):
     def is_current_screen(self):
-        # The trash icons only exist on the army screen; any match => we're here.
-        return bool(vision.find_all_matches(
-            self.ui_manager.get_screen(), DELETE_TROOP_TEMPLATE, threshold=0.7
-        )) if self.ui_manager.get_screen() is not None else False
+        """The trash icons only exist on the army screen — matched at NATIVE
+        scale only. 2026-11-18: find_all_matches' multi-scale search false-
+        matched this template on a live BATTLE frame (a deploy-bar card at an
+        odd scale) -> ensure_army believed the army screen was up -> the troop
+        count OCR read a battle frame -> None/None -> a correct army got
+        cleared + retrained. The army screen is fixed 1600x900 UI: the trash
+        icon renders at exactly one size, so native scale separates cleanly
+        (measured: army 24 pixel-hits >= 0.70, battle frame 0)."""
+        import cv2
+        screen = self.ui_manager.get_screen()
+        if screen is None:
+            return False
+        tpl = vision.cache.get(DELETE_TROOP_TEMPLATE)
+        if tpl is None:
+            path = os.path.join(app_paths.ASSETS_DIR, *DELETE_TROOP_TEMPLATE.split("/")) + ".png"
+            if not os.path.isfile(path):
+                return False
+            tpl = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+            if tpl is None:
+                return False
+            vision.cache[DELETE_TROOP_TEMPLATE] = tpl
+        g = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
+        res = cv2.matchTemplate(g, tpl, cv2.TM_CCOEFF_NORMED)
+        return bool((res >= 0.7).any())
 
     def _via_attack_menu(self, timeout):
         """Village -> Attack -> Train Troops (the post-UI-update path).

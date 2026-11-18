@@ -402,34 +402,48 @@ class EnsureTroops(BlockSpec):
             "siege": (1275, 411, 1365, 453),
         }
 
-        def read_section_count(kind):
+        def read_section_count(kind, retries=3):
             """OCR the section's 'N/M' count -> (n, total), either may be None.
             The label crop is upscaled 3x for OCR; stylized 1s often read as
             I/l so they are normalized before parsing; a lost slash is
-            recovered by halving an even-length digit string."""
+            recovered by halving an even-length digit string.
+
+            Waits for the army screen to be on the frame first (2026-11-18: a
+            frame caught mid slide-in — or on the wrong screen entirely — OCRs
+            empty, and the count verify then None/None-cleared a CORRECT army;
+            measured live: the label can sit outside the calibrated region for
+            the first ~1s after the screen opens)."""
             import re as _re
             import cv2 as _cv2
             r = verify_regions.get(kind)
             if not r:
                 return None, None
-            screen = ctx.ui_manager.get_screen()
-            if screen is None:
-                return None, None
-            crop = screen[r[1]:r[3], r[0]:r[2]]
-            up = _cv2.resize(crop, None, fx=3, fy=3, interpolation=_cv2.INTER_CUBIC)
-            rgb = _cv2.cvtColor(up, _cv2.COLOR_BGR2RGB)
-            from core.ocr import _get_reader
-            txt = " ".join(str(t) for _b, t, c in _get_reader().readtext(rgb) if c > 0.3)
-            norm = (txt.upper().replace(" ", "")
-                    .translate(str.maketrans({"I": "1", "L": "1", "|": "1",
-                                              "O": "0", "S": "5", "B": "8"})))
-            m = _re.search(r"(\d+)\s*/\s*(\d+)", norm)
-            if m:
-                return int(m.group(1)), int(m.group(2))
-            digits = _re.sub(r"\D", "", norm)
-            if len(digits) >= 2 and len(digits) % 2 == 0:
-                h = len(digits) // 2
-                return int(digits[:h]), int(digits[h:])
+            for _attempt in range(retries):
+                screen = ctx.ui_manager.get_screen()
+                if screen is None:
+                    ctx.ui_manager._poll_sleep(0.8)
+                    continue
+                if not train.is_current_screen():
+                    ctx.logger.info("[ensure_troops] %s: count read deferred — army screen "
+                                    "not on the frame yet.", kind)
+                    ctx.ui_manager._poll_sleep(1.0)
+                    continue
+                crop = screen[r[1]:r[3], r[0]:r[2]]
+                up = _cv2.resize(crop, None, fx=3, fy=3, interpolation=_cv2.INTER_CUBIC)
+                rgb = _cv2.cvtColor(up, _cv2.COLOR_BGR2RGB)
+                from core.ocr import _get_reader
+                txt = " ".join(str(t) for _b, t, c in _get_reader().readtext(rgb) if c > 0.3)
+                norm = (txt.upper().replace(" ", "")
+                        .translate(str.maketrans({"I": "1", "L": "1", "|": "1",
+                                                  "O": "0", "S": "5", "B": "8"})))
+                m = _re.search(r"(\d+)\s*/\s*(\d+)", norm)
+                if m:
+                    return int(m.group(1)), int(m.group(2))
+                digits = _re.sub(r"\D", "", norm)
+                if len(digits) >= 2 and len(digits) % 2 == 0:
+                    h = len(digits) // 2
+                    return int(digits[:h]), int(digits[h:])
+                ctx.ui_manager._poll_sleep(0.8)   # panel may still be animating
             return None, None
 
         # Camp card rows on the army screen (1600x900), measured on a live
@@ -437,45 +451,62 @@ class EnsureTroops(BlockSpec):
         # N/M label. Counts alone CANNOT verify an army — the game's Saved
         # Recipes auto-refill keeps the camp full with a DIFFERENT army that
         # reads the very same N/N. So each expected unit's card is matched in
-        # its section's row: the plan's units score 0.75-0.99, foreign units
-        # (golem/valkyrie/...) score <=0.47 -> threshold 0.70.
+        # its section's row. 2026-11-18 (user directive): verification checks
+        # the DEDICATED folder assets/units/verify/<unit>.png — faces cropped
+        # from the camp card row itself (the deploy assets in units/troops|
+        # spells|siege render differently and miss: balloon scored 0.32 on the
+        # real camp row). Verify faces are captured at the row's native size,
+        # so no per-section rescale. A MISSING verify face only skips that
+        # unit's card check (with a capture hint) — it never fails the army.
         CARD_REGIONS = {
-            "troop": (20, 225, 1250, 380, 0.80),
-            "spell": (560, 440, 1120, 600, 0.80),
-            "siege": (1140, 440, 1520, 610, 1.00),
+            "troop": (20, 225, 1250, 380),
+            "spell": (560, 440, 1120, 600),
+            "siege": (1140, 440, 1520, 610),
         }
         CARD_MATCH_THRESHOLD = 0.70
 
         def composition_ok(kind, items):
             """True if every expected unit's card is present in the section's
-            camp card row (raw template match at the calibrated scale)."""
+            camp card row (verify faces from assets/units/verify, native
+            scale). Units without a captured verify face are SKIPPED (warned),
+            never treated as missing cards. Returns (ok, checked) — ``checked``
+            = how many units were actually verified by a verify face; callers
+            may only vouch by composition when EVERY planned unit was checked."""
             import cv2 as _cv2
             reg = CARD_REGIONS.get(kind)
             if not reg:
-                return True
-            x1, y1, x2, y2, scale = reg
+                return True, 0
+            x1, y1, x2, y2 = reg
             screen = ctx.ui_manager.get_screen()
             if screen is None:
-                return False
+                return False, 0
             crop = _cv2.cvtColor(screen[y1:y2, x1:x2], _cv2.COLOR_BGR2GRAY)
+            checked = 0
             for tpl_key in items:
-                tpl = vision.cache.get(tpl_key)
+                name = tpl_key.rsplit("/", 1)[-1]
+                verify_key = f"units/verify/{name}"
+                tpl = vision.cache.get(verify_key)
                 if tpl is None:
-                    ctx.logger.warning("[ensure_troops] %s: no asset %s to verify composition.",
-                                       kind, tpl_key)
-                    return False
-                t = _cv2.resize(tpl, None, fx=scale, fy=scale, interpolation=_cv2.INTER_AREA)
-                th, tw = t.shape[:2]
+                    ctx.logger.warning("[ensure_troops] %s: no verify face assets/units/verify/%s.png "
+                                       "— card check skipped for this unit (capture it via the "
+                                       "Assets tab, 'Verify (army cards)' category).",
+                                       kind, name)
+                    continue
+                checked += 1
+                th, tw = tpl.shape[:2]
                 if th >= crop.shape[0] or tw >= crop.shape[1]:
-                    return False
-                res = _cv2.matchTemplate(crop, t, _cv2.TM_CCOEFF_NORMED)
+                    ctx.logger.warning("[ensure_troops] %s: verify face %s is %dx%d — larger than "
+                                       "the card row %dx%d; recapture it tighter.",
+                                       kind, name, tw, th, crop.shape[1], crop.shape[0])
+                    return False, checked
+                res = _cv2.matchTemplate(crop, tpl, _cv2.TM_CCOEFF_NORMED)
                 _, mv, _, _ = _cv2.minMaxLoc(res)
                 if mv < CARD_MATCH_THRESHOLD:
                     ctx.logger.info("[ensure_troops] %s: %s card missing (conf %.2f < %.2f) — "
-                                    "camp holds different units.", kind, tpl_key.rsplit("/", 1)[-1],
+                                    "camp holds different units.", kind, name,
                                     mv, CARD_MATCH_THRESHOLD)
-                    return False
-            return True
+                    return False, checked
+            return True, checked
 
         # Totals the correct army of THIS scenario+variant reads on its labels
         # (recorded after a training pass). Verification must match these
@@ -536,9 +567,24 @@ class EnsureTroops(BlockSpec):
             ctx.logger.info("[ensure_troops] verify %s count: %s/%s (trained army should read %s)",
                             kind, n, total, need)
             comp_items = {k: v for k, v in items.items() if k not in fill_units}
-            comp_ok = composition_ok(kind, comp_items)
+            comp_ok, comp_checked = composition_ok(kind, comp_items)
             if need is not None and n is not None and n == total == need and comp_ok:
                 ctx.logger.info("[ensure_troops] %s: matches the trained army — keeping it.", kind)
+                continue
+            if (need is None and n is not None and n == total and n > 0 and comp_ok
+                    and scaled_counts is None and comp_checked == len(comp_items) and comp_items):
+                # No snapshot yet, but the camp holds EXACTLY the planned units
+                # (every one verified by a camp-row face) — vouch by COMPOSITION
+                # and record the snapshot instead of training again. The old
+                # "training once to vouch" could never record a troop snapshot
+                # (the queue drains after the post-training count read), so
+                # troops were cleared + retrained EVERY cycle (2026-11-18).
+                ctx.logger.info("[ensure_troops] %s: full %s/%s + composition verified "
+                                "(%d/%d cards) — keeping it and recording the snapshot.",
+                                kind, n, total, comp_checked, len(comp_items))
+                snap = dict(army_totals) if army_totals else {}
+                snap[kind] = n
+                scenario_store.set_army_totals(scenario, chosen_name, snap)
                 continue
             if need is None and n is not None and n == total and n > 0 and comp_ok:
                 ctx.logger.info("[ensure_troops] %s: full (%s/%s) but no trained-army snapshot "

@@ -1,12 +1,12 @@
 {
-  "enabled": true,
+  "enabled": false,
   "interval_option": "30 minutes",
-  "interval_mins": 6,
+  "interval_mins": 60,
   "villages": [
     {
       "idx": 1,
       "name": "Antoine",
-      "enabled": true,
+      "enabled": false,
       "confirmed": true,
       "config": {
         "scenario": "dragon_balloon",
@@ -204,7 +204,7 @@
     ]
   },
   "runtime": {
-    "current_village_idx": 1,
-    "last_switch_ts": 1794932939.6493738
+    "current_village_idx": 8,
+    "last_switch_ts": 1794966294.6084335
   }
 }
