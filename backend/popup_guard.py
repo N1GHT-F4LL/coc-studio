@@ -206,7 +206,7 @@ def ensure_templates():
     a non-empty result means the setup is incomplete and the caller stops."""
     missing = []
     for name in sorted(set(TEMPLATE_FILES) | set(TITLE_TEMPLATES)
-                       | {"hammer.png", "Star_bonus.png"}):
+                       | {"hammer.png", "rolling_pin.png", "Star_bonus.png"}):
         if not (POPUP_TPL_DIR / name).is_file():
             print(f"❌ Missing template: {POPUP_TPL_DIR / name}")
             missing.append(name)
@@ -551,11 +551,23 @@ def smash_treasure_chests(logger=None):
     return delivered
 
 
+def _treasure_tool(img):
+    """Which event-banner tool is shown on the bottom banner strip right now:
+    (tool_name, confidence) — the STRONGER of the two known variants
+    (hammer.png / rolling_pin.png; the event alternates the banner art).
+    2026-11-18: hammer-only detection missed the rolling-pin variant."""
+    scores = {tool: _match_template(img, POPUP_TPL_DIR / f"{tool}.png",
+                                    region=TREASURE_HAMMER_ROI)
+              for tool in ("hammer", "rolling_pin")}
+    return max(scores.items(), key=lambda kv: kv[1])
+
+
 def treasure_event():
     """Layer 3 — the one in-game popup we act on: the Treasure event banner.
-    Hammer on the bottom banner → tap the chest 4x, wait for the reward, then
-    Return Home. No hammer → return immediately, touching nothing."""
-    hammer_tmpl = POPUP_TPL_DIR / "hammer.png"
+    The banner tool alternates between the hammer and the rolling pin — either
+    variant activates the check → tap the chest 4x, wait for the reward, then
+    Return Home. Neither tool on the banner → return immediately, touching
+    nothing."""
     print("Checking if treasure event is active. . .")
     shot_path = take_screenshot("treasure_event")
     if not shot_path:
@@ -572,9 +584,9 @@ def treasure_event():
         print("Treasure chest event screen detected — smashing chests. . .")
         smash_treasure_chests()
         return
-    score = _match_template(img, hammer_tmpl, region=TREASURE_HAMMER_ROI)
+    tool, score = _treasure_tool(img)
     if score >= TREASURE_HAMMER_THRESHOLD:
-        print("Treasure event detected.")
+        print(f"Treasure event detected ({tool} icon, conf {score:.2f}).")
         print("tapping. . . ")
         for _ in range(4):
             time.sleep(0.2)

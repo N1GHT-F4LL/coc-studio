@@ -94,9 +94,9 @@ def test_templates_structure():
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 missing = popup_guard.ensure_templates()
-            check("empty dir reports all 7 missing", len(missing) == 7)
+            check("empty dir reports all 8 missing", len(missing) == 8)
             check("each missing file printed with its path",
-                  buf.getvalue().count("❌ Missing template:") == 7)
+                  buf.getvalue().count("❌ Missing template:") == 8)
         finally:
             popup_guard.POPUP_TPL_DIR = real_dir
 
@@ -216,7 +216,7 @@ def test_treasure_event():
         check("tap sleeps 0.2 x4 then settle 4",
               ft.sleeps == [0.2] + [0.2] * 4 + [4], str(ft.sleeps))
         check("flow log lines present",
-              "Treasure event detected." in buf.getvalue()
+              "Treasure event detected (hammer icon" in buf.getvalue()
               and "Treasure open successfully." in buf.getvalue())
         taps.clear()
         ft.sleeps.clear()
@@ -226,6 +226,23 @@ def test_treasure_event():
         check("no hammer -> zero taps", taps == [], str(taps))
         check("no hammer -> only the pre-match settle sleep", ft.sleeps == [0.2],
               str(ft.sleeps))
+        # rolling-pin variant (2026-11-18): the banner tool alternates — the
+        # rolling_pin.png template must trigger the same chest-opening flow.
+        rolling = popup_guard.POPUP_TPL_DIR / "rolling_pin.png"
+        hit_roll = make_frame()
+        paste_template(hit_roll, rolling, 700, 730)    # inside ROI
+        shots["roll"] = write_frame(hit_roll, Path(tempfile.gettempdir()) / "pg_treasure_roll.png")
+        taps.clear()
+        ft.sleeps.clear()
+        popup_guard.take_screenshot = lambda tag: shots["roll"]
+        buf_roll = io.StringIO()
+        with contextlib.redirect_stdout(buf_roll):
+            popup_guard.treasure_event()
+        check("rolling-pin variant -> 4 chest taps then Return Home",
+              taps == [(273, 643)] * 4 + [(788, 751)], str(taps))
+        check("rolling-pin flow log present",
+              "Treasure event detected (rolling_pin icon" in buf_roll.getvalue(),
+              buf_roll.getvalue()[:200])
     finally:
         popup_guard.take_screenshot = real_ts
         popup_guard.tap = real_tap
@@ -589,13 +606,13 @@ def test_wait_for_end_popup_bail():
     import time as _time
     try:
         t0 = _time.monotonic()
-        loc = bs.wait_for_end(timeout=180)
+        ends = bs.wait_for_end(timeout=180)
         elapsed = _time.monotonic() - t0
     finally:
         lg.removeHandler(handler)
         lg.setLevel(old)
-    check("returns None fast instead of waiting 180s", loc is None and elapsed < 5.0,
-          f"elapsed={elapsed:.1f}s")
+    check("returns no battle-end buttons fast instead of waiting 180s",
+          ends == [] and elapsed < 5.0, f"elapsed={elapsed:.1f}s")
     check("bail reason logged", "[BATTLE] system popup — tier 1: app restart now" in logs.getvalue())
 
 

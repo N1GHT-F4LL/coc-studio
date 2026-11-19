@@ -124,12 +124,12 @@ def test_tier2_timeout_cleanup():
             "await", calls["await"] + 1)
         import time as _t
         t0 = _t.monotonic()
-        loc = bs.wait_for_end()
+        ends = bs.wait_for_end()
         elapsed = _t.monotonic() - t0
     finally:
         bsm.BATTLE_END_TIMEOUT, bsm.BATTLE_POLL_SLEEP = real
         restore()
-    check("returns None after the timeout", loc is None)
+    check("returns [] after the timeout", ends == [])
     check("timeout honored (~2s, not 170s)", 1.5 <= elapsed < 6, f"{elapsed:.1f}s")
     check("dump-leftover ran ONCE with fast rounds", calls["dump"] == [2], str(calls["dump"]))
     check("surrender(return_home=False) — wait_for_end never recurses",
@@ -268,11 +268,11 @@ def test_tier1_popup_restart():
     try:
         import time as _t
         t0 = _t.monotonic()
-        loc = bs.wait_for_end()
+        ends = bs.wait_for_end()
         elapsed = _t.monotonic() - t0
     finally:
         bsm.BATTLE_END_TIMEOUT = real
-    check("returns None (wait aborted)", loc is None)
+    check("returns [] (wait aborted)", ends == [])
     check("boot_recovery fired at the wait loop (fast, not after timeout)",
           calls["boot"] == [1] and elapsed < 10, f"{elapsed:.1f}s")
     check("no tier-2 cleanup on the tier-1 path", calls["dump"] == [] and calls["surrender"] == [])
@@ -288,9 +288,9 @@ def test_tier1_rate_gate():
     ui = FakeUI(f)
     bs = BattleScreen(ui)
     try:
-        loc = bs.wait_for_end(timeout=3)
-        check("returns None, no relaunch under the rate limit",
-              loc is None and boot == [], str(boot))
+        ends = bs.wait_for_end(timeout=3)
+        check("returns [], no relaunch under the rate limit",
+              ends == [] and boot == [], str(boot))
     finally:
         popup_guard.recovery_rate_exceeded = real
 
@@ -334,7 +334,7 @@ def test_guard_order_dynamic():
 
 
 def test_noprogress_counter():
-    print("[4] 3 abnormal cycles -> run stops; 2 abnormal + 1 normal -> reset")
+    print("[4] 3 abnormal cycles -> FULL recovery (boot_recovery) + continue; 2 abnormal + 1 normal -> reset")
     import blocks.coc_blocks as cb
 
     def make_ctx():
@@ -356,7 +356,10 @@ def test_noprogress_counter():
     real_guard = popup_guard.guard_and_recover
     real_as = cb.AttackScreen
     real_hs = cb.HomeScreen
+    real_boot = popup_guard.boot_recovery
     popup_guard.guard_and_recover = lambda *a, **k: False
+    boot_calls = []
+    popup_guard.boot_recovery = lambda: boot_calls.append(1)
     cb.AttackScreen = type("AS", (), {
         "__init__": lambda self, ui, s: None,
         "return_home": lambda self: False})          # battle timeout -> abnormal
@@ -373,8 +376,9 @@ def test_noprogress_counter():
                   ctx.vars["noprogress_runs"] == i and ctx.stop_calls == [],
                   str(ctx.vars))
         rh.run(ctx, {})
-        check("3rd abnormal cycle -> stop_event set (run stops with the reason)",
-              ctx.stop_calls == [1], str(ctx.stop_calls))
+        check("3rd abnormal cycle -> full recovery (boot_recovery) + counter reset + run CONTINUES",
+              ctx.stop_calls == [] and boot_calls == [1]
+              and ctx.vars["noprogress_runs"] == 0, str(ctx.vars))
 
         # 2 abnormal + 1 normal -> counter reset, run continues
         ctx2 = make_ctx()
@@ -397,6 +401,7 @@ def test_noprogress_counter():
         check("stop_event never fired (run continues)", ctx2.stop_calls == [])
     finally:
         popup_guard.guard_and_recover = real_guard
+        popup_guard.boot_recovery = real_boot
         cb.AttackScreen = real_as
         cb.HomeScreen = real_hs
 

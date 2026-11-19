@@ -895,12 +895,24 @@ class ReturnHome(BlockSpec):
                                f"{MAX_NO_PROGRESS_RUNS} (battle timeout or no "
                                "confirmed village return).")
             if runs >= MAX_NO_PROGRESS_RUNS:
+                # 2026-11-19 (user: a dead stop doing NOTHING is unacceptable —
+                # the run must self-recover): 3 abnormal cycles -> FULL recovery
+                # (force-restart the game into a known-clean state) and CONTINUE
+                # the run; the counter resets so the next abnormal streak gets
+                # its own recovery. The next cycle's ensure_home re-lands and
+                # re-verifies home.
                 ctx.logger.error(
-                    f"[NOPROGRESS] {runs} consecutive cycles ended abnormally "
-                    "(battle timeout / no confirmed home return) — stopping the "
-                    "run for review. Check the network/device, then press Run.")
-                if ctx.stop_event is not None:
-                    ctx.stop_event.set()
+                    f"[NOPROGRESS] {runs} consecutive cycles ended abnormally — "
+                    "full recovery: restarting Clash of Clans and CONTINUING the "
+                    "run (no manual Run press needed).")
+                try:
+                    popup_guard.boot_recovery()
+                except Exception as e:
+                    ctx.logger.warning(f"[NOPROGRESS] recovery restart failed ({e}) — "
+                                       "the next cycle's ensure_home will retry.")
+                ctx.vars["noprogress_runs"] = 0
+                ctx.logger.info("[NOPROGRESS] recovery done — the next cycle "
+                                "re-lands via ensure_home.")
         else:
             if ctx.vars.pop("noprogress_runs", None) is not None:
                 ctx.logger.info("[NOPROGRESS] normal cycle — counter reset.")
@@ -930,6 +942,14 @@ class ReturnHome(BlockSpec):
         if poll_home(verify_timeout):
             ctx.logger.info("[return_home] back on the home screen.")
             return True
+        # 2026-11-19: a JUST-restarted game needs longer than verify_timeout to
+        # load — restarting again mid-load only compounds the stall (the
+        # 3-abnormal cascade: battle timeout -> cleanup restart -> return_home
+        # restart 15s later -> still loading -> "could not reach home").
+        if popup_guard.recent_recovery(seconds=90) and poll_home(90):
+            ctx.logger.info("[return_home] home reached after the recent restart "
+                            "(extended poll).")
+            return True
         ctx.logger.warning("[return_home] NOT back on the village after return — restarting game.")
         if dev.restart_game(COC_PACKAGE):
             ui._poll_sleep(15)
@@ -942,8 +962,9 @@ class ReturnHome(BlockSpec):
 
 @register("treasure_event")
 class TreasureEvent(BlockSpec):
-    """If the Treasure event banner is active (hammer icon on the bottom
-    banner strip), tap the chest open (4 taps) and press Return Home — a
+    """If the Treasure event banner is active (hammer OR rolling-pin icon on
+    the bottom banner strip — the event alternates the banner art), tap the
+    chest open (4 taps) and press Return Home — a
     silent no-op when the event is not running (Simplicity treasure_event).
     Place after return_home in the farm cycle."""
     label = "Treasure Event"

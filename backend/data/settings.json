@@ -12,9 +12,9 @@
     "target_density": 240
   },
   "farm": {
-    "min_gold": 100000,
-    "min_elixir": 100000,
-    "min_dark_elixir": 500
+    "min_gold": 200000,
+    "min_elixir": 200000,
+    "min_dark_elixir": 0
   },
   "delays": {
     "short_min": 0.5,
@@ -62,7 +62,7 @@
     },
     "deploy": {
       "mode": "slot",
-      "active_scenario": "dragon_balloon",
+      "active_scenario": "Thrower",
       "troop_bar_region": [
         0,
         730,

@@ -46,6 +46,14 @@ RETURN_HOME_TEMPLATES = (
     "buttons/battle/btn_return_home",
 )
 
+# Battle-end screen variants (user 2026-11-18): the end screen shows EITHER
+# btn_return_home OR claim_reward — both are checked on the SAME frame,
+# never one-after-the-other across frames. Order = priority.
+BATTLE_END_TEMPLATES = (
+    ("return_home", "buttons/battle/btn_return_home"),
+    ("claim_reward", "buttons/battle/claim_reward"),
+)
+
 # For bail/recovery paths: tap whichever exit button is reachable.
 EXIT_BATTLE_TEMPLATES = (
     "buttons/battle/btn_return_home",
@@ -306,15 +314,16 @@ class BattleScreen(BaseScreen):
              bậy vào các nút dưới đáy màn hình làng).
           4. chưa gì -> sleep ngắn, lặp lại.
 
-        Trả về toạ độ Return Home (nhánh 2) hoặc None (nhánh 1/3 — caller kết
+        Trả về danh sách [(kind, toạ độ), ...] của các battle-end button khớp
+        (nhánh 2 — thường đúng 1 biến thể) hoặc [] (nhánh 1/3).
+        "return_home" hoặc "claim_reward") hoặc None (nhánh 1/3 — caller kết
         thúc chu kỳ, không bail thêm vì dọn dẹp đã chạy trong vòng chờ)."""
         if timeout is None:
             timeout = BATTLE_END_TIMEOUT
         deadline = time.time() + timeout
-        rh = RETURN_HOME_TEMPLATES[0]
         while time.time() < deadline:
             if self.ui_manager._stopped():
-                return None
+                return []
             screen = self.ui_manager.get_screen()
             if screen is not None:
                 # nhánh 1 — TẦNG restart: popup hệ thống không tự hồi phục
@@ -322,17 +331,17 @@ class BattleScreen(BaseScreen):
                     if popup_guard.recovery_rate_exceeded():
                         logger.warning("[BATTLE] system popup but the recovery rate "
                                        "limit is hit — the watchdog is stopping the run.")
-                        return None
+                        return []
                     logger.warning("[BATTLE] system popup — tier 1: app restart now "
                                    "(force-stop -> relaunch -> dismiss).")
                     popup_guard.boot_recovery()
-                    return None
-                # nhánh 2 — battle kết thúc
-                if rh in vision.cache:
-                    loc = vision.find_template(screen, rh, threshold=0.7,
-                                               use_orb_fallback=False)
-                    if loc:
-                        return loc
+                    return []
+                # nhánh 2 — battle kết thúc: CẢ HAI biến thể end-screen đều
+                # được match mỗi frame (btn_return_home + claim_reward), biến
+                # thể khớp quyết định tap + log (user 2026-11-19)
+                buttons = self._battle_end_buttons(screen)
+                if buttons:
+                    return buttons
             # nhánh 4 — chưa gì xảy ra
             self.ui_manager._poll_sleep(BATTLE_POLL_SLEEP)
         # nhánh 3 — TẦNG mềm: timeout -> dọn dẹp thật THEO MÀN HÌNH THỰC, không
@@ -344,11 +353,14 @@ class BattleScreen(BaseScreen):
             self._cleanup_after_timeout()
         except Exception as e:
             logger.warning(f"[BATTLE] tier-2 cleanup failed ({e}) — ending the cycle.")
-        return None
+        return []
 
     def _first_template_loc(self, screen, candidates, threshold=0.7):
         """Single-frame locator for the tier-2 cleanup — NO polling (wait_for_end
-        already polled the full battle timeout before getting here)."""
+        already polled the full battle timeout before getting here). Returns
+        None (NEVER []) when nothing matches: the cleanup branches gate on
+        ``is not None`` — a falsy [] would still pass that check and fire the
+        battle branch on garbage frames (2026-11-18 regression)."""
         for tpl in self._existing_templates(candidates):
             loc = vision.find_template(screen, tpl, threshold=threshold,
                                        use_orb_fallback=False)
@@ -374,11 +386,9 @@ class BattleScreen(BaseScreen):
                 return
             screen = self.ui_manager.get_screen()
             if screen is not None:
-                rh = self._first_template_loc(screen, RETURN_HOME_TEMPLATES)
-                if rh is not None:
-                    self.tap_return_home(rh)
+                for kind, rh in self._battle_end_buttons(screen):
+                    self.tap_return_home(rh, kind)
                     self.ui_manager._poll_sleep(2.0)
-                    continue
                 if self._on_home_village():
                     logger.info("[BATTLE] cleanup: back on the home village.")
                     return
@@ -411,10 +421,12 @@ class BattleScreen(BaseScreen):
             self.surrender(return_home=False)
             self._await_home_after_cleanup()
             return
-        rh = self._first_template_loc(screen, RETURN_HOME_TEMPLATES)
-        if rh is not None:
-            logger.info("[BATTLE] cleanup: battle already ended — tapping Return Home.")
-            self.tap_return_home(rh)
+        buttons = self._battle_end_buttons(screen)
+        if buttons:
+            for kind, rh in buttons:
+                logger.info("[BATTLE] cleanup: battle already ended — tapping the "
+                            "battle-end button (%s).", kind)
+                self.tap_return_home(rh, kind)
             self.ui_manager._poll_sleep(2.0)
             self._await_home_after_cleanup()
             return
@@ -427,7 +439,7 @@ class BattleScreen(BaseScreen):
         screen = self.ui_manager.get_screen()
         if screen is not None and (
                 self._first_template_loc(screen, SURRENDER_BUTTONS) is not None
-                or self._first_template_loc(screen, RETURN_HOME_TEMPLATES) is not None
+                or self._battle_end_buttons(screen)
                 or self._on_home_village()):
             logger.info("[BATTLE] cleanup: screen settled on re-check — rerunning the branch.")
             self._cleanup_after_timeout()
@@ -439,11 +451,40 @@ class BattleScreen(BaseScreen):
             return
         logger.warning("[BATTLE] cleanup: no battle UI, no Return Home, not home — "
                        "unknown state: restarting Clash of Clans now.")
+        try:
+            import os
+            os.makedirs(os.path.join("data", "calib_debug"), exist_ok=True)
+            if screen is not None:
+                out = os.path.join("data", "calib_debug",
+                                   f"unknown_state_{time.strftime('%m%d_%H%M%S')}.png")
+                cv2.imwrite(out, screen)
+                logger.info("[BATTLE] cleanup: unknown-state frame saved: %s", out)
+        except Exception:
+            pass
         popup_guard.boot_recovery()
 
-    def tap_return_home(self, loc):
+    def tap_return_home(self, loc, kind="return_home"):
         self.ui_manager.click(*loc)
-        logger.info("Tapped Return Home.")
+        if kind == "claim_reward":
+            logger.info("Tapped Claim Reward.")
+        else:
+            logger.info("Tapped Return Home.")
+
+    def _battle_end_buttons(self, screen, threshold=0.7):
+        """Match BOTH battle-end variants on ONE frame — both checks ALWAYS
+        run (no short-circuit, no priority; user 2026-11-19). The end screen
+        shows one variant at a time (btn_return_home OR claim_reward);
+        whichever matches determines the tap + the log line. Returns
+        [(kind, loc), ...] for every matched template (normally 0 or 1)."""
+        matches = []
+        for kind, key in BATTLE_END_TEMPLATES:
+            if key not in vision.cache:
+                continue
+            loc = vision.find_template(screen, key, threshold=threshold,
+                                       use_orb_fallback=False)
+            if loc:
+                matches.append((kind, loc))
+        return matches
 
     def surrender(self, return_home=True):
         """Give up the current attack: tap the surrender flag, confirm, then
@@ -475,9 +516,8 @@ class BattleScreen(BaseScreen):
             else:
                 logger.info("[SURRENDER] no confirm dialog — continuing.")
         if return_home:
-            loc = self.wait_for_end(timeout=20)
-            if loc:
-                self.tap_return_home(loc)
+            for kind, loc in self.wait_for_end(timeout=20) or []:
+                self.tap_return_home(loc, kind)
                 self.ui_manager._poll_sleep(2)
             else:
                 logger.warning("[SURRENDER] Return Home not seen after surrender.")
@@ -797,6 +837,7 @@ class BattleScreen(BaseScreen):
                         logger.info("[DEPLOY] ensure_deployed -> dump leftover troops (%d drop spot(s))",
                                     len(drops))
                         self.dump_remaining(deploy_cfg, drop_points=drops or None)
+                        self._tap_deploy_multiplier()
                         any_deployed = True
                         continue
 
@@ -1077,6 +1118,23 @@ class BattleScreen(BaseScreen):
                 by += uy * a + py * p
             pts.append((int(round(bx)), int(round(by))))
         self._tap_points(pts, interval, humanize)
+
+    def _tap_deploy_multiplier(self):
+        """Detect the 1x/4x deploy-multiplier button on the battle screen and
+        tap it EXACTLY ONCE (user 2026-11-19: after the leftover dump, before
+        the post-dump delay — one tap cycles the deploy rate 1x -> 2x -> 4x).
+        No detect -> no tap."""
+        screen = self.ui_manager.get_screen()
+        if screen is None:
+            logger.warning("[DEPLOY] 1x_to_4x: no frame — button not detected.")
+            return
+        loc = vision.find_template(screen, "buttons/battle/1x_to_4x",
+                                   threshold=0.7, use_orb_fallback=False)
+        if loc:
+            self.ui_manager.click(*loc)
+            logger.info(f"[DEPLOY] 1x_to_4x button detected at {loc} — tapped once.")
+        else:
+            logger.info("[DEPLOY] 1x_to_4x button not on screen.")
 
     def _execute_slot_strategy(self, slot_cfg, deploy_cfg, taps, tap_interval):
         strategy = slot_cfg.get("strategy", "line")

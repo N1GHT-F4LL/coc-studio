@@ -256,13 +256,14 @@ class AttackScreen(BaseScreen):
         battle-end button times out.
         """
         battle = BattleScreen(self.ui_manager)
-        loc = battle.wait_for_end()
-        if not loc:
+        battle_end_buttons = battle.wait_for_end()
+        if not battle_end_buttons:
             logger.warning("Battle end timeout.")
             battle.bail()
             return False
 
-        battle.tap_return_home(loc)
+        for kind, loc in battle_end_buttons:
+            battle.tap_return_home(loc, kind)
         settle = float(self.settings.get("attack", {}).get("return_settle", 3))
         self.ui_manager._poll_sleep(settle)
         self.close_popups()
