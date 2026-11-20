@@ -478,3 +478,102 @@ còn lại là vận hành.
   tổng quát; frame device là xác nhận).
 - Roster faces dragon/balloon/minion/freeze; slammer bar icon conf 0.35.
 - Ổn định GPU driver (2 TDR/3 ngày).
+
+# CẬP NHẬT SAU BÀN GIAO LẦN 2 (2026-11-02 → 2026-11-19) — Multi-Village + loot rework + battle-tier safety
+
+Tóm tắt theo cơ chế. Chi tiết đầy đủ trong comment tại chỗ + `backend/tests/` + memory session.
+
+## 1. Loot rework — ROI cố định + digits-only OCR (2026-11-02)
+
+Pipeline icon-anchoring cũ (3 icon candidates × 9 scales) bị thay: `_read_loot` giờ crop
+3 ROI cố định hiệu chuẩn (`attack.loot_rois` trong settings — gold/elixir/dark) + OCR
+digits-only 1 lần qua `core.ocr.read_digits_in_roi` (crop → black pad → upscale 2.0 →
+allowlist "0123456789"). Bỏ multi-scale, bỏ icon match. 25/25 frame thật đọc đúng,
+0.83-0.95s/call. Fixtures: `tests/fixtures/loot_scout_*.png` + `tests/test_loot_read.py` 19/19.
+`COC_LOOT_CAPTURE=1` gate writer frame scout cho recalibration sau.
+
+## 2. Multi-Village — rotation Supercell ID trên 1 MEmu (2026-11-15 → 11-16)
+
+- Kiến trúc FLAG_SECURE: mọi màn sau nút swap KHÔNG chụp được qua adb → mắt thay thế =
+  **desktop self-capture (mss)** + mapping desktop→device derive 5/5 region tại checkpoint
+  Settings panel (GetWindowRect KHÔNG tin — rect stale từng gây fail).
+- `switch_to_village` locate account **BY NAME qua OCR** danh sách SCID (scroll + retry
+  10 round), KHÔNG dùng toạ độ row tĩnh. Identity check sau switch (signature 160×90 so
+  với `home_v{idx}.png` — chống nhầm làng).
+- Per-village config: scenario + loot thresholds; `mv_rotation` = node đầu farm cycle
+  (`dragon_balloon_farm.json`); runtime state persist trong `multi_village.json`.
+- API `api/multi_village_api.py` + tab frontend **Multi-Village** (enable/interval/checkbox
+  per village/Load/Save/Apply).
+- **Chuỗi bug đã fix** (mỗi cái có test): unpack 4-vs-5 tuple (mọi switch fail silent),
+  dead identity guard (skip idx), loop_n nuốt lỗi inner graph (fail-stop giờ raise),
+  gate confirmed→config, mapping build-OOB + centre-window, OCR crop-offset (tap lệch
+  ~1100px), mapping transient retry.
+- **HOST SAFETY**: `keybd_event`/`AttachThreadInput` ĐÃ XÓA KHỎI multi_village (từng làm
+  kẹt bàn phím Windows whole-system → user phải restart). Raise window = TOPMOST bump
+  SWP_NOACTIVATE; AST fence test cấm host injection vĩnh viễn. MEmu elevated → UIPI
+  chặn restore/topmost → fail-fast kèm hướng dẫn (un-minimize hoặc run admin).
+
+## 3. Battle-tier: state-aware cleanup + battle-end 2 biến thể (2026-11-18 → 11-19)
+
+- `wait_for_end` timeout 170s → cleanup STATE-AWARE: battle UI còn → dump+surrender;
+  Return Home/Claim Reward hiện → tap; đã về làng → không làm gì; không nhận ra →
+  restart app (rate-limited). Hết cascade "dump mù trên home" + "restart đè lên lúc load".
+- **Battle-end 2 biến thể**: `_battle_end_buttons` match CẢ `btn_return_home` + `claim_reward`
+  trên cùng 1 frame (không priority, không first-match) → tap + log theo variant
+  ("Tapped Return Home." / "Tapped Claim Reward."). `wait_for_end` trả list [(kind, loc), ...].
+- `_first_template_loc` trả None (từng trả [] — qua gate `is not None` gây dump nhầm).
+- NOPROGRESS 3/3 **không dừng run nữa**: boot_recovery + reset counter + TIẾP TỤC farm
+  (user directive — dead stop buộc restart backend thủ công là không chấp nhận).
+  `_ensure_back_home` smash chest overlay tại chỗ (không restart đè lên rương) + extended
+  poll 90s sau recovery gần đây.
+
+## 4. Deploy sequence (2026-11-18)
+
+- `ZOOMING OUT . . .` luôn chạy trước hero lineup (battle có thể reset pinch zoom).
+- Pan node chạy **×3** (mỗi pass verify `_content_shift` + chỉnh residual >25px) — đẩy
+  camera về tận mép map, giảm red-zone. LƯU Ý: điểm thả hiệu chuẩn với chuỗi pan cũ —
+  nếu thả trượt, chạy lại `calib/run_calib.py --apply`.
+- Nút **1x_to_4x**: detect + tap ĐÚNG 1 lần sau dump leftover (cyclic 1x→2x→4x).
+
+## 5. Verify faces — units/verify + vouch-by-composition (2026-11-18)
+
+- `assets/units/verify/` (category Assets "Verify (army cards)"): face crop từ ĐÚNG hàng
+  camp card — composition_ok match tại scale 1.0; KHÔNG còn dùng units/troops cho verify.
+- Thiếu verify face → skip unit đó (warn + hint), không fail. Đủ face + camp đúng →
+  **vouch-by-composition: keep army + ghi snapshot** (hết retrain troops mỗi chu kỳ —
+  troop snapshot không bao giờ ghi được do queue drain sau khi count đọc).
+- Bài học Stone Slammer: nó là balloon đỏ chở đá (không phải boulder) — crop nhầm card
+  Battle Blimp đã train nhầm 3 Battle Blimp vào camp.
+
+## 6. Treasure event — banner 2 biến thể (2026-11-18)
+
+`_treasure_tool` match cả `hammer.png` lẫn `rolling_pin.png` trên banner strip (event
+đổi tool theo variant) — variant nào conf cao hơn quyết định. `ensure_templates` yêu
+cầu cả 2 file. Chest overlay sau battle được smash trong `return_home` (mục 3).
+
+## 7. Train roster — faces đầy đủ (2026-11-18)
+
+`units/roster/` đủ mặt cho dragon_balloon: balloon/dragon/minion/freeze/rage/
+stone_slammer (+ healer/log_launcher/totem/thrower/bat/m_e_c_h_a). stone_slammer face
+cũ 329×281 là crop hỏng (4× quá lớn) — đã thay. Cẩn thận phân biệt card siege:
+card2 = Battle Blimp (khối cầu gai), card3 = Stone Slammer (balloon chở đá).
+
+## 8. Assets — USER-OWNED (2026-11-18, quy ước bắt buộc)
+
+`assets/**` do USER quản lý: KHÔNG TỰ crop/ghi đè PNG unasked (vi phạm từng khiến
+bản recapture của user bị mất — restore bằng git checkout f461f57). Verify faces do
+USER capture qua Assets tab; agent chỉ wire logic.
+
+## 9. Tests + trạng thái
+
+Tổng ~293 checks: engine 45 · MV 40 · loot 19 · pattern 54 · popup 64 · tiers 36 ·
+glow 35 · zoom 20 · composition OK. Commit gần nhất: 303792b; phầnNOPROGRESS/
+chest-smash/verify-folder đang uncommitted (coc_blocks.py + battle_screen.py +
+attack_screen.py + train_screen.py + assets_api.py + tests + assets/units/verify).
+
+## 10. Việc còn ngỏ
+
+- Spell 12-frame device verify (`calib_spell_verify.py`); hammer/rolling-pin threshold
+  đo trên banner thật; [GLOW-DIAG] drift review; rate-limiter live check.
+- MEmu de-elevated (user option 3) — xác nhận lại switch round-trip dưới quyền thường.
+- GPU driver ổn định (2 TDR trước đó).

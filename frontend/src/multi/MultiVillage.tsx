@@ -8,9 +8,12 @@ import {
   mvIconUrl,
   putMVConfig,
   saveMV,
+  saveScidFace,
+  scidFaceUrl,
   type MVState,
   type MVVillageConfig,
 } from "../api/client";
+import { DeviceCanvas } from "../device/DeviceCanvas";
 
 
 interface EditorState {
@@ -27,6 +30,11 @@ export function MultiVillage({ onMessage }: { onMessage: (s: string) => void }) 
   const [scenarios, setScenarios] = useState<string[]>([]);
   const [applying, setApplying] = useState<number | null>(null);
   const [msg, setMsg] = useState<{ text: string; kind: "ok" | "err" } | null>(null);
+  const [scidBusy, setScidBusy] = useState(false);
+  const [scidErr, setScidErr] = useState<string | null>(null);
+  const [capturingScid, setCapturingScid] = useState(false);
+  const [pendingScidRegion, setPendingScidRegion] = useState<number[] | null>(null);
+  const [pendingScidPreview, setPendingScidPreview] = useState<string | null>(null);
 
   // local message bar — errors from the MV API MUST be visible here (the
   // global status line does not render on this tab; the user had to run
@@ -178,6 +186,28 @@ export function MultiVillage({ onMessage }: { onMessage: (s: string) => void }) 
       await refresh();
     } catch (e) {
       setMsgBoth(`Delete All failed: ${(e as Error).message}`, "err");
+    }
+  };
+
+  const onScidCrop = (region: number[], preview: string) => {
+    setPendingScidRegion(region);
+    setPendingScidPreview(preview);
+  };
+
+  const saveScidCrop = async () => {
+    if (!editor || !pendingScidRegion) return;
+    setScidBusy(true);
+    try {
+      await saveScidFace(editor.idx, pendingScidRegion);
+      setScidErr(null);
+      setMsgBoth(`Đã lưu ảnh SCID cho Village_${editor.idx} — rotate sẽ match theo ảnh này.`, "ok");
+      setCapturingScid(false);
+      await refresh();
+    } catch (e) {
+      setScidErr(`Lưu ảnh SCID thất bại: ${(e as Error).message}`);
+      setMsgBoth(`Lưu ảnh SCID thất bại: ${(e as Error).message}`, "err");
+    } finally {
+      setScidBusy(false);
     }
   };
 
@@ -335,6 +365,49 @@ export function MultiVillage({ onMessage }: { onMessage: (s: string) => void }) 
             <input type="number" value={editor.min_dark_elixir}
                    onChange={(e) => setEditor({ ...editor, min_dark_elixir: Number(e.target.value) || 0 })} />
           </label>
+          <div className="mv-scid-block">
+            <div className="mv-section-label">Ảnh SCID — face nhận diện account khi rotate</div>
+            {capturingScid ? (
+              <>
+                <div className="mv-scid-capture-stage">
+                  <DeviceCanvas
+                    mode="crop"
+                    onCrop={onScidCrop}
+                    committedRegion={pendingScidRegion}
+                    label="Crop SCID row"
+                    info="Kéo chuột quanh thẻ account cần chọn"
+                  />
+                </div>
+                {pendingScidRegion && (
+                  <div className="mv-scid-actions">
+                    {pendingScidPreview && (
+                      <img className="mv-scid-face" src={pendingScidPreview} alt="crop preview" />
+                    )}
+                    <button disabled={scidBusy} onClick={saveScidCrop}>Lưu ảnh SCID</button>
+                    <button disabled={scidBusy} onClick={() => setCapturingScid(false)}>Huỷ</button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="mv-scid-face-row">
+                <img
+                  className="mv-scid-face"
+                  src={scidFaceUrl(editor.idx)}
+                  alt="saved scid face"
+                  onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+                  onLoad={(e) => ((e.target as HTMLImageElement).style.display = "block")}
+                />
+                <button disabled={scidBusy} onClick={() => { setScidErr(null); setCapturingScid(true); }}>
+                  + Capture from Device
+                </button>
+                <span className="mv-hint">
+                  Face này được match khi rotate (giống roster face của Train Army) —
+                  crop sát thẻ account cần chọn. Không có face → rotate dùng OCR theo tên.
+                </span>
+              </div>
+            )}
+            {scidErr && <div className="mv-scid-err">{scidErr}</div>}
+          </div>
           <span className="mv-hint">
             Load a village to edit its config; Save writes it; Apply switches
             the game to that account and locks the row.

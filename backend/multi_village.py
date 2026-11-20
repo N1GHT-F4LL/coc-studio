@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 
 CONFIG_PATH = os.path.join(app_paths.DATA_DIR, "multi_village.json")
 MV_DIR = os.path.join(app_paths.DATA_DIR, "multi_village")
+SCID_DIR = os.path.join(app_paths.ASSETS_DIR, "scid")   # per-village SCID row faces (v<idx>.png)
 STATS_DIR = app_paths.DATA_DIR
 WAIT_HOME_TIMEOUT = 180          # account switch + full game reload
 INTERVAL_OPTIONS = {"30 minutes": 30, "1 hour": 60, "1.5 hours": 90, "2 hours": 120}
@@ -661,6 +662,129 @@ def _ocr_scid_accounts(cap, mapping):
     return rows, terminator
 
 
+def scid_face_path(idx):
+    return os.path.join(SCID_DIR, f"v{idx}.png")
+
+
+def _ensure_scid_cached(idx):
+    """Hot-load a village's SCID row face into vision.cache (mirrors
+    train_screen._ensure_asset_cached — a face captured mid-run works without
+    a backend restart). load_assets also picks it up at the next start."""
+    from core.vision import vision
+    key = f"scid/v{idx}"
+    if key in vision.cache:
+        return
+    path = scid_face_path(idx)
+    if not os.path.isfile(path):
+        return
+    import cv2
+    img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    if img is not None:
+        vision.cache[key] = img
+
+
+def _open_settings_panel():
+    """Village screen -> SCID hut -> Settings tab, verified by the
+    settings_tab template (adb-visible). No swap — the caller inspects the
+    panel then closes it via close_settings(). Returns True/False."""
+    cfg = load_config()
+    c = cfg.get("coords", {})
+    hut, tab = c.get("scid_hut"), c.get("settings_tab")
+    if not (hut and tab):
+        logger.error("[MV] scid_hut/settings_tab not calibrated — cannot open Settings.")
+        return False
+    _tap(*hut)
+    _sleep(2.5)
+    _tap(*tab)
+    _sleep(1.5)
+    return _verify_settings_panel()
+
+
+def settings_verify_face(idx):
+    """Confirm the CURRENT logged-in account is village idx by opening the
+    Settings panel and matching the village's avatar face
+    (assets/scid/v<idx>.png, cropped by the user from the same panel) on the
+    live frame (user 2026-11-19 — runs every rotation-enabled cycle BEFORE
+    ensure_home detects home; a mismatch means the device sits on the WRONG
+    account and the caller switches back).
+
+    Returns "match" / "mismatch" / "skip" ("skip" = the state could not be
+    determined — not on the village screen, panel did not open, no face
+    captured — the caller logs and moves on; never restarts, never raises)."""
+    from screens.home_screen import HomeScreen
+    if manager.ui_manager is None:
+        logger.info("[MV] settings verify skipped — no device session.")
+        return "skip"
+    if not HomeScreen(manager.ui_manager).is_current_screen():
+        logger.info("[MV] settings verify skipped — the game is not on the village screen.")
+        return "skip"
+    if not _open_settings_panel():
+        logger.warning("[MV] settings verify skipped — the Settings panel did not open.")
+        return "skip"
+    frame = _screencap()
+    if frame is None:
+        close_settings()
+        logger.warning("[MV] settings verify skipped — no frame of the Settings panel.")
+        return "skip"
+    _ensure_scid_cached(idx)
+    key = f"scid/v{idx}"
+    matched = False
+    try:
+        import cv2
+        from core.vision import vision as _v
+        tpl = _v.cache.get(key)
+        if tpl is not None:
+            g = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if frame.ndim == 3 else frame
+            res = cv2.matchTemplate(g, tpl, cv2.TM_CCOEFF_NORMED)
+            _, best, _, ml = cv2.minMaxLoc(res)
+            matched = best >= 0.7
+            logger.info("[MV] settings verify: village %s avatar conf %.2f at %s -> %s.",
+                        idx, best, ml, "MATCH" if matched else "no match")
+        else:
+            logger.warning("[MV] settings verify: no avatar face assets/scid/v%d.png.", idx)
+    except Exception as e:
+        logger.warning("[MV] settings verify match failed (%s).", e)
+    close_settings()
+    return "match" if matched else "mismatch"
+
+
+def _locate_scid_face(cap, idx, mapping, threshold=0.7):
+    """Template-match village idx's captured SCID row face on a self-capture
+    frame (user 2026-11-19 — the Train Army roster-face pattern: a pre-cropped
+    image of the exact row beats OCR-by-name for a known account; the OCR
+    path stays as the fallback for villages without a captured face).
+
+    Returns the DEVICE tap point (x, y), or None. The match position is in
+    SELF-CAPTURE coords (window rect + the +/-80 margin) — converted to device
+    coords through the mapping, the same conversion the OCR path applies; a
+    tap without this conversion lands off by the window's on-screen offset
+    (2026-11-19 coordinate bug caught before it shipped). A match outside the
+    SCID list column is a mapping/coordinate bug -> ignored, never tapped."""
+    import cv2
+    from core.vision import vision
+    _ensure_scid_cached(idx)
+    key = f"scid/v{idx}"
+    tpl = vision.cache.get(key)
+    if tpl is None:
+        return None
+    g = cv2.cvtColor(cap, cv2.COLOR_BGR2GRAY) if cap.ndim == 3 else cap
+    res = cv2.matchTemplate(g, tpl, cv2.TM_CCOEFF_NORMED)
+    _, best, _, ml = cv2.minMaxLoc(res)
+    logger.warning("[DEBUG scid] best=%.3f ml=%s tpl=%s", best, ml, tpl.shape if tpl is not None else None)
+    if best < threshold:
+        return None
+    th, tw = tpl.shape[:2]
+    scale, ox, oy = mapping
+    dx = (ml[0] + tw // 2 - ox) / scale
+    dy = (ml[1] + th // 2 - oy) / scale
+    logger.warning("[DEBUG scid] dx=%.1f dy=%.1f guard=%s", dx, dy, 900 <= dx <= 1550 and 150 <= dy <= 880)
+    if not (900 <= dx <= 1550 and 150 <= dy <= 880):
+        logger.warning("[MV] scid face for village %s matched at implausible device "
+                       "point (%.0f, %.0f) — ignored (row column is x900-1550).", idx, dx, dy)
+        return None
+    return (int(dx), int(dy))
+
+
 def _locate_account_row(cap, target_name, mapping, min_sim=0.6):
     """Find the target account's tap point on a SCID page self-capture.
     Returns (device_x, device_y, matched_name, similarity) or None."""
@@ -842,6 +966,17 @@ def switch_to_village(idx):
             if cap is None:
                 _sleep(1.5)
                 continue
+            # 2026-11-19 (user): a captured SCID row face (assets/scid/v<idx>.png)
+            # is matched FIRST — template matching beats OCR-by-name for a known
+            # account (the Train Army roster-face lesson). No face captured or
+            # no match yet -> the OCR-by-name path stays as the fallback.
+            face_loc = _locate_scid_face(cap, idx, mapping)
+            if face_loc is not None:
+                logger.info("[MV] village %s SCID face matched at %s — tapping.",
+                            idx, face_loc)
+                _tap(*face_loc)
+                tapped = True
+                break
             hit = _locate_account_row(cap, target, mapping)
             if hit is None:
                 _swipe(1300, 600, 350)   # reveal accounts further down
@@ -952,10 +1087,15 @@ def assume_village(idx, ctx=None):
 # --- rotation ---------------------------------------------------------
 
 def rotate_next(cfg=None, exclude=()):
-    """Pick the next enabled+confirmed village (wrapping after the current),
-    skipping excluded ones. Returns (idx, village_dict) or (None, None)."""
+    """Pick the next enabled village (wrapping after the current), skipping
+    excluded ones. The rotation order is ASCENDING village idx among the
+    ticked villages (user 2026-11-19: ticked {6, 7, 1} -> rotate 1 < 6 < 7).
+    Returns (idx, village_dict) or (None, None)."""
     cfg = cfg or load_config()
-    villages = [v for v in enabled_villages(cfg) if v.get("idx") not in exclude]
+    villages = sorted(
+        (v for v in enabled_villages(cfg) if v.get("idx") not in exclude),
+        key=lambda v: v.get("idx", 0),
+    )
     if not villages:
         return None, None
     with _lock:

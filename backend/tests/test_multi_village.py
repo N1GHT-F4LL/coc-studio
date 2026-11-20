@@ -306,7 +306,8 @@ def main():
                  ("open_switcher", "_tap", "_selfcap", "_ocr_scid_accounts",
                   "_sleep", "wait_home", "_dismiss_welcome_popups",
                   "verify_village_identity", "_capture_home_snapshot",
-                  "_raise_window_visible", "_capture_ready")}
+                  "_raise_window_visible", "_capture_ready",
+                  "_locate_scid_face")}
         taps = []
         try:
             mv.open_switcher = lambda: (True, (1.0, 0.0, 0.0))
@@ -314,6 +315,7 @@ def main():
             mv._raise_window_visible = lambda: True
             mv._capture_ready = lambda: True
             mv._selfcap = lambda: object()          # opaque frame stand-in
+            mv._locate_scid_face = lambda cap, idx_, m, threshold=0.7: None
             mv._ocr_scid_accounts = lambda cap, mapping: (
                 [(1300.0, 570.0, "Nghiays")], True)
             mv._sleep = lambda s: None
@@ -417,6 +419,64 @@ def main():
                 if isinstance(n, _ast.Attribute) and n.attr in banned]
         check("no host key/focus injection APIs in multi_village.py",
               hits == [], str(hits))
+
+        # --- 13. SCID face locate (2026-11-19) ------------------------------
+        # The Train-Army pattern applied to MV: a captured SCID row face
+        # (assets/scid/v<idx>.png) is matched FIRST during the switch scan;
+        # OCR-by-name stays as the fallback for villages without a face.
+        print("[13] scid face locate: template-first, OCR fallback")
+        real_scid_dir = mv.SCID_DIR
+        mv.SCID_DIR = os.path.join(tmp, "scid")
+        os.makedirs(mv.SCID_DIR, exist_ok=True)
+        # patterned face — a SOLID patch makes TM_CCOEFF_NORMED divide by zero
+        # variance and return garbage matches (the battle_tiers lesson)
+        face = _np.random.default_rng(9).integers(40, 220, (60, 90, 3), dtype=_np.uint8)
+        _cv2.imwrite(os.path.join(mv.SCID_DIR, "v2.png"), face)
+        # force the cache entry: a real backend session holds the USER's real
+        # faces here (load_assets) — the test must pin its own pattern
+        from core.vision import vision as _v13
+        _v13.cache["scid/v2"] = _cv2.cvtColor(face, _cv2.COLOR_BGR2GRAY)
+        face_frame = _np.zeros((900, 1600, 3), _np.uint8)
+        face_frame[300:360, 1000:1090] = face
+        # mapping (1.0, 2, 5): the paste centre (1045, 330) in cap coords
+        # converts to the DEVICE tap point (1043, 325)
+        mapping13 = (1.0, 2, 5)
+        hit = mv._locate_scid_face(face_frame, 2, mapping13)
+        check("scid face template matched at the DEVICE tap point",
+              hit == (1043, 325), str(hit))
+        check("village without a captured face -> None",
+              mv._locate_scid_face(face_frame, 1, mapping13) is None)
+        cfg = base_config()
+        cfg["coords"]["scid_switch_id"] = [1335, 375]
+        mv.CONFIG_PATH = os.path.join(tmp, "mv7.json")
+        mv.save_config(cfg)
+        saved13 = {n: getattr(mv, n) for n in
+                   ("_selfcap", "_locate_account_row", "_tap", "_sleep",
+                    "wait_home", "_dismiss_welcome_popups",
+                    "verify_village_identity", "_capture_home_snapshot",
+                    "_raise_window_visible", "_capture_ready", "open_switcher")}
+        taps13 = []
+        ocr_calls = []
+        try:
+            mv.open_switcher = lambda: (True, mapping13)
+            mv._tap = lambda x, y: taps13.append((x, y)) or True
+            mv._selfcap = lambda: face_frame
+            mv._locate_account_row = (
+                lambda cap, t, m, min_sim=0.6: ocr_calls.append(1) or None)
+            mv._sleep = lambda s: None
+            mv.wait_home = lambda timeout=180: True
+            mv._dismiss_welcome_popups = lambda rounds=4: None
+            mv.verify_village_identity = lambda idx, frame=None: (True, None, {})
+            mv._capture_home_snapshot = lambda idx: None
+            mv._raise_window_visible = lambda: True
+            mv._capture_ready = lambda: True
+            ok13 = mv.switch_to_village(2)
+            check("face match -> switch taps the DEVICE face position",
+                  ok13 is True and (1043, 325) in taps13, f"ok={ok13} taps={taps13}")
+            check("OCR-by-name never ran (face-first)", ocr_calls == [], str(ocr_calls))
+        finally:
+            for n, fn in saved13.items():
+                setattr(mv, n, fn)
     finally:
         mv.CONFIG_PATH = real_path
         mv.STATS_DIR = real_stats

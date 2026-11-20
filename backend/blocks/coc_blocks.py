@@ -146,6 +146,25 @@ class MvRotation(BlockSpec):
         if idx:
             ctx.emit({"type": "mv_active", "idx": idx,
                       "name": (mv.village(mv.load_config(), idx) or {}).get("name", "")})
+        # Settings verify (user 2026-11-19): TRƯỚC ensure_home "home screen
+        # detected" — mở Settings panel và khớp avatar face của làng hiện tại
+        # (assets/scid/v<idx>.png do user crop). Sai account → switch lại ĐÚNG
+        # làng expected. Skip = không xác định được (không trên village screen /
+        # panel không mở / chưa có face) — không bao giờ restart ở bước này.
+        cur = mv.get_state()["current_village_idx"]
+        if cur is not None:
+            status = mv.settings_verify_face(cur)
+            if status == "mismatch":
+                ctx.logger.warning(
+                    "[MV] settings verify: the device is NOT on village %s — "
+                    "switching back to the expected account.", cur)
+                if mv.switch_to_village(cur):
+                    ctx.logger.info("[MV] corrective switch to village %s done.", cur)
+                else:
+                    ctx.logger.error("[MV] corrective switch to village %s FAILED — "
+                                     "the next cycle retries after ensure_home.", cur)
+            elif status == "match":
+                ctx.logger.info("[MV] settings verify: village %s account confirmed.", cur)
         return {"switched": idx}
 
 
@@ -933,6 +952,12 @@ class ReturnHome(BlockSpec):
             while time.time() < deadline:
                 if ctx.stopped():
                     return False
+                screen = ui.get_screen()
+                if screen is not None and popup_guard.treasure_chest_visible(screen):
+                    ctx.logger.warning("[return_home] treasure chest overlay up — "
+                                       "smashing the earned chest (no game restart).")
+                    popup_guard.smash_treasure_chests()
+                    continue
                 if home.is_current_screen():
                     return True
                 home.close_popups()
@@ -942,6 +967,21 @@ class ReturnHome(BlockSpec):
         if poll_home(verify_timeout):
             ctx.logger.info("[return_home] back on the home screen.")
             return True
+        # 2026-11-19 (user: restart-through-the-chest-overlay was wasteful — the
+        # battle just EARNED a chest and the treasure-event overlay pops right
+        # over the village after the attack): when the overlay is up, SMASH the
+        # chest in place and re-check home — NEVER restart the game through it.
+        # The overlay is detected by its Skip anchor, which is tool-agnostic:
+        # it works whether the event shows the hammer OR the rolling pin, so no
+        # per-tool templates are needed here.
+        screen = ui.get_screen()
+        if screen is not None and popup_guard.treasure_chest_visible(screen):
+            ctx.logger.warning("[return_home] treasure chest overlay is up — smashing "
+                               "the earned chest instead of restarting the game.")
+            popup_guard.smash_treasure_chests()
+            if poll_home(verify_timeout):
+                ctx.logger.info("[return_home] back on the home screen (post-smash).")
+                return True
         # 2026-11-19: a JUST-restarted game needs longer than verify_timeout to
         # load — restarting again mid-load only compounds the stall (the
         # 3-abnormal cascade: battle timeout -> cleanup restart -> return_home

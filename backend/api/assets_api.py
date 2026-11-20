@@ -28,6 +28,7 @@ CAT_TO_FOLDER = {
     "Troops": "units/troops",
     "Super Troops": "units/super_troops",
     "Roster (train faces)": "units/roster",
+    "SCID (account row)": "scid",
     "Verify (army cards)": "units/verify",
     "Heroes": "units/heroes",
     "Spells": "units/spells",

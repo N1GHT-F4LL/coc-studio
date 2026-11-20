@@ -315,3 +315,20 @@ export async function deleteAllMV(): Promise<{ removed_icons: number }> {
 export function mvIconUrl(idx: number): string {
   return `/api/multi_village/icon/${idx}`;
 }
+
+export function scidFaceUrl(idx: number): string {
+  return `/api/multi_village/scid/${idx}?t=${Date.now()}`;
+}
+
+export async function saveScidFace(
+  idx: number,
+  rect: number[]
+): Promise<{ ok: boolean; path: string }> {
+  return json(
+    await fetch(`/api/multi_village/scid/${idx}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rect }),
+    })
+  );
+}

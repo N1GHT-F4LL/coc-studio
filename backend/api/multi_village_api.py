@@ -15,10 +15,11 @@ import time
 
 import cv2
 from fastapi import APIRouter, Body, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 import app_paths
 import multi_village as mv
+from device_manager import manager
 from api.run_api import controller
 
 logger = logging.getLogger(__name__)
@@ -139,6 +140,73 @@ def apply_village(idx: int, body: dict = Body(...)):
     logger.info("[MV] Apply: village %s confirmed + locked.", idx)
     return {"ok": True, "idx": idx, "confirmed": True,
             "icon": os.path.join(_m.MV_DIR, f"home_v{idx}.png")}
+
+
+@router.post("/scid_capture")
+def scid_capture():
+    """Grab the CURRENT device frame as PNG — the MV editor displays it so the
+    user can drag a crop rect around the account row to save as the village's
+    SCID face."""
+    if manager.device is None or not getattr(manager.device, "connected", False):
+        ok, reason = manager.connect()
+        if not ok:
+            raise HTTPException(status_code=502,
+                                detail=f"device connect failed: {reason}")
+    frame = manager.device.get_screen() if manager.device else None
+    if frame is None:
+        raise HTTPException(status_code=502,
+                            detail="no device frame — connect the emulator first")
+    ok, buf = cv2.imencode(".png", frame)
+    if not ok:
+        raise HTTPException(status_code=500, detail="frame encode failed")
+    return Response(content=buf.tobytes(), media_type="image/png")
+
+
+@router.get("/scid/{idx}")
+def get_scid_face(idx: int):
+    path = os.path.join(app_paths.ASSETS_DIR, "scid", f"v{idx}.png")
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="no scid face captured")
+    return FileResponse(path, media_type="image/png")
+
+
+@router.post("/scid/{idx}")
+def save_scid_face(idx: int, body: dict = Body(...)):
+    """Crop the CURRENT device frame to the given rect and save it as village
+    idx's SCID row face (assets/scid/v<idx>.png) — the template the switcher
+    matches during rotation (the Train-Army roster-face pattern). Also
+    records scid_face in the village's saved config."""
+    rect = body.get("rect") or []
+    if len(rect) != 4:
+        raise HTTPException(status_code=400, detail='body must be {"rect": [x1,y1,x2,y2]}')
+    x1, y1, x2, y2 = (int(v) for v in rect)
+    if manager.device is None or not getattr(manager.device, "connected", False):
+        ok, reason = manager.connect()
+        if not ok:
+            raise HTTPException(status_code=502,
+                                detail=f"device connect failed: {reason}")
+    frame = manager.device.get_screen() if manager.device else None
+    if frame is None:
+        raise HTTPException(status_code=502,
+                            detail="no device frame — connect the emulator first")
+    fh, fw = frame.shape[:2]
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(fw, x2), min(fh, y2)
+    if x2 - x1 < 20 or y2 - y1 < 20:
+        raise HTTPException(status_code=400,
+                            detail="rect too small — crop the account ROW, not a few pixels")
+    face = frame[y1:y2, x1:x2]
+    out_dir = os.path.join(app_paths.ASSETS_DIR, "scid")
+    os.makedirs(out_dir, exist_ok=True)
+    out = os.path.join(out_dir, f"v{idx}.png")
+    cv2.imwrite(out, face)
+    cfg = mv.load_config()
+    v = mv.village(cfg, idx)
+    if v is not None:
+        v["scid_face"] = f"assets/scid/v{idx}.png"
+        mv.save_config(cfg)
+    logger.info("[MV] SCID face for village %s saved: %s (%dx%d)", idx, out, x2 - x1, y2 - y1)
+    return {"ok": True, "path": out, "size": [x2 - x1, y2 - y1]}
 
 
 @router.get("/icon/{idx}")

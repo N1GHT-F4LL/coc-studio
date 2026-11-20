@@ -1,7 +1,7 @@
 {
-  "enabled": false,
+  "enabled": true,
   "interval_option": "30 minutes",
-  "interval_mins": 60,
+  "interval_mins": 4,
   "villages": [
     {
       "idx": 1,
@@ -19,12 +19,13 @@
       "scid_row": {
         "swipes": 0,
         "tap_y": 509
-      }
+      },
+      "scid_face": "assets/scid/v1.png"
     },
     {
       "idx": 2,
       "name": "Nghiays",
-      "enabled": true,
+      "enabled": false,
       "confirmed": true,
       "config": {
         "scenario": "dragon_balloon",
@@ -37,7 +38,8 @@
       "scid_row": {
         "swipes": 0,
         "tap_y": 654
-      }
+      },
+      "scid_face": "assets/scid/v2.png"
     },
     {
       "idx": 3,
@@ -55,7 +57,8 @@
       "scid_row": {
         "swipes": 0,
         "tap_y": 799
-      }
+      },
+      "scid_face": "assets/scid/v3.png"
     },
     {
       "idx": 4,
@@ -73,7 +76,8 @@
       "scid_row": {
         "swipes": 1,
         "tap_y": 703
-      }
+      },
+      "scid_face": "assets/scid/v4.png"
     },
     {
       "idx": 5,
@@ -91,7 +95,8 @@
       "scid_row": {
         "swipes": 2,
         "tap_y": 611
-      }
+      },
+      "scid_face": "assets/scid/v5.png"
     },
     {
       "idx": 6,
@@ -109,12 +114,13 @@
       "scid_row": {
         "swipes": 3,
         "tap_y": 517
-      }
+      },
+      "scid_face": "assets/scid/v6.png"
     },
     {
       "idx": 7,
       "name": "Duyen Tran 8",
-      "enabled": true,
+      "enabled": false,
       "confirmed": false,
       "config": {
         "scenario": "dragon_balloon",
@@ -132,7 +138,7 @@
     {
       "idx": 8,
       "name": "Chu Tich CLAN",
-      "enabled": true,
+      "enabled": false,
       "confirmed": false,
       "config": {
         "scenario": "dragon_balloon",
@@ -150,7 +156,7 @@
     {
       "idx": 9,
       "name": "Th4nh",
-      "enabled": true,
+      "enabled": false,
       "confirmed": false,
       "config": {
         "scenario": "dragon_balloon",
@@ -204,7 +210,7 @@
     ]
   },
   "runtime": {
-    "current_village_idx": 8,
-    "last_switch_ts": 1794966294.6084335
+    "current_village_idx": 3,
+    "last_switch_ts": 1795134968.6821806
   }
 }
