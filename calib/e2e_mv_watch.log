@@ -1,0 +1,274 @@
+02:48:36 === attached: running=False status=
+02:48:36 === start cmd sent (graph=dragon_balloon_loop)
+02:48:36 === run started
+02:48:41 <node loop running>
+02:48:41 [INFO] [loop_n] dragon_balloon_farm iteration 1/100000
+02:48:41 <node mvin running>
+02:48:41 [WARNING] [MV] not confirmed yet (no verified Apply switch — the first rotation switch verifies them): Village_3 (Namhp123), Village_4 (you know), Village_6 (De Quan 2.0).
+02:48:41 [INFO] [MV] rotating to village 6 (De Quan 2.0)...
+02:48:59 [INFO] [MV] opening switcher: hut [83, 92] -> settings tab [1263, 65]
+02:49:04 [INFO] [MV] settings-tab check: 0.301 (threshold 0.80) -> panel NOT open
+02:49:11 [INFO] [MV] settings-tab check: 0.300 (threshold 0.80) -> panel NOT open
+02:49:11 [INFO] [MV] closing Settings panel via X (1400, 72)
+02:49:12 [WARNING] [MV] switch to village 6 failed — restarting game, retrying once (the only restart this window).
+02:49:12 [INFO] Restarting com.supercell.clashofclans (force-stop + launch)...
+02:49:14 [INFO] Launching com.supercell.clashofclans...
+02:49:38 [INFO] [MV] opening switcher: hut [83, 92] -> settings tab [1263, 65]
+02:49:44 [INFO] [MV] settings-tab check: 1.000 (threshold 0.80) -> panel open
+02:49:47 [WARNING] [MV] mapping derivation failed — fewer than 4/5 regions verified (the MEmu window may be moved/covered).
+02:49:47 [WARNING] [MV] failure frames saved to calib/mv_mapfail_*.png
+02:49:47 [WARNING] [MV] mapping attempt 1 failed — one retry after a settle.
+02:49:55 [INFO] [MV] mapping derived: 5/5 regions, scale 1.020 offset (82, 71)
+02:49:55 [INFO] [MV] Settings panel verified — tapping swap button [1050, 170]
+02:49:58 [INFO] [MV] locating account 'De Quan 2.0' on the SCID list...
+02:49:59 [INFO] [watchdog] scan alive (12 ticks) — no system popup on screen.
+02:50:12 [INFO] [MV] village 6 SCID face matched at (1088, 794) — tapping.
+02:50:17 [INFO] [MV] switch started (frame changed, diff 64.5).
+02:50:18 [INFO] [MV] home screen verified after switch.
+02:50:22 [INFO] [MV] frame is popup-covered (okay 0.62 >= 0.52 or close 0.54 >= 0.65).
+02:50:22 [WARNING] [MV] identity reference home_v8.png is popup-covered (corrupted 2026-11-21-style) — excluded from scoring.
+02:50:23 [INFO] [MV] frame is popup-covered (okay 0.62 >= 0.52 or close 0.54 >= 0.65).
+02:50:23 [WARNING] [MV] identity reference home_v9.png is popup-covered (corrupted 2026-11-21-style) — excluded from scoring.
+02:50:23 [INFO] [MV] identity check ok: village 6 (diff 38.2 vs other 41.5).
+02:50:23 [INFO] [MV] village 6 marked confirmed (identity verified by the switch itself).
+02:50:23 [INFO] [MV] applied village 6 config: scenario=dragon_balloon farm={'min_gold': 100000, 'min_elixir': 100000, 'min_dark_elixir': 500}
+02:50:28 [INFO] [MV] settings-tab check: 1.000 (threshold 0.80) -> panel open
+02:50:28 [INFO] [MV] settings verify: village 6 avatar conf 1.00 at (647, 138) -> MATCH.
+02:50:28 [INFO] [MV] closing Settings panel via X (1400, 72)
+02:50:30 [INFO] [MV] settings verify: village 6 account confirmed.
+02:50:30 <node mvin done>
+02:50:30 <node home0 running>
+02:50:32 [INFO] CoC is running.
+02:50:33 [INFO] [ensure_home] home screen detected.
+02:50:41 [INFO] ZOOMING OUT . . .
+02:50:44 [INFO] [ensure_home] village zoomed out (u2 pinch).
+02:50:44 <node home0 done>
+02:50:44 <node troops running>
+02:50:45 [INFO] [ensure_troops] dragon_balloon variant=12-3 -> troops[balloonx14, dragonx14, minionx1] spells[freezex3, ragex4] sieges[stone_slammerx3]
+02:50:49 [INFO] [TRAIN] army screen opened.
+02:50:52 [INFO] [ensure_troops] verify troop count: 352/352 (trained army should read None)
+02:50:52 [INFO] [ensure_troops] troop: full 352/352 + composition verified (3/3 cards) — keeping it and recording the snapshot.
+02:50:54 [INFO] [ensure_troops] verify spell count: 11/11 (trained army should read None)
+02:50:54 [INFO] [ensure_troops] spell: full 11/11 + composition verified (2/2 cards) — keeping it and recording the snapshot.
+02:50:56 [INFO] [ensure_troops] verify siege count: 3/3 (trained army should read None)
+02:50:56 [INFO] [ensure_troops] siege: full 3/3 + composition verified (1/1 cards) — keeping it and recording the snapshot.
+02:51:00 <node troops done>
+02:51:00 <node collect running>
+02:51:04 [INFO] Collecting 'buildings/resource_collectors/icon_gold_mine_full' at (1098, 359)
+02:51:06 <node collect done>
+02:51:06 <node find running>
+02:51:07 [INFO] [find_match] village zoom verified (camera already maxed this cycle).
+02:51:07 [INFO] [find_match] loot thresholds gold>=100000 elixir>=100000 dark>=500
+02:51:07 [INFO] Tapped Attack! button.
+02:51:09 [INFO] Tapped Find a Match.
+02:51:16 [INFO] Enemy loot  gold=356,006 (c=1.00)  elixir=0 (c=0.00)  dark=11,642 (c=0.44)
+02:51:16 [INFO] Loot meets threshold - keeping this base and attacking.
+02:51:16 <node find done>
+02:51:16 <node deploy running>
+02:51:16 [INFO] [watchdog] scan alive (24 ticks) — no system popup on screen.
+02:51:18 [INFO] [deploy] scenario=dragon_balloon variant=12-3 nodes=23 tap=0.100s select=0.300s
+02:51:18 [INFO] ZOOMING OUT . . .
+02:51:21 [INFO] [DEPLOY] battle camera zoomed out (u2 pinch).
+02:51:21 [INFO] [DEPLOY] colour check units/heroes/archer_queen: dist 53.5 (reject > 40)
+02:51:21 [INFO] [DEPLOY] colour check units/heroes/barbarian_king: dist 10.2 (reject > 40)
+02:51:21 [INFO] [DEPLOY] colour check units/heroes/royal_champion: dist 5.6 (reject > 40)
+02:51:21 [INFO] [DEPLOY] colour check units/heroes/prince: dist 2.6 (reject > 40)
+02:51:21 [INFO] [DEPLOY] colour check units/heroes/grand_warden: dist 54.8 (reject > 40)
+02:51:21 [INFO] [DEPLOY] colour check units/heroes/dragon_duke: dist 48.9 (reject > 40)
+02:51:21 [INFO] [DEPLOY] hero lineup for 12-3: {'queen': 'barbarian_king', 'champ': 'royal_champion', 'prince': 'prince', 'warden': None, 'king': None, 'duke': None} (bar presence {'archer_queen': 0.0, 'barbarian_king': 0.72, 'royal_champion': 0.71, 'prince': 0.76, 'grand_warden': 0.0, 'dragon_duke': 0.0})
+02:51:21 [INFO] [DEPLOY] pan map (800,450)->(751,563)
+02:51:24 [INFO] [DEPLOY] pan shift measured (-10, 83), intended (-49, 113)
+02:51:24 [INFO] [DEPLOY] correcting pan residual (-39, 30)
+02:51:27 [INFO] [DEPLOY] pan map (800,450)->(751,563)
+02:51:30 [INFO] [DEPLOY] pan shift measured (0, 0), intended (-49, 113)
+02:51:30 [INFO] [DEPLOY] correcting pan residual (-49, 113)
+02:51:32 [INFO] [DEPLOY] pan map (800,450)->(751,563)
+02:51:36 [INFO] [DEPLOY] pan shift measured (0, 0), intended (-49, 113)
+02:51:36 [INFO] [DEPLOY] correcting pan residual (-49, 113)
+02:51:38 [INFO] [DEPLOY] balloon                ×14  bar=(182,833) conf=1.00  → (952,214)→(1251,434)
+02:51:47 [INFO] [GLOW-DIAG] 12-3: ring 6 seg(s) conf=1.00 | static pts 36 | drift mean 36px, max 93px (balloon @ (772, 145))
+02:51:47 [WARNING] [GLOW-DIAG] balloon point (772, 145) sits 93px from the measured ring — recalibration candidate.
+02:51:47 [WARNING] [GLOW-DIAG] balloon point (1371, 583) sits 60px from the measured ring — recalibration candidate.
+02:51:47 [WARNING] [GLOW-DIAG] dragon point (772, 145) sits 93px from the measured ring — recalibration candidate.
+02:51:47 [WARNING] [GLOW-DIAG] dragon point (1371, 583) sits 60px from the measured ring — recalibration candidate.
+02:51:47 [WARNING] [GLOW-DIAG] queen point (1371, 583) sits 60px from the measured ring — recalibration candidate.
+02:51:47 [WARNING] [GLOW-DIAG] champ point (772, 145) sits 93px from the measured ring — recalibration candidate.
+02:51:47 [WARNING] [GLOW-DIAG] king point (1371, 583) sits 60px from the measured ring — recalibration candidate.
+02:51:47 [WARNING] [GLOW-DIAG] duke point (772, 145) sits 93px from the measured ring — recalibration candidate.
+02:51:47 [INFO] [DEPLOY] pattern balloon: 14 tap(s) over 14 point(s) interval=0.00s
+02:51:49 [INFO] [DEPLOY] dragon                 ×14  bar=(301,828) conf=0.77  → (862,149)→(1341,499)
+02:51:50 [INFO] [DEPLOY] pattern dragon: 14 tap(s) over 14 point(s) interval=0.00s
+02:51:51 [INFO] [DEPLOY] stone_slammer          ×3  bar=(1203,828) conf=0.46  → (?,?)→(?,?)
+02:51:52 [INFO] [DEPLOY] pattern stone_slammer: 3 tap(s) over 1 point(s) interval=0.00s
+02:51:53 [INFO] [DEPLOY] delay  2s
+02:51:55 [INFO] [DEPLOY] minion                 ×1  bar=(425,826) conf=0.71  → (?,?)→(?,?)
+02:51:56 [INFO] [DEPLOY] pattern minion: 1 tap(s) over 1 point(s) interval=0.00s
+02:51:56 [INFO] [DEPLOY] barbarian_king         ×1  bar=(822,812) conf=0.72  → (?,?)→(?,?)
+02:51:57 [INFO] [DEPLOY] pattern archer_queen: 1 tap(s) over 1 point(s) interval=0.00s
+02:51:57 [INFO] [DEPLOY] barbarian_king         ×0  bar=(823,814) conf=0.60  → pts×1
+02:51:57 [INFO] [DEPLOY] royal_champion         ×1  bar=(700,816) conf=0.71  → (?,?)→(?,?)
+02:51:58 [INFO] [DEPLOY] pattern royal_champion: 1 tap(s) over 1 point(s) interval=0.00s
+02:51:59 [INFO] [DEPLOY] royal_champion         ×0  bar=(700,816) conf=0.71  → pts×1
+02:52:00 [INFO] [DEPLOY] prince                 ×1  bar=(940,814) conf=0.76  → (?,?)→(?,?)
+02:52:00 [INFO] [DEPLOY] pattern prince: 1 tap(s) over 1 point(s) interval=0.00s
+02:52:00 [INFO] [DEPLOY] prince                 ×0  bar=(942,813) conf=0.62  → pts×1
+02:52:01 [INFO] [DEPLOY] hero warden: not on the bar / already claimed by another hero — skipped
+02:52:01 [INFO] [DEPLOY] hero warden: not on the bar / already claimed by another hero — skipped
+02:52:02 [INFO] [DEPLOY] hero king: not on the bar / already claimed by another hero — skipped
+02:52:02 [INFO] [DEPLOY] hero king: not on the bar / already claimed by another hero — skipped
+02:52:02 [INFO] [DEPLOY] hero duke: not on the bar / already claimed by another hero — skipped
+02:52:02 [INFO] [DEPLOY] hero duke: not on the bar / already claimed by another hero — skipped
+02:52:02 [INFO] [DEPLOY] rage                   ×4  bar=(1202,828) conf=0.65  → pts×4
+02:52:07 [INFO] [DEPLOY] freeze                 ×3  bar=(1071,824) conf=0.68  → pts×3
+02:52:12 [INFO] [DEPLOY] ensure_deployed -> dump leftover troops (45 drop spot(s))
+02:52:13 [INFO] [DUMP] colour-fraction=[0.55, 0.65, 0.66, 0.89, 0.86, 0.73, 0.45, 0.12, 0.0, 0.66, 0.38, 0.04, 0.0, 0.78, 0.28, 0.15] thr=0.42 -> 9 available
+02:52:13 [INFO] [DUMP] round 1: 9 occupied slot(s) — dumping (incl. event troops).
+02:52:38 [INFO] [watchdog] scan alive (36 ticks) — no system popup on screen.
+02:52:39 [INFO] [DUMP] colour-fraction=[0.57, 0.65, 0.67, 0.75, 0.0, 0.08, 0.33, 0.12, 0.0, 0.68, 0.41, 0.09, 0.0, 0.02, 0.05, 0.15] thr=0.42 -> 5 available
+02:52:39 [INFO] [DUMP] round 2: 5 occupied slot(s) — dumping (incl. event troops).
+02:52:53 [INFO] [DUMP] colour-fraction=[0.62, 0.65, 0.68, 0.75, 0.0, 0.08, 0.33, 0.12, 0.0, 0.82, 0.41, 0.09, 0.0, 0.0, 0.05, 0.15] thr=0.42 -> 5 available
+02:52:53 [INFO] [DUMP] 5 slot(s) still colour after a round — stopping (heroes / undeployable here).
+02:52:53 [INFO] [DUMP] leftover troops dumped.
+02:52:54 [INFO] [DEPLOY] 1x_to_4x button not on screen.
+02:52:54 [INFO] [DEPLOY] delay  30s
+02:53:24 [INFO] [DEPLOY] surrender -> exit battle
+02:53:26 [INFO] [SURRENDER] confirm match okay conf=1.00
+02:53:26 [INFO] [SURRENDER] confirmed — tapped (974,579).
+02:53:27 <node deploy done>
+02:53:27 <node homeret running>
+02:53:29 [INFO] Tapped Return Home.
+02:53:35 [INFO] [return_home] back on the home screen.
+02:53:35 [INFO] [NOPROGRESS] normal cycle — counter reset.
+02:53:35 <node homeret done>
+02:53:35 <node treasure running>
+02:53:36 <node treasure done>
+02:53:36 [INFO] [loop_n] dragon_balloon_farm iteration 2/100000
+02:53:36 <node mvin running>
+02:53:41 [INFO] [MV] settings-tab check: 1.000 (threshold 0.80) -> panel open
+02:53:41 [INFO] [MV] settings verify: village 6 avatar conf 1.00 at (647, 138) -> MATCH.
+02:53:41 [INFO] [MV] closing Settings panel via X (1400, 72)
+02:53:43 [INFO] [MV] settings verify: village 6 account confirmed.
+02:53:43 <node mvin done>
+02:53:43 <node home0 running>
+02:53:44 [INFO] CoC is running.
+02:53:46 [INFO] [ensure_home] home screen detected.
+02:53:53 [INFO] ZOOMING OUT . . .
+02:53:55 [INFO] [ensure_home] village zoomed out (u2 pinch).
+02:53:55 <node home0 done>
+02:53:55 <node troops running>
+02:53:56 [INFO] [ensure_troops] dragon_balloon variant=3-6 -> troops[balloonx14, dragonx14, minionx1] spells[freezex3, ragex4] sieges[stone_slammerx3]
+02:53:57 [INFO] [watchdog] scan alive (48 ticks) — no system popup on screen.
+02:54:00 [INFO] [TRAIN] army screen opened.
+02:54:03 [INFO] [ensure_troops] verify troop count: 352/352 (trained army should read None)
+02:54:03 [INFO] [ensure_troops] troop: full 352/352 + composition verified (3/3 cards) — keeping it and recording the snapshot.
+02:54:05 [INFO] [ensure_troops] verify spell count: 11/11 (trained army should read None)
+02:54:05 [INFO] [ensure_troops] spell: full 11/11 + composition verified (2/2 cards) — keeping it and recording the snapshot.
+02:54:07 [INFO] [ensure_troops] verify siege count: 3/3 (trained army should read 3)
+02:54:07 [INFO] [ensure_troops] siege: matches the trained army — keeping it.
+02:54:11 <node troops done>
+02:54:11 <node collect running>
+02:54:16 [INFO] Collecting 'buildings/resource_collectors/icon_elixir_collector_full' at (990, 149)
+02:54:17 <node collect done>
+02:54:17 <node find running>
+02:54:18 [INFO] [find_match] village zoom verified (camera already maxed this cycle).
+02:54:18 [INFO] [find_match] loot thresholds gold>=100000 elixir>=100000 dark>=500
+02:54:19 [INFO] Tapped Attack! button.
+02:54:21 [INFO] Tapped Find a Match.
+02:54:28 [INFO] Enemy loot  gold=607,756 (c=1.00)  elixir=0 (c=0.00)  dark=6,750 (c=1.00)
+02:54:28 [INFO] Loot meets threshold - keeping this base and attacking.
+02:54:28 <node find done>
+02:54:28 <node deploy running>
+02:54:30 [INFO] [deploy] scenario=dragon_balloon variant=3-6 nodes=23 tap=0.100s select=0.300s
+02:54:31 [INFO] ZOOMING OUT . . .
+02:54:33 [INFO] [DEPLOY] battle camera zoomed out (u2 pinch).
+02:54:33 [INFO] [DEPLOY] colour check units/heroes/archer_queen: dist 53.5 (reject > 40)
+02:54:33 [INFO] [DEPLOY] colour check units/heroes/barbarian_king: dist 10.2 (reject > 40)
+02:54:33 [INFO] [DEPLOY] colour check units/heroes/royal_champion: dist 5.6 (reject > 40)
+02:54:33 [INFO] [DEPLOY] colour check units/heroes/prince: dist 2.6 (reject > 40)
+02:54:33 [INFO] [DEPLOY] colour check units/heroes/grand_warden: dist 54.8 (reject > 40)
+02:54:33 [INFO] [DEPLOY] colour check units/heroes/dragon_duke: dist 116.2 (reject > 40)
+02:54:33 [INFO] [DEPLOY] hero lineup for 3-6: {'queen': 'barbarian_king', 'champ': 'royal_champion', 'prince': 'prince', 'warden': None, 'king': None, 'duke': None} (bar presence {'archer_queen': 0.0, 'barbarian_king': 0.72, 'royal_champion': 0.71, 'prince': 0.76, 'grand_warden': 0.0, 'dragon_duke': 0.0})
+02:54:33 [INFO] [DEPLOY] pan map (800,450)->(785,267)
+02:54:37 [INFO] [DEPLOY] pan shift measured (-4, -145), intended (-15, -183)
+02:54:37 [INFO] [DEPLOY] correcting pan residual (-11, -38)
+02:54:39 [INFO] [DEPLOY] pan map (800,450)->(785,267)
+02:54:42 [INFO] [DEPLOY] pan shift measured (0, 0), intended (-15, -183)
+02:54:42 [INFO] [DEPLOY] correcting pan residual (-15, -183)
+02:54:45 [INFO] [DEPLOY] pan map (800,450)->(785,267)
+02:54:48 [INFO] [DEPLOY] pan shift measured (0, 0), intended (-15, -183)
+02:54:48 [INFO] [DEPLOY] correcting pan residual (-15, -183)
+02:54:50 [INFO] [DEPLOY] balloon                ×14  bar=(182,833) conf=1.00  → (1277,373)→(1012,588)
+02:55:00 [INFO] [GLOW-DIAG] 3-6: ring 2 seg(s) conf=0.99 | static pts 36 | drift mean 109px, max 165px (balloon @ (848, 656))
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1379, 227) sits 122px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1338, 260) sits 91px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1311, 311) sits 61px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1269, 343) sits 68px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1227, 373) sits 76px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1182, 401) sits 88px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1134, 425) sits 105px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1093, 458) sits 111px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1059, 500) sits 105px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (1022, 538) sits 105px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (983, 573) sits 107px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (944, 608) sits 110px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (889, 623) sits 141px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] balloon point (848, 656) sits 165px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1379, 227) sits 122px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1338, 260) sits 91px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1311, 311) sits 61px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1269, 343) sits 68px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1227, 373) sits 76px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1182, 401) sits 88px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1134, 425) sits 105px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1093, 458) sits 111px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1059, 500) sits 105px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (1022, 538) sits 105px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (983, 573) sits 107px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (944, 608) sits 110px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (889, 623) sits 141px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] dragon point (848, 656) sits 165px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] slammer point (1113, 442) sits 108px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] minion point (1116, 445) sits 104px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] queen point (848, 656) sits 165px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] champ point (1379, 227) sits 122px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] prince point (1169, 403) sits 96px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] warden point (1063, 488) sits 111px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] king point (848, 656) sits 165px from the measured ring — recalibration candidate.
+02:55:00 [WARNING] [GLOW-DIAG] duke point (1379, 227) sits 122px from the measured ring — recalibration candidate.
+02:55:00 [INFO] [DEPLOY] pattern balloon: 14 tap(s) over 14 point(s) interval=0.00s
+02:55:01 [INFO] [DEPLOY] dragon                 ×14  bar=(301,828) conf=0.77  → (1357,309)→(932,652)
+02:55:02 [INFO] [DEPLOY] pattern dragon: 14 tap(s) over 14 point(s) interval=0.00s
+02:55:03 [INFO] [DEPLOY] stone_slammer          ×3  bar=(1203,828) conf=0.46  → (?,?)→(?,?)
+02:55:04 [INFO] [DEPLOY] pattern stone_slammer: 3 tap(s) over 1 point(s) interval=0.00s
+02:55:05 [INFO] [DEPLOY] delay  2s
+02:55:07 [INFO] [DEPLOY] minion                 ×1  bar=(425,826) conf=0.71  → (?,?)→(?,?)
+02:55:08 [INFO] [DEPLOY] pattern minion: 1 tap(s) over 1 point(s) interval=0.00s
+02:55:08 [INFO] [DEPLOY] barbarian_king         ×1  bar=(822,812) conf=0.72  → (?,?)→(?,?)
+02:55:09 [INFO] [DEPLOY] pattern archer_queen: 1 tap(s) over 1 point(s) interval=0.00s
+02:55:09 [INFO] [DEPLOY] barbarian_king         ×0  bar=(823,814) conf=0.60  → pts×1
+02:55:10 [INFO] [DEPLOY] royal_champion         ×1  bar=(700,816) conf=0.71  → (?,?)→(?,?)
+02:55:10 [INFO] [DEPLOY] pattern royal_champion: 1 tap(s) over 1 point(s) interval=0.00s
+02:55:11 [INFO] [DEPLOY] royal_champion         ×0  bar=(700,816) conf=0.71  → pts×1
+02:55:12 [INFO] [DEPLOY] prince                 ×1  bar=(940,814) conf=0.76  → (?,?)→(?,?)
+02:55:12 [INFO] [DEPLOY] pattern prince: 1 tap(s) over 1 point(s) interval=0.00s
+02:55:13 [INFO] [DEPLOY] prince                 ×0  bar=(942,813) conf=0.62  → pts×1
+02:55:13 [INFO] [DEPLOY] hero warden: not on the bar / already claimed by another hero — skipped
+02:55:13 [INFO] [DEPLOY] hero warden: not on the bar / already claimed by another hero — skipped
+02:55:14 [INFO] [DEPLOY] hero king: not on the bar / already claimed by another hero — skipped
+02:55:14 [INFO] [DEPLOY] hero king: not on the bar / already claimed by another hero — skipped
+02:55:14 [INFO] [DEPLOY] hero duke: not on the bar / already claimed by another hero — skipped
+02:55:14 [INFO] [DEPLOY] hero duke: not on the bar / already claimed by another hero — skipped
+02:55:14 [INFO] [DEPLOY] rage                   ×4  bar=(1202,828) conf=0.65  → pts×4
+02:55:18 [INFO] [DEPLOY] freeze                 ×3  bar=(1071,824) conf=0.68  → pts×3
+02:55:18 [INFO] [watchdog] scan alive (60 ticks) — no system popup on screen.
+02:55:24 [INFO] [DEPLOY] ensure_deployed -> dump leftover troops (45 drop spot(s))
+02:55:25 [INFO] [DUMP] colour-fraction=[0.74, 0.65, 0.64, 0.86, 0.86, 0.74, 0.45, 0.02, 0.0, 0.0, 0.05, 0.0, 0.0, 0.78, 0.23, 0.01] thr=0.42 -> 8 available
+02:55:25 [INFO] [DUMP] round 1: 8 occupied slot(s) — dumping (incl. event troops).
+02:55:49 [INFO] [DUMP] colour-fraction=[0.72, 0.0, 0.11, 0.11, 0.0, 0.8, 0.46, 0.02, 0.0, 0.0, 0.06, 0.0, 0.0, 0.02, 0.0, 0.01] thr=0.42 -> 3 available
+02:55:49 [INFO] [DUMP] round 2: 3 occupied slot(s) — dumping (incl. event troops).
+02:55:58 [INFO] [DUMP] colour-fraction=[0.72, 0.0, 0.11, 0.11, 0.0, 0.08, 0.66, 0.77, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.01] thr=0.42 -> 3 available
+02:55:58 [INFO] [DUMP] 3 slot(s) still colour after a round — stopping (heroes / undeployable here).
+02:55:58 [INFO] [DUMP] leftover troops dumped.
+02:55:58 [INFO] [DEPLOY] 1x_to_4x button not on screen.
+02:55:58 [INFO] [DEPLOY] delay  30s
+02:56:28 [INFO] [DEPLOY] surrender -> exit battle

@@ -616,6 +616,75 @@ def test_wait_for_end_popup_bail():
     check("bail reason logged", "[BATTLE] system popup — tier 1: app restart now" in logs.getvalue())
 
 
+def test_return_home_watch_tap():
+    print("[11] return_home_watch_tap — post-launch/rotation button tap")
+    real = {n: getattr(popup_guard, n) for n in
+            ("take_screenshot", "imread_unicode", "_find_return_home",
+             "_watch_home_detected", "_watch_stopped", "tap", "time",
+             "treasure_chest_visible", "popup_on_frame")}
+    from core.vision import vision as _v
+    tpl_saved = _v.cache.pop(popup_guard.RETURN_HOME_TPL_KEY, None)
+    try:
+        # assets not loaded yet (first bootstrap launch) -> immediate 0, no burn
+        n = popup_guard.return_home_watch_tap(timeout=40.0)
+        check("template not in cache -> 0 taps, no timeout burn", n == 0)
+        # from here on the guard passes (the match itself is stubbed below)
+        _v.cache[popup_guard.RETURN_HOME_TPL_KEY] = object()
+
+        # button visible on the first frame, village detected right after
+        taps = []
+        frames = iter([object(), None, None])
+        popup_guard.take_screenshot = lambda tag: "shot"
+        popup_guard.imread_unicode = lambda p: next(frames)
+        popup_guard._find_return_home = (
+            lambda img: (800, 450) if img is not None else None)
+        home_seq = [False, True]
+        popup_guard._watch_home_detected = (
+            lambda: home_seq.pop(0) if home_seq else True)
+        popup_guard._watch_stopped = lambda: False
+        ft = FakeTime()
+        popup_guard.time = ft
+        popup_guard.tap = lambda x, y: taps.append((x, y))
+        n = popup_guard.return_home_watch_tap(timeout=40.0)
+        check("button visible -> tapped once, home check ends the watch",
+              n == 1 and taps == [(800, 450)], f"n={n} taps={taps}")
+
+        # no button, never home -> watches exactly to the timeout, 0 taps
+        popup_guard.imread_unicode = lambda p: None
+        popup_guard._watch_home_detected = lambda: False
+        ft2 = FakeTime()
+        popup_guard.time = ft2
+        n = popup_guard.return_home_watch_tap(timeout=8.0)
+        check("no button -> watches to the timeout without tapping", n == 0)
+        check("poll cadence is RETURN_HOME_WATCH_POLL",
+              any(abs(s - popup_guard.RETURN_HOME_WATCH_POLL) < 1e-9
+                  for s in ft2.sleeps), str(ft2.sleeps[:3]))
+
+        # a screen the watch cannot act on (chest overlay / system popup)
+        # hands back immediately — its own recovery path owns it
+        popup_guard.treasure_chest_visible = lambda img: True
+        popup_guard.imread_unicode = lambda p: object()
+        popup_guard._find_return_home = lambda img: None
+        ft3 = FakeTime()
+        popup_guard.time = ft3
+        n = popup_guard.return_home_watch_tap(timeout=40.0)
+        check("chest overlay / system popup -> watch hands back at once",
+              n == 0 and ft3.sleeps == [], str(ft3.sleeps))
+
+        # cooperative stop cuts the watch before any capture
+        captures = []
+        popup_guard.take_screenshot = lambda tag: captures.append(tag)
+        popup_guard._watch_stopped = lambda: True
+        n = popup_guard.return_home_watch_tap(timeout=100.0)
+        check("cooperative stop ends the watch immediately (no captures)",
+              n == 0 and captures == [], str(captures))
+    finally:
+        if tpl_saved is not None:
+            _v.cache[popup_guard.RETURN_HOME_TPL_KEY] = tpl_saved
+        for k, v in real.items():
+            setattr(popup_guard, k, v)
+
+
 if __name__ == "__main__":
     test_templates_structure()
     test_connection_popup_visible()
@@ -630,5 +699,6 @@ if __name__ == "__main__":
     test_title_template_snow_variant()
     test_recovery_rate_limiter()
     test_wait_for_end_popup_bail()
+    test_return_home_watch_tap()
     print(f"\n=== {passed} passed, {failed} failed ===")
     sys.exit(1 if failed else 0)

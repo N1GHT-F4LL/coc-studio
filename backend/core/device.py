@@ -585,6 +585,21 @@ class Device:
         out = res_ds.stdout or ""
         return f"Package [{package_name}]" in out or f"package={package_name}" in out
 
+    def _post_launch_ok(self, package_name):
+        """A launch attempt left the app PROCESS running. User directive
+        2026-11-21: immediately after ``Launching {package}...`` the game may
+        resume onto a battle-end 'Return Home' screen — watch for that button
+        and tap it (popup_guard.return_home_watch_tap, bounded, self-skipping
+        while assets are not loaded yet). ADDITIVE hook in the frozen core,
+        requested by the user; it changes no launch logic. Returns True (the
+        app is running) — the hook can only tap, never fail the launch."""
+        try:
+            from popup_guard import return_home_watch_tap
+            return_home_watch_tap(logger)
+        except Exception:
+            pass  # the launch result must never depend on the watch
+        return True
+
     def launch_game(self, package_name="com.supercell.clashofclans"):
         if not self.available or not self.connected:
             logger.warning("Cannot launch game: no active ADB device.")
@@ -607,19 +622,19 @@ class Device:
             self._run_adb(['shell', 'am', 'start', '-n', component])
             time.sleep(4)
             if self.is_app_running(package_name):
-                return True
+                return self._post_launch_ok(package_name)
 
         # Strategy 1: monkey launcher
         self._run_adb(['shell', 'monkey', '-p', package_name, '-c', 'android.intent.category.LAUNCHER', '1'])
         time.sleep(4)
         if self.is_app_running(package_name):
-            return True
+            return self._post_launch_ok(package_name)
 
         # Strategy 2: monkey direct open
         self._run_adb(['shell', 'monkey', '-p', package_name, '1'])
         time.sleep(4)
         if self.is_app_running(package_name):
-            return True
+            return self._post_launch_ok(package_name)
 
         # Strategy 3: explicit launch intent
         if component:
@@ -628,7 +643,7 @@ class Device:
             self._run_adb(['shell', 'am', 'start', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LAUNCHER', '-p', package_name])
         time.sleep(4)
         if self.is_app_running(package_name):
-            return True
+            return self._post_launch_ok(package_name)
 
         logger.error("Launch attempts completed but app is still not running.")
         return False

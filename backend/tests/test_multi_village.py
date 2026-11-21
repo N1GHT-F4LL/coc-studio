@@ -477,6 +477,422 @@ def main():
         finally:
             for n, fn in saved13.items():
                 setattr(mv, n, fn)
+
+        # --- 14. _locate_account_row — exact-first + ambiguity refusal -----
+        # 2026-11-21 incident: the old containment rule scored 'nghia' vs
+        # 'Nghiays' at 1.00 and tapped village 2's ROW when switching to
+        # village 5 — a real wrong-village switch.
+        print("[14] account-row locate: exact-first, ambiguous fuzzy refused")
+        saved14 = {n: getattr(mv, n) for n in ("_ocr_scid_accounts",)}
+        try:
+            mv._ocr_scid_accounts = lambda cap, mapping: (
+                [(1180.0, 500.0, "Nghiays"), (1240.0, 650.0, "nghia")], True)
+            hit = mv._locate_account_row(object(), "nghia", (1.0, 0, 0),
+                                         other_names={"Nghiays"})
+            check("exact name match wins over the containment look-alike",
+                  hit == (1240.0, 650.0, "nghia", 1.0), str(hit))
+            mv._ocr_scid_accounts = lambda cap, mapping: (
+                [(1180.0, 500.0, "Nghiays")], True)
+            check("only the look-alike row visible -> refused (None)",
+                  mv._locate_account_row(object(), "nghia", (1.0, 0, 0),
+                                         other_names={"Nghiays"}) is None)
+            mv._ocr_scid_accounts = lambda cap, mapping: (
+                [(1226.0, 749.0, "you nokw")], True)
+            hit2 = mv._locate_account_row(object(), "you know", (1.0, 0, 0))
+            check("OCR noise still matches fuzzily when unambiguous",
+                  hit2 is not None and hit2[2] == "you nokw" and hit2[3] >= 0.6,
+                  str(hit2))
+        finally:
+            for n, fn in saved14.items():
+                setattr(mv, n, fn)
+
+        # --- 15. popup-coverage gate (2026-11-21 incident) -----------------
+        # Identity references captured with a reward/welcome dialog up are
+        # MEANINGLESS — 7/9 real home_v*.png were popup-covered frames, so
+        # every genuinely-correct switch failed the identity check and the
+        # whole rotation cascade-excluded every village. The gate must
+        # separate clean home frames from dialog-covered ones.
+        print("[15] popup-coverage gate: clean vs dialog-covered frames")
+        from core.vision import vision as _v15
+        okay_tpl = _cv2.imread(os.path.join(mv.app_paths.ASSETS_DIR,
+                                            "buttons", "battle", "okay.png"),
+                               _cv2.IMREAD_GRAYSCALE)
+        close_tpl = _cv2.imread(os.path.join(mv.app_paths.ASSETS_DIR,
+                                             "buttons", "popup", "btn_close.png"),
+                                _cv2.IMREAD_GRAYSCALE)
+        _v15.cache["buttons/battle/okay"] = okay_tpl
+        _v15.cache["buttons/popup/btn_close"] = close_tpl
+        # colour copies for pasting into the 3-channel synthetic frames
+        okay_bgr = _cv2.cvtColor(okay_tpl, _cv2.COLOR_GRAY2BGR)
+        clean15 = _np.random.default_rng(15).integers(40, 220, (900, 1600, 3),
+                                                      dtype=_np.uint8)
+        dirty15 = clean15.copy()
+        dirty15[690:690 + okay_tpl.shape[0],
+                600:600 + okay_tpl.shape[1]] = okay_bgr
+        so, sc = mv._frame_popup_scores(dirty15)
+        check("dialog-covered frame scores above the okay gate",
+              so >= mv.POPUP_OKAY_GATE, f"okay={so:.2f} close={sc:.2f}")
+        check("dialog-covered frame -> _frame_clean False",
+              mv._frame_clean(dirty15) is False)
+        so_c, sc_c = mv._frame_popup_scores(clean15)
+        check("patterned-noise frame stays below both gates",
+              so_c < mv.POPUP_OKAY_GATE and sc_c < mv.POPUP_CLOSE_GATE,
+              f"okay={so_c:.2f} close={sc_c:.2f}")
+        check("clean frame -> _frame_clean True", mv._frame_clean(clean15) is True)
+
+        # --- 16. identity self-heal -----------------------------------------
+        # A corrupted expected reference is excluded from scoring AND renamed
+        # out of the glob, so _capture_home_snapshot regenerates a clean one
+        # on this very visit — no manual file surgery, no permanent cascade.
+        print("[16] identity self-heal (corrupted 2026-11-21 references)")
+        mv_dir16 = os.path.join(tmp, "mvdir16")
+        os.makedirs(mv_dir16, exist_ok=True)
+        real_mvdir16 = mv.MV_DIR
+        mv.MV_DIR = mv_dir16
+        saved16 = {n: getattr(mv, n) for n in ("_screencap", "_home_detected",
+                                               "_dismiss_welcome_popups")}
+        try:
+            _cv2.imwrite(os.path.join(mv_dir16, "home_v1.png"), clean15)
+            _cv2.imwrite(os.path.join(mv_dir16, "home_v2.png"), dirty15.copy())
+            ok16, _bo16, sc16 = mv.verify_village_identity(2, frame=clean15)
+            clean15b = _np.random.default_rng(16).integers(
+                40, 220, (900, 1600, 3), dtype=_np.uint8)
+            check("corrupted expected reference -> pass-with-note (cannot judge)",
+                  ok16 is True and 2 not in sc16, f"ok={ok16} scores={sc16}")
+            corrupt = [f for f in os.listdir(mv_dir16) if ".corrupt_" in f]
+            check("corrupted reference renamed out of the glob", corrupt != [],
+                  str(corrupt))
+            check("home_v2.png gone (capture will regenerate it)",
+                  not os.path.isfile(os.path.join(mv_dir16, "home_v2.png")))
+            mv._screencap = lambda: clean15b
+            mv._home_detected = lambda: True
+            mv._capture_home_snapshot(2)
+            check("clean snapshot regenerated for village 2",
+                  os.path.isfile(os.path.join(mv_dir16, "home_v2.png")))
+            _cv2.imwrite(os.path.join(mv_dir16, "home_v9.png"), dirty15.copy())
+            ok9, _bo9, sc9 = mv.verify_village_identity(1, frame=clean15)
+            check("corrupted OTHER reference only skipped from scoring",
+                  ok9 is True and 9 not in sc9, f"ok={ok9} scores={sc9}")
+        finally:
+            mv.MV_DIR = real_mvdir16
+            for n, fn in saved16.items():
+                setattr(mv, n, fn)
+
+        # --- 17. _capture_home_snapshot — never write a popup-covered frame
+        print("[17] home snapshot quality gate")
+        mv_dir17 = os.path.join(tmp, "mvdir17")
+        os.makedirs(mv_dir17, exist_ok=True)
+        real_mvdir17 = mv.MV_DIR
+        mv.MV_DIR = mv_dir17
+        saved17 = {n: getattr(mv, n) for n in ("_screencap", "_home_detected",
+                                               "_dismiss_welcome_popups")}
+        sweeps = []
+        try:
+            mv._home_detected = lambda: True
+            mv._dismiss_welcome_popups = (
+                lambda rounds=10: sweeps.append(1) or False)
+            mv._screencap = lambda: dirty15.copy()
+            mv._capture_home_snapshot(3)
+            check("dialog-covered screen -> snapshot NOT written",
+                  not os.path.isfile(os.path.join(mv_dir17, "home_v3.png")))
+            check("sweep ran between capture attempts", len(sweeps) >= 1,
+                  str(len(sweeps)))
+            mv._screencap = lambda: clean15.copy()
+            mv._capture_home_snapshot(3)
+            check("clean screen -> snapshot written",
+                  os.path.isfile(os.path.join(mv_dir17, "home_v3.png")))
+        finally:
+            mv.MV_DIR = real_mvdir17
+            for n, fn in saved17.items():
+                setattr(mv, n, fn)
+
+        # --- 18. _switch_left_home — no wait_home trust without a real switch
+        # Beneath the FLAG_SECURE overlay adb sees the OLD village, so
+        # wait_home "verified home" instantly on every silently-failed switch.
+        print("[18] switch-started gate")
+        class _FakeUi18:
+            def _stopped(self):
+                return False
+        class _FakeMgr18:
+            ui_manager = _FakeUi18()
+        saved18 = {n: getattr(mv, n) for n in ("manager", "_screencap",
+                                               "_home_detected", "_sleep")}
+        try:
+            mv.manager = _FakeMgr18()
+            mv._sleep = lambda s: None
+            base18 = clean15.copy()
+            dark18 = _np.full((900, 1600, 3), 8, dtype=_np.uint8)
+            frames18 = [base18.copy(), base18.copy(), dark18.copy()]
+            mv._screencap = lambda: frames18.pop(0) if frames18 else base18.copy()
+            mv._home_detected = lambda: False
+            check("frame changes (loading) -> switch started",
+                  mv._switch_left_home(timeout=5.0) is True)
+            mv._screencap = lambda: base18.copy()   # static home forever
+            check("frame never changes -> switch did NOT start",
+                  mv._switch_left_home(timeout=0.2) is False)
+            mv._screencap = lambda: None
+            check("no frame at all -> unobservable, pass-through True",
+                  mv._switch_left_home(timeout=5.0) is True)
+            seq18 = [True, False]
+            mv._screencap = lambda: base18.copy()
+            mv._home_detected = lambda: seq18.pop(0) if seq18 else False
+            check("home anchors vanish -> switch started",
+                  mv._switch_left_home(timeout=5.0) is True)
+        finally:
+            for n, fn in saved18.items():
+                setattr(mv, n, fn)
+
+        # --- 19. switch_to_village integration: gate-fail = clean abort -----
+        print("[19] switch aborts cleanly when the switch never starts")
+        cfg19 = base_config()
+        cfg19["coords"]["scid_switch_id"] = [1335, 375]
+        cfg19["coords"]["scid_close_x"] = [1548, 51]
+        mv.CONFIG_PATH = os.path.join(tmp, "mv19.json")
+        mv.save_config(cfg19)
+        saved19 = {n: getattr(mv, n) for n in
+                   ("open_switcher", "_tap", "_selfcap", "_locate_scid_face",
+                    "_locate_account_row", "_sleep", "wait_home",
+                    "_dismiss_welcome_popups", "verify_village_identity",
+                    "_capture_home_snapshot", "_raise_window_visible",
+                    "_capture_ready", "_switch_left_home", "_close_scid_page")}
+        taps19 = []
+        calls19 = {"wait_home": 0, "close": 0}
+        try:
+            mv.open_switcher = lambda: (True, (1.0, 0.0, 0.0))
+            mv._tap = lambda x, y: taps19.append((x, y)) or True
+            mv._selfcap = lambda: object()
+            mv._locate_scid_face = lambda cap, idx_, m, threshold=0.7: (1100, 700)
+            mv._switch_left_home = lambda timeout=25.0: False
+            mv._close_scid_page = lambda: calls19.__setitem__(
+                "close", calls19["close"] + 1)
+            mv.wait_home = lambda timeout=180: calls19.__setitem__(
+                "wait_home", calls19["wait_home"] + 1) or True
+            mv._raise_window_visible = lambda: True
+            mv._capture_ready = lambda: True
+            mv._sleep = lambda s: None
+            mv._dismiss_welcome_popups = lambda rounds=10: None
+            mv.verify_village_identity = lambda idx, frame=None: (True, None, {})
+            mv._capture_home_snapshot = lambda idx: None
+            ok19 = mv.switch_to_village(2)
+            check("gate-fail -> switch returns False", ok19 is False, str(ok19))
+            check("row WAS tapped before the gate", (1100, 700) in taps19,
+                  str(taps19))
+            check("wait_home never ran on a failed gate", calls19["wait_home"] == 0)
+            check("SCID page close attempted", calls19["close"] == 1)
+        finally:
+            for n, fn in saved19.items():
+                setattr(mv, n, fn)
+
+        # --- 20. chest-overlay pre-clear (2026-11-21 01:05 incident) -------
+        # The treasure-chest event pops AFTER return_home's own checks (the
+        # award animation finishes late) and every switcher tap then lands on
+        # the event screen — all four villages failed one window this way
+        # ("panel NOT open" at 0.311, the same root cause as the morning's
+        # village-6 instant exclusion).
+        print("[20] chest-overlay pre-clear before the switcher")
+        class _FakePG20:
+            def __init__(self):
+                self.chest_visible = False
+                self.smashes = 0
+            def treasure_chest_visible(self, frame):
+                return self.chest_visible
+            def smash_treasure_chests(self, logger=None):
+                self.smashes += 1
+                return 8
+        pg20 = _FakePG20()
+        real_pg20 = mv.popup_guard
+        saved20 = {n: getattr(mv, n) for n in ("_screencap", "_home_detected",
+                                               "_dismiss_welcome_popups")}
+        try:
+            mv.popup_guard = pg20
+            mv._screencap = lambda: object()
+            pg20.chest_visible = True
+            check("chest overlay up -> smashed in place",
+                  mv._clear_chest_overlay_if_up() is True and pg20.smashes == 1)
+            pg20.chest_visible = False
+            check("no overlay -> pre-clear is a no-op",
+                  mv._clear_chest_overlay_if_up() is False and pg20.smashes == 1)
+            sweeps20 = []
+            mv._home_detected = lambda: True
+            mv._dismiss_welcome_popups = lambda rounds=10: sweeps20.append(1)
+            pg20.chest_visible = True
+            check("sweep path prefers the chest overlay first",
+                  mv._sweep_popups_if_home() is True and pg20.smashes == 2
+                  and sweeps20 == [])
+            pg20.chest_visible = False
+            check("clean home -> welcome sweep runs",
+                  mv._sweep_popups_if_home() is True and sweeps20 == [1])
+            mv._home_detected = lambda: False
+            check("neither overlay nor home -> no sweeping",
+                  mv._sweep_popups_if_home() is False and sweeps20 == [1])
+        finally:
+            mv.popup_guard = real_pg20
+            for n, fn in saved20.items():
+                setattr(mv, n, fn)
+
+        # --- 21. get_state restores the persisted runtime state -------------
+        # A fresh backend must NOT re-assume the first enabled village while
+        # the game is really on the persisted one (2026-11-21: the restart
+        # after the chest incident re-assumed village 3 over a persisted
+        # village 6 — the settings-verify mismatch then burned a corrective
+        # switch on every restart).
+        print("[21] runtime state restore before first use")
+        mv.CONFIG_PATH = os.path.join(tmp, "mv21.json")
+        mv.save_config({"enabled": True, "villages": [],
+                        "runtime": {"current_village_idx": 7,
+                                    "last_switch_ts": 123.0}})
+        mv._state_loaded = False
+        with mv._lock:
+            mv._state.update({"current_village_idx": None,
+                              "active_village_idx": None,
+                              "last_switch_ts": 0.0})
+        st21 = mv.get_state()
+        check("get_state() restores current_village_idx from the config",
+              st21.get("current_village_idx") == 7, str(st21))
+        mv._state_loaded = False   # outer finally reloads the real config
+
+        # --- 22. _raise_window_visible verifies the raise landed -----------
+        # 2026-11-21 01:18: the auto-opened browser covered MEmu; MEmu runs
+        # ELEVATED so the TOPMOST bump failed SILENTLY and every switch's
+        # mapping derivation matched the BROWSER (0/5 regions) — all four
+        # villages failed the window. The raise must now VERIFY it put MEmu
+        # on top and report the precise reason.
+        print("[22] raise-verify: covered window reported, not silently ignored")
+
+        class _FakeUser32_22:
+            def __init__(self, bump_ok, top_is_memu):
+                self.bump_ok = bump_ok
+                self.top_is_memu = top_is_memu
+                self.memu_hwnd = 0x1234
+                self.other_hwnd = 0x5678
+            def IsWindowVisible(self, h):
+                return True
+            def GetWindowTextW(self, h, buf, n):
+                buf.value = 'MEmu' if h == self.memu_hwnd else 'Firefox'
+                return 0
+            def EnumWindows(self, cb, _):
+                cb(self.other_hwnd, 0)
+                cb(self.memu_hwnd, 0)
+                return True
+            def GetWindowRect(self, h, rect):
+                r = rect._obj if hasattr(rect, "_obj") else rect
+                r.left, r.top, r.right, r.bottom = 112, 22, 1424, 792
+                return True
+            def IsIconic(self, h):
+                return False
+            def ShowWindow(self, h, cmd):
+                return True
+            def SetWindowPos(self, h, after, x, y, cx, cy, flags):
+                return self.bump_ok
+            def WindowFromPoint(self, pt):
+                return self.memu_hwnd if self.top_is_memu else self.other_hwnd
+            def IsChild(self, parent, child):
+                return False
+
+        real_u32 = mv.user32
+        try:
+            mv.user32 = _FakeUser32_22(bump_ok=True, top_is_memu=True)
+            check("raise lands MEmu on top -> True",
+                  mv._raise_window_visible() is True)
+            mv.user32 = _FakeUser32_22(bump_ok=False, top_is_memu=True)
+            check("bump refused but MEmu ALREADY uncovered -> True (UIPI refuses "
+                  "SetWindowPos even uncovered — only the probe decides)",
+                  mv._raise_window_visible() is True)
+            mv.user32 = _FakeUser32_22(bump_ok=True, top_is_memu=False)
+            check("bump ok but MEmu still covered -> False (UIPI guidance)",
+                  mv._raise_window_visible() is False)
+            mv.user32 = _FakeUser32_22(bump_ok=False, top_is_memu=False)
+            check("covered + SetWindowPos refused -> False",
+                  mv._raise_window_visible() is False)
+        finally:
+            mv.user32 = real_u32
+
+        # --- 23. rotation-start Return Home watch (user 2026-11-21) ---------
+        # Immediately after "[MV] rotating to village ..." the screen may show
+        # the battle-end Return Home button — watch + tap BEFORE the switcher
+        # opens, or the hut tap lands on the battle-end screen.
+        print("[23] rotation-start Return Home watch")
+        real_pg23 = mv.popup_guard
+        saved23 = {n: getattr(mv, n) for n in
+                   ("switch_to_village", "CONFIG_PATH", "_raise_window_visible",
+                    "_capture_ready", "_sleep")}
+        try:
+            class _PG23:
+                calls = []
+                @staticmethod
+                def return_home_watch_tap(logger=None, timeout=40.0):
+                    _PG23.calls.append(timeout)
+                    return 0
+            mv.popup_guard = _PG23
+            mv.CONFIG_PATH = os.path.join(tmp, "mv23.json")
+            mv.save_config(base_config())
+            mv._state_loaded = False
+            mv._state.update({"current_village_idx": 1, "active_village_idx": 1,
+                              "last_switch_ts": 0.0})
+            mv.switch_to_village = lambda idx: True
+            mv._raise_window_visible = lambda: True
+            mv._capture_ready = lambda: True
+            mv._sleep = lambda s: None
+            mv.do_rotation(FakeCtx())
+            check("rotation start watches for the battle-end Return Home button",
+                  bool(_PG23.calls) and _PG23.calls[0] == 15.0, str(_PG23.calls))
+        finally:
+            mv.popup_guard = real_pg23
+            for n, fn in saved23.items():
+                setattr(mv, n, fn)
+
+        # --- 24. a verified switch marks the village confirmed ---------------
+        # 2026-11-21: rotation switches verified v3/v4/v6 live (identity ok +
+        # avatar 1.00) but `confirmed` was only set by the manual Apply — the
+        # "not confirmed yet" warning then fired forever for verified villages.
+        print("[24] verified switch -> village marked confirmed")
+        saved24 = {n: getattr(mv, n) for n in
+                   ("open_switcher", "_tap", "_selfcap", "_locate_scid_face",
+                    "_locate_account_row", "_sleep", "wait_home",
+                    "_dismiss_welcome_popups", "verify_village_identity",
+                    "_capture_home_snapshot", "_raise_window_visible",
+                    "_capture_ready", "_switch_left_home", "_close_scid_page",
+                    "_home_detected")}
+        try:
+            mv.CONFIG_PATH = os.path.join(tmp, "mv24.json")
+            cfg24 = base_config()
+            cfg24["coords"]["scid_switch_id"] = [1335, 375]
+            mv.save_config(cfg24)
+            mv.open_switcher = lambda: (True, (1.0, 0.0, 0.0))
+            mv._tap = lambda x, y: True
+            mv._selfcap = lambda: object()
+            mv._locate_scid_face = lambda cap, idx_, m, threshold=0.7: (1100, 700)
+            mv._sleep = lambda s: None
+            mv.wait_home = lambda timeout=180: True
+            mv._dismiss_welcome_popups = lambda rounds=10: None
+            mv._capture_home_snapshot = lambda idx: None
+            mv._raise_window_visible = lambda: True
+            mv._capture_ready = lambda: True
+            mv._home_detected = lambda: True
+            # identity VERIFIED (idx present in scores) -> confirmed set
+            mv.verify_village_identity = lambda idx, frame=None: (
+                True, (1, 35.0), {1: 35.0, 2: 12.0})
+            check("verified switch succeeds",
+                  mv.switch_to_village(2) is True)
+            cfg = mv.load_config()
+            check("identity-verified switch marks the village confirmed",
+                  mv.village(cfg, 2).get("confirmed") is True,
+                  str(mv.village(cfg, 2).get("confirmed")))
+            # pass-with-note (healed reference, landing unprovable) -> NO marking
+            cfg = mv.load_config()
+            mv.village(cfg, 2)["confirmed"] = False
+            mv.save_config(cfg)
+            mv.verify_village_identity = lambda idx, frame=None: (
+                True, None, {1: 35.0})
+            check("pass-with-note switch succeeds",
+                  mv.switch_to_village(2) is True)
+            cfg = mv.load_config()
+            check("pass-with-note does NOT mark confirmed",
+                  mv.village(cfg, 2).get("confirmed") is False,
+                  str(mv.village(cfg, 2).get("confirmed")))
+        finally:
+            for n, fn in saved24.items():
+                setattr(mv, n, fn)
     finally:
         mv.CONFIG_PATH = real_path
         mv.STATS_DIR = real_stats

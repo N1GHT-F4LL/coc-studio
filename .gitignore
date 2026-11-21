@@ -44,3 +44,6 @@ backend/data/calib_debug/
 
 # Per-village runtime counters (stats_v{idx}.json)
 backend/data/stats_v*.json
+
+# self-heal backups of corrupted MV identity references (originals already in git history)
+backend/data/multi_village/*.corrupt_*.bak

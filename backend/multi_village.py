@@ -36,6 +36,7 @@ import threading
 import time
 
 import app_paths
+import popup_guard
 from device_manager import manager
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,33 @@ INTERVAL_OPTIONS = {"30 minutes": 30, "1 hour": 60, "1.5 hours": 90, "2 hours": 
 SETTINGS_TAB_TEMPLATE = os.path.join(app_paths.ASSETS_DIR, "multi_village", "settings_tab.png")
 SETTINGS_TAB_THRESHOLD = 0.8
 SERIAL_FALLBACK = "127.0.0.1:21503"
+
+# --- popup-coverage gate (2026-11-21 incident) ------------------------------
+# Reward/welcome dialogs ("Welcome Back Chief!", "Raid Weekend Results", ...)
+# cover the home screen right after a switch. A frame with one up is MEANINGLESS
+# as an identity reference — the 2026-11-21 cascade: 7 of 9 home_v*.png
+# references were popup-covered frames, so every genuinely-successful switch
+# failed verify_village_identity ("WRONG VILLAGE") and the whole rotation died.
+# Detector = template match (vision scale sweep) of the green Okay button
+# (bottom band — these dialogs all sit their button there) OR the generic
+# popup X. Measured on the 9 real references: covered frames score
+# okay>=0.60 / close>=0.81; clean home frames <=0.42 / <=0.54.
+POPUP_OKAY_KEY = "buttons/battle/okay"
+POPUP_CLOSE_KEY = "buttons/popup/btn_close"
+POPUP_OKAY_GATE = 0.52
+POPUP_CLOSE_GATE = 0.65
+POPUP_BAND_Y = 500          # okay buttons live in the bottom band (y >= this)
+# Identity decision margin: the expected village's snapshot must beat the best
+# other by at least this much (same-village re-visit noise is ~2-5; different
+# villages sit 30+ apart on the 160x90 signature).
+IDENTITY_MARGIN = 3.0
+# After the SCID row tap the switch must ACTUALLY start before wait_home may
+# trust adb: while the FLAG_SECURE overlay is open, screencap shows the OLD
+# village beneath it, so wait_home "verified home" instantly on every silently
+# failed switch (2026-11-21). Evidence of a real switch = the adb frame changes
+# decisively (overlay closes -> game loading screen).
+SWITCH_START_TIMEOUT = 25.0
+SWITCH_START_DIFF = 15.0
 
 user32 = ctypes.windll.user32
 
@@ -129,6 +157,13 @@ def enabled_villages(cfg):
 
 
 def get_state():
+    """Runtime state snapshot — lazily restores the persisted
+    current_village_idx/last_switch_ts FIRST, so a fresh backend never
+    "assumes" the first enabled village while the game is actually on
+    another one (2026-11-21: the restart after the chest incident re-assumed
+    village 3 over a persisted village 6; the settings-verify mismatch then
+    burned a corrective switch every restart)."""
+    _load_runtime_state()
     with _lock:
         return dict(_state)
 
@@ -298,6 +333,23 @@ def _find_memu_window():
     return hwnd, (rect.left, rect.top, rect.right, rect.bottom)
 
 
+def _window_is_top(hwnd):
+    """True when the point at the window's centre hits ``hwnd`` (or a child of
+    it — the game renders in a child window). Read-only probe
+    (WindowFromPoint — no input injection, no focus change)."""
+    import ctypes.wintypes as wt
+    try:
+        rect = wt.RECT()
+        if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            return False
+        cx = (rect.left + rect.right) // 2
+        cy = (rect.top + rect.bottom) // 2
+        top = user32.WindowFromPoint(wt.POINT(cx, cy))
+        return bool(top) and (top == hwnd or user32.IsChild(hwnd, top))
+    except Exception:
+        return True   # cannot probe — keep the old lenient behaviour
+
+
 def _raise_window_visible():
     """Make sure the MEmu window is UNCOVERED for the desktop self-capture —
     WITHOUT touching keyboard focus. HARD RULE since 2026-11-17: this module
@@ -307,7 +359,19 @@ def _raise_window_visible():
     needs the window on TOP (visible pixels), not FOCUSED: a TOPMOST bump
     raises it above everything with SWP_NOACTIVATE (focus stays wherever the
     user is typing), and the immediate NOTOPMOST returns it to the normal
-    z-band so other windows can still cover it afterwards."""
+    z-band so other windows can still cover it afterwards.
+
+    Returns True when MEmu verifies UNCOVERED (probe first — a bumped-over
+    window is not needed when nothing covers the game), False only when the
+    game is genuinely covered AND the raise did not land: MEmu runs ELEVATED,
+    so UIPI silently refuses our SetWindowPos and whatever covers the game
+    stays on top (2026-11-21 01:18: the backend's auto-opened browser sat
+    over MEmu, every switch's mapping derivation then matched the BROWSER
+    (0/5 regions) and all four villages failed the window). NOTE: UIPI
+    refuses SetWindowPos on an elevated window even when it is NOT covered —
+    the bump's return value alone is never a failure signal; only the
+    on-top probe decides. Callers treat False like the minimized case: fail
+    the window fast with guidance instead of burning restarts."""
     hwnd, _rect = _find_memu_window()
     if hwnd is None:
         return False
@@ -325,13 +389,22 @@ def _raise_window_visible():
         while user32.IsIconic(hwnd) and time.time() < deadline:
             time.sleep(0.3)
         time.sleep(1.0)              # let the restore animation settle
+    if _window_is_top(hwnd):
+        return True                  # already uncovered — no bump needed
     SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE = 0x0001, 0x0002, 0x0010
     HWND_TOPMOST, HWND_NOTOPMOST = -1, -2
-    user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-    user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-    return True
+    flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+    user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
+    user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags)
+    if _window_is_top(hwnd):
+        return True                  # the bump raised it (non-elevated MEmu)
+    logger.error(
+        "[MV] MEmu window CANNOT be raised above what covers it (something is "
+        "on top of the game view and SetWindowPos is refused - MEmu runs "
+        "ELEVATED, UIPI silently blocks our raise). Move/un-cover the MEmu "
+        "window, or de-elevate MEmu (tray Exit + shortcut uncheck 'Run as "
+        "administrator'); the next rotation window retries.")
+    return False
 
 
 def _selfcap():
@@ -568,6 +641,9 @@ def open_switcher():
         logger.error("[MV] scid_hut/settings_tab/swap_button not calibrated")
         return False, None
     logger.info("[MV] opening switcher: hut %s -> settings tab %s", hut, tab)
+    # The chest overlay can pop between the previous cycle's checks and this
+    # tap (late award animation) — clear it or every tap lands on the event.
+    _clear_chest_overlay_if_up()
     if not _tap(*hut):
         return False, None
     _sleep(2.5)
@@ -575,8 +651,20 @@ def open_switcher():
         return False, None
     _sleep(1.5)
     if not _verify_settings_panel():
-        close_settings()
-        return False, None
+        # 2026-11-21 cascade: a leftover reward dialog from the PREVIOUS
+        # switch blocked the hut tap and every later village was excluded
+        # on the spot. Sweep (home-gated — a still-open FLAG_SECURE overlay
+        # is never swept blindly) and retry the hut->tab prefix once.
+        _sweep_popups_if_home()
+        if not _tap(*hut):
+            return False, None
+        _sleep(2.5)
+        if not _tap(*tab):
+            return False, None
+        _sleep(1.5)
+        if not _verify_settings_panel():
+            close_settings()
+            return False, None
     # derive the desktop->device mapping HERE: the settings panel is
     # adb-visible, so the adb frame and the desktop self-capture show the
     # same screen — the mapping then holds for the FLAG_SECURE pages beyond.
@@ -604,13 +692,18 @@ def open_switcher():
     return True, mapping
 
 
+def _norm_name(a):
+    """Normalized account name for matching: lowercase, alphanumerics only."""
+    import re as _re
+    return _re.sub(r'[^a-z0-9]', '', str(a).lower())
+
+
 def _name_similarity(a, b):
     """Fuzzy account-name match: normalization + exact-containment + ratio.
     OCR noise ('you nokw' for 'you know') must still match."""
     import difflib
-    import re as _re
-    na = _re.sub(r'[^a-z0-9]', '', str(a).lower())
-    nb = _re.sub(r'[^a-z0-9]', '', str(b).lower())
+    na = _norm_name(a)
+    nb = _norm_name(b)
     if not na or not nb:
         return 0.0
     if na == nb or na in nb or nb in na:
@@ -770,25 +863,43 @@ def _locate_scid_face(cap, idx, mapping, threshold=0.7):
     g = cv2.cvtColor(cap, cv2.COLOR_BGR2GRAY) if cap.ndim == 3 else cap
     res = cv2.matchTemplate(g, tpl, cv2.TM_CCOEFF_NORMED)
     _, best, _, ml = cv2.minMaxLoc(res)
-    logger.warning("[DEBUG scid] best=%.3f ml=%s tpl=%s", best, ml, tpl.shape if tpl is not None else None)
     if best < threshold:
         return None
     th, tw = tpl.shape[:2]
     scale, ox, oy = mapping
     dx = (ml[0] + tw // 2 - ox) / scale
     dy = (ml[1] + th // 2 - oy) / scale
-    logger.warning("[DEBUG scid] dx=%.1f dy=%.1f guard=%s", dx, dy, 900 <= dx <= 1550 and 150 <= dy <= 880)
     if not (900 <= dx <= 1550 and 150 <= dy <= 880):
+        # a match outside the row column is the SCID page's "current account"
+        # banner (top-left) or a mapping/coordinate bug — never tapped. Keep
+        # the frame for post-mortem instead of guessing blind.
         logger.warning("[MV] scid face for village %s matched at implausible device "
                        "point (%.0f, %.0f) — ignored (row column is x900-1550).", idx, dx, dy)
+        try:
+            os.makedirs(r'calib', exist_ok=True)
+            cv2.imwrite(os.path.join('calib', f'mv_scid_reject_{idx}.png'), cap)
+        except Exception:
+            pass
         return None
     return (int(dx), int(dy))
 
 
-def _locate_account_row(cap, target_name, mapping, min_sim=0.6):
+def _locate_account_row(cap, target_name, mapping, min_sim=0.6, other_names=()):
     """Find the target account's tap point on a SCID page self-capture.
-    Returns (device_x, device_y, matched_name, similarity) or None."""
+    Returns (device_x, device_y, matched_name, similarity) or None.
+
+    2026-11-21: an EXACT normalized match wins immediately. The fuzzy
+    fallback REFUSES a row whose name is (near-)exactly ANOTHER village's
+    name — the old containment rule scored 'nghia' vs 'Nghiays' at 1.00 and
+    tapped village 2's row when switching to village 5 (a real wrong-village
+    switch). Refused rows make the caller scroll on / abort cleanly."""
     rows, _term = _ocr_scid_accounts(cap, mapping)
+    tnorm = _norm_name(target_name)
+    if not tnorm:
+        return None
+    for dx, dy, name in rows:
+        if _norm_name(name) == tnorm:
+            return dx, dy, name, 1.0
     best = None
     for dx, dy, name in rows:
         sim = _name_similarity(target_name, name)
@@ -796,39 +907,269 @@ def _locate_account_row(cap, target_name, mapping, min_sim=0.6):
             best = (name, dx, dy, sim)
     if best is None or best[3] < min_sim:
         return None
+    bnorm = _norm_name(best[0])
+    for other in other_names:
+        onorm = _norm_name(other)
+        if not onorm or onorm == tnorm:
+            continue
+        if bnorm == onorm or _name_similarity(best[0], other) > best[3] + 0.05:
+            logger.warning(
+                "[MV] OCR row %r also matches village %r — ambiguous, not tapping.",
+                best[0], other)
+            return None
     return best[1], best[2], best[0], best[3]
 
 
+def _frame_popup_scores(frame):
+    """(okay_score, close_score) — template match of the green Okay button
+    (searched in the bottom band where these dialogs sit it) and the generic
+    popup X, using the vision scale sweep. (0.0, 0.0) when nothing can be
+    matched. Never raises."""
+    import cv2
+    from core.vision import vision as _vision, DEFAULT_MATCH_SCALES
+    if frame is None:
+        return 0.0, 0.0
+    try:
+        g = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if frame.ndim == 3 else frame
+        out = []
+        for key, band in ((POPUP_OKAY_KEY, POPUP_BAND_Y), (POPUP_CLOSE_KEY, 0)):
+            tpl = _vision.cache.get(key)
+            if tpl is None:
+                out.append(0.0)
+                continue
+            g2 = g
+            if band:
+                g2 = g.copy()
+                g2[:band, :] = 0   # confine the search to the bottom band
+            best = 0.0
+            for s in DEFAULT_MATCH_SCALES:
+                nh, nw = int(tpl.shape[0] * s), int(tpl.shape[1] * s)
+                if nh < 8 or nw < 8 or nh > g2.shape[0] or nw > g2.shape[1]:
+                    continue
+                t = tpl if s == 1.0 else cv2.resize(
+                    tpl, (nw, nh), interpolation=cv2.INTER_AREA)
+                res = cv2.matchTemplate(g2, t, cv2.TM_CCOEFF_NORMED)
+                best = max(best, float(cv2.minMaxLoc(res)[1]))
+            out.append(best)
+        return out[0], out[1]
+    except Exception:
+        return 0.0, 0.0
+
+
+def _frame_clean(frame):
+    """True when NO reward/welcome dialog covers the frame (popup-coverage
+    gate — thresholds calibrated on the 9 real references, see the constants)."""
+    okay, close = _frame_popup_scores(frame)
+    if okay >= POPUP_OKAY_GATE or close >= POPUP_CLOSE_GATE:
+        logger.info("[MV] frame is popup-covered (okay %.2f >= %.2f or close %.2f >= %.2f).",
+                    okay, POPUP_OKAY_GATE, close, POPUP_CLOSE_GATE)
+        return False
+    return True
+
+
+def _home_detected():
+    """Strict home-village check on a fresh adb frame (None when there is no
+    device session)."""
+    from screens.home_screen import HomeScreen
+    ui = manager.ui_manager
+    if ui is None:
+        return False
+    try:
+        return HomeScreen(ui).is_current_screen()
+    except Exception:
+        return False
+
+
+def _clear_chest_overlay_if_up():
+    """The full-screen treasure-chest event can pop AFTER return_home's own
+    check (the chest-award animation finishes late) — landing right on top of
+    the village just as the rotation starts. Every switcher tap then lands on
+    the event screen and the whole rotation window dies on "panel NOT open"
+    (2026-11-21 01:05: all four villages failed one window this way — the same
+    root cause as the morning's village-6 instant exclusion). Detect the
+    overlay by its Skip anchor and smash the chests in place first. No-op
+    when the overlay is not up."""
+    try:
+        frame = _screencap()
+        if frame is None or not popup_guard.treasure_chest_visible(frame):
+            return False
+        logger.warning("[MV] treasure-chest event screen up — smashing chests in "
+                       "place before the switch.")
+        popup_guard.smash_treasure_chests(logger)
+        return True
+    except Exception as e:
+        logger.warning("[MV] chest-overlay pre-clear failed: %s", e)
+        return False
+
+
+def _sweep_popups_if_home():
+    """Sweep blocking dialogs, but ONLY when the adb frame verifies as the home
+    village. A still-open FLAG_SECURE overlay shows the old village beneath —
+    sweeping then could tap THROUGH the overlay at template positions. The
+    treasure-chest overlay is handled FIRST (its own Skip-anchor gate; the
+    smash taps land on the event screen itself — safe)."""
+    if _clear_chest_overlay_if_up():
+        return True
+    if _home_detected():
+        _dismiss_welcome_popups()
+        return True
+    return False
+
+
 def _capture_home_snapshot(idx):
-    """Persist home_v{idx}.png once (the identity reference for later switches)."""
+    """Persist home_v{idx}.png once (the identity reference for later switches).
+
+    2026-11-21: only a CLEAN frame is accepted — the old code wrote whatever
+    was on screen, and the auto-pass first switch baked popup-covered frames
+    ("Welcome Back Chief!" / "Raid Weekend Results") in as permanent identity
+    references, which then failed every later switch."""
     os.makedirs(MV_DIR, exist_ok=True)
     path = os.path.join(MV_DIR, f"home_v{idx}.png")
     if os.path.isfile(path):
         return
-    frame = _screencap()
-    if frame is not None:
+    for _attempt in range(3):
+        frame = _screencap()
+        if frame is None:
+            _sleep(1.0)
+            continue
+        if not _home_detected():
+            logger.warning("[MV] home snapshot for village %s deferred — not on the "
+                           "home village.", idx)
+            return
+        if not _frame_clean(frame):
+            logger.warning("[MV] home snapshot for village %s blocked by a dialog — "
+                           "sweeping and retrying.", idx)
+            _dismiss_welcome_popups()
+            continue
         import cv2
         cv2.imwrite(path, frame)
         logger.info("[MV] home snapshot saved: home_v%s.png", idx)
+        return
+    logger.warning("[MV] home snapshot for village %s NOT saved — the screen never "
+                   "went clean within 3 attempts.", idx)
 
 
-def _dismiss_welcome_popups(rounds=4):
-    """After a switch, 'Welcome Back Chief!' / reward dialogs cover the home
-    screen behind a green Okay button. Locate the button by its battle-tested
-    okay.png TEMPLATE — a colour-blob search false-positives on the village
-    grass (measured 2026-11-15: four blind taps hit the map)."""
-    from core.vision import vision as _vision
-    for _ in range(rounds):
+def _dismiss_welcome_popups(rounds=10):
+    """After a switch, sequential reward/welcome dialogs cover the home screen
+    ("Welcome Back Chief!", "Raid Weekend Results", ...). Each round taps the
+    dialog's green Okay when found, else its X button; stops the moment a
+    round finds neither (clean home).
+
+    2026-11-21 incident fixes, both measured on the corrupted references:
+      - the old loop tapped okay.png at threshold 0.7, but the welcome
+        dialogs' Okay matches that asset at only ~0.62 (different size than
+        the battle Okay) — it NEVER tapped them, and the popup-covered frame
+        was then baked in as the village's identity reference;
+      - "Raid Weekend Results" has NO Okay at all (Back/Next/X), so an
+        okay-only sweep could never clear it;
+      - 4 rounds were not enough for the sequential popup chains.
+    The tap thresholds come from the reference calibration (clean home
+    frames top out at 0.42 / 0.54 — a tap only fires on a real dialog)."""
+    for _ in range(int(rounds)):
         frame = _screencap()
         if frame is None:
+            _sleep(1.0)
+            continue
+        import cv2
+        from core.vision import vision as _vision, DEFAULT_MATCH_SCALES
+        g = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if frame.ndim == 3 else frame
+
+        def _best(key, band):
+            tpl = _vision.cache.get(key)
+            if tpl is None:
+                return 0.0, None
+            g2 = g
+            if band:
+                g2 = g.copy()
+                g2[:band, :] = 0
+            best = (0.0, None)
+            for s in DEFAULT_MATCH_SCALES:
+                nh, nw = int(tpl.shape[0] * s), int(tpl.shape[1] * s)
+                if nh < 8 or nw < 8 or nh > g2.shape[0] or nw > g2.shape[1]:
+                    continue
+                t = tpl if s == 1.0 else cv2.resize(
+                    tpl, (nw, nh), interpolation=cv2.INTER_AREA)
+                res = cv2.matchTemplate(g2, t, cv2.TM_CCOEFF_NORMED)
+                _, mv_, _, ml = cv2.minMaxLoc(res)
+                if mv_ > best[0]:
+                    best = (float(mv_), (ml[0] + nw // 2, ml[1] + nh // 2))
+            return best
+
+        okay_score, okay_loc = _best(POPUP_OKAY_KEY, POPUP_BAND_Y)
+        if okay_score >= POPUP_OKAY_GATE and okay_loc is not None:
+            logger.info("[MV] dismissing Okay dialog at %s (conf %.2f)...",
+                        okay_loc, okay_score)
+            _tap(*okay_loc)
+            _sleep(2.0)
+            continue
+        close_score, close_loc = _best(POPUP_CLOSE_KEY, 0)
+        if close_score >= POPUP_CLOSE_GATE and close_loc is not None:
+            logger.info("[MV] dismissing X-close popup at %s (conf %.2f)...",
+                        close_loc, close_score)
+            _tap(*close_loc)
+            _sleep(1.5)
+            continue
+        return True   # a round found nothing dismissable — the screen is clean
+    logger.warning("[MV] popup sweep exhausted %d rounds — dialogs may remain.", rounds)
+    return False
+
+
+def _switch_left_home(timeout=SWITCH_START_TIMEOUT):
+    """Gate between the SCID row tap and wait_home: the switch must ACTUALLY
+    start. While the FLAG_SECURE SCID overlay is open, adb screencap shows the
+    OLD village beneath it — wait_home would instantly "verify home" on every
+    silently-failed switch (row tap did nothing / a confirm dialog is up) and
+    the identity check would then judge a stale frame (2026-11-21 incident).
+
+    Evidence that the switch started = the adb frame CHANGES decisively
+    (the overlay closes and the game shows its loading screen): signature
+    diff >= SWITCH_START_DIFF vs the pre-tap frame, or the home anchors
+    vanishing. Returns False (failed switch) when the frame stays unchanged
+    home for ``timeout`` seconds. Unobservable (no session / no frame) ->
+    True — wait_home keeps its old behaviour."""
+    ui = manager.ui_manager
+    if ui is None:
+        return True
+    base = _screencap()
+    if base is None:
+        return True
+    import numpy as np
+    base_sig = _village_signature(base)
+    was_home = _home_detected()
+    deadline = time.time() + float(timeout)
+    while time.time() < deadline:
+        if getattr(ui, "_stopped", lambda: False)():
+            return False
+        frame = _screencap()
+        if frame is not None:
+            diff = float(np.mean(np.abs(_village_signature(frame) - base_sig)))
+            if diff >= SWITCH_START_DIFF:
+                logger.info("[MV] switch started (frame changed, diff %.1f).", diff)
+                return True
+            if was_home and not _home_detected():
+                return True
+        _sleep(1.0)
+    logger.error("[MV] switch did NOT start within %.0fs (SCID overlay still up "
+                 "or the row tap did nothing) — treating as a failed switch.", timeout)
+    return False
+
+
+def _close_scid_page():
+    """Best-effort close of an open SCID page after a failed locate / switch
+    start: tap the calibrated close X (coords.scid_close_x). The overlay
+    intercepts injected taps, so this works even though adb cannot SEE the
+    page. Never raises; never presses BACK."""
+    try:
+        cx = load_config().get("coords", {}).get("scid_close_x")
+        if not cx:
+            logger.warning("[MV] scid_close_x not calibrated — cannot close the "
+                           "SCID page; the next attempt's restart will clean up.")
             return
-        okay = _vision.find_template(frame, 'buttons/battle/okay',
-                                     threshold=0.7, use_orb_fallback=False)
-        if okay is None:
-            return
-        logger.info("[MV] dismissing green-button dialog at %s...", okay)
-        _tap(*okay)
-        time.sleep(2.0)
+        logger.info("[MV] closing the SCID page via X %s.", tuple(cx))
+        _tap(int(cx[0]), int(cx[1]))
+        _sleep(1.5)
+    except Exception as e:
+        logger.warning("[MV] SCID page close failed: %s", e)
 
 
 def _village_signature(frame):
@@ -844,9 +1185,17 @@ def verify_village_identity(idx, frame=None):
     """Wrong-village safeguard: the post-switch home frame must resemble THIS
     village's home_v{idx}.png snapshot more than any OTHER village's snapshot.
 
-    Returns (ok, best_other, scores). Missing snapshot for idx -> (True, None,
-    scores) — the first visit cannot be checked (and its snapshot is captured
-    right after by the caller)."""
+    Popup-corrupted references (2026-11-21 incident: 7/9 references were
+    "Welcome Back Chief!" / "Raid Weekend Results" frames, so every correct
+    switch failed) are EXCLUDED from scoring; the expected village's corrupted
+    reference is additionally renamed to *.corrupt_*.bak so the caller's
+    _capture_home_snapshot writes a clean one on this very visit (self-heal —
+    no manual file surgery needed). Popup-covered "other" references are only
+    skipped, not renamed (each village heals on its own next visit).
+
+    Returns (ok, best_other, scores). Missing/unusable snapshot for idx ->
+    (True, None, scores) — the landing cannot be proven either way this visit.
+    """
     import cv2
     import glob
     import numpy as np
@@ -865,21 +1214,36 @@ def verify_village_identity(idx, frame=None):
         ref = cv2.imread(path)
         if ref is None:
             continue
+        if not _frame_clean(ref):
+            logger.warning("[MV] identity reference home_v%s.png is popup-covered "
+                           "(corrupted 2026-11-21-style) — excluded from scoring.", j)
+            if j == idx:
+                backup = f"{path}.corrupt_{time.strftime('%Y%m%d_%H%M%S')}.bak"
+                try:
+                    os.replace(path, backup)
+                    logger.warning("[MV] corrupted reference moved to %s — a clean one "
+                                   "is captured right after this check (self-heal).", backup)
+                except OSError as e:
+                    logger.warning("[MV] could not move the corrupted reference: %s", e)
+            continue
         scores[j] = float(np.mean(np.abs(cur - _village_signature(ref))))
     if idx not in scores and not scores:
         return True, None, scores
     expected = scores.get(idx)
     others = {j: s for j, s in scores.items() if j != idx}
     if expected is None:
-        # no snapshot for the expected village yet — but another village's
-        # snapshot exists: cannot prove identity, pass with a note
-        logger.info("[MV] identity check: no snapshot for village %s yet.", idx)
+        # no usable snapshot for the expected village (first visit, or the
+        # corrupted reference was just healed) — cannot prove identity
+        logger.info("[MV] identity check: no usable snapshot for village %s "
+                    "(first visit or healed reference).", idx)
         return True, None, scores
     best_other = min(others.items(), key=lambda kv: kv[1]) if others else None
-    if best_other is not None and expected >= best_other[1]:
+    if best_other is not None and expected > best_other[1] - IDENTITY_MARGIN:
         logger.error(
-            "[MV] WRONG VILLAGE — landed on %s (other-score %.1f vs expected %.1f).",
-            best_other[0], best_other[1], expected)
+            "[MV] WRONG VILLAGE — landed on %s (other-score %.1f vs expected %.1f; "
+            "all: %s).",
+            best_other[0], best_other[1], expected,
+            {j: round(s, 1) for j, s in sorted(scores.items())})
         return False, best_other, scores
     logger.info("[MV] identity check ok: village %s (diff %.1f vs other %.1f).",
                 idx, expected, best_other[1] if best_other else -1.0)
@@ -942,18 +1306,28 @@ def switch_to_village(idx):
         if c.get("scid_switch_id") is None:
             logger.error("[MV] scid_switch_id not calibrated — cannot switch.")
             return False
-        _raise_window_visible()
-        if not _capture_ready():
-            logger.error("[MV] switch aborted: the MEmu window cannot be captured "
-                         "— it is minimized and Windows refuses our restore "
-                         "(MEmu runs ELEVATED; UIPI blocks us). Un-minimize the "
-                         "MEmu window, or run start.ps1 as administrator.")
+        raised = _raise_window_visible()
+        if not raised or not _capture_ready():
+            # _raise_window_visible already logged its precise reason on False
+            if raised:
+                logger.error("[MV] switch aborted: the MEmu window cannot be captured "
+                             "— it is minimized and Windows refuses our restore "
+                             "(MEmu runs ELEVATED; UIPI blocks us). Un-minimize the "
+                             "MEmu window, or run start.ps1 as administrator.")
             return False
         v = village(cfg, idx)
         target = (v or {}).get("name")
         if not target:
             logger.error("[MV] village %s has no account name — cannot switch.", idx)
             return False
+        # every OTHER village's account name — the OCR fallback refuses a fuzzy
+        # row that (near-)equals one of these (the 'nghia' vs 'Nghiays' incident)
+        other_names = {
+            str(o.get("name") or "").strip()
+            for o in cfg.get("villages", [])
+            if o.get("idx") != idx and o.get("name")
+        }
+        other_names.discard("")
         ok, mapping = open_switcher()
         if not ok:
             return False
@@ -977,7 +1351,7 @@ def switch_to_village(idx):
                 _tap(*face_loc)
                 tapped = True
                 break
-            hit = _locate_account_row(cap, target, mapping)
+            hit = _locate_account_row(cap, target, mapping, other_names=other_names)
             if hit is None:
                 _swipe(1300, 600, 350)   # reveal accounts further down
                 _sleep(1.8)
@@ -1001,20 +1375,45 @@ def switch_to_village(idx):
         if not tapped:
             logger.error("[MV] account %r not found on the SCID list after "
                          "10 scans — switch aborted.", target)
+            _close_scid_page()   # the list page is still open — close it
             return False
         _sleep(3.0)
+        # 2026-11-21: prove the switch STARTED before trusting adb — beneath
+        # the FLAG_SECURE overlay wait_home only sees the OLD village and
+        # "verifies" instantly on a silently-failed switch.
+        if not _switch_left_home():
+            _close_scid_page()
+            return False
         ok = wait_home()
         if not ok:
             logger.warning("[MV] switch to village %s FAILED (no verified home).", idx)
             return False
         _dismiss_welcome_popups()
-        ident_ok, best_other, _ = verify_village_identity(idx)
+        ident_ok, best_other, ident_scores = verify_village_identity(idx)
         if not ident_ok:
             logger.error("[MV] switch to village %s landed on the WRONG account "
                          "(looks like %s) — treating as a failed switch.",
                          idx, best_other[0] if best_other else "?")
+            # 2026-11-21 cascade lesson: leave the dialogs up and the NEXT
+            # village's switcher dies on them (its hut tap hits the popup).
+            _dismiss_welcome_popups()
             return False
         _capture_home_snapshot(idx)
+        if idx in ident_scores:
+            # the identity check actually VERIFIED this landing (a healed
+            # reference passes with a note instead — that visit cannot prove
+            # identity, so it must not mark the village confirmed). This makes
+            # a successful rotation switch count as verification, exactly like
+            # the manual Apply does — otherwise the "not confirmed yet"
+            # warning fires forever for villages the rotation itself verified
+            # (2026-11-21: v3/v4/v6 were verified live but never marked).
+            cfg = load_config()
+            v = village(cfg, idx)
+            if v is not None and not v.get("confirmed"):
+                v["confirmed"] = True
+                save_config(cfg)
+                logger.info("[MV] village %s marked confirmed (identity verified "
+                            "by the switch itself).", idx)
         return True
     except Exception as e:
         logger.warning("[MV] switch_to_village(%s) failed: %s", idx, e)
@@ -1127,13 +1526,15 @@ def do_rotation(ctx):
         return 0
     with _lock:
         _state["last_switch_ts"] = time.time()   # one attempt window per interval
-    _raise_window_visible()
-    if not _capture_ready():
-        # host-side precondition — a game restart CANNOT fix a minimized,
-        # UIPI-protected window. Fail the window fast, no restart, no retry.
-        logger.error("[MV] rotation aborted this window: the MEmu window cannot "
-                     "be captured (minimized + MEmu runs elevated). Un-minimize "
-                     "MEmu, or run start.ps1 as administrator.")
+    raised = _raise_window_visible()
+    if not raised or not _capture_ready():
+        # host-side precondition — a game restart CANNOT fix a covered,
+        # minimized, or UIPI-protected window. Fail the window fast, no
+        # restart, no retry (the covered case logged its precise reason).
+        if raised:
+            logger.error("[MV] rotation aborted this window: the MEmu window cannot "
+                         "be captured (minimized + MEmu runs elevated). Un-minimize "
+                         "MEmu, or run start.ps1 as administrator.")
         return None
     enabled = enabled_villages(cfg)
     excluded = set()
@@ -1153,6 +1554,12 @@ def do_rotation(ctx):
             logger.error("[MV] no enabled+confirmed village left to rotate to.")
             return None
         logger.info("[MV] rotating to village %s (%s)...", idx, v.get("name"))
+        # User directive 2026-11-21: immediately after the rotation starts, the
+        # game may sit on a battle-end 'Return Home' screen (a previous cycle's
+        # wait/switch left it behind) — detect the button and tap it BEFORE the
+        # switcher opens, or the hut tap lands on the battle-end screen. The
+        # watch ends at once when the village screen is already up.
+        popup_guard.return_home_watch_tap(logger, timeout=15.0)
         note_switch(idx)
         if switch_to_village(idx):
             _commit()

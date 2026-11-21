@@ -566,7 +566,7 @@ USER capture qua Assets tab; agent chỉ wire logic.
 
 ## 9. Tests + trạng thái
 
-Tổng ~293 checks: engine 45 · MV 40 · loot 19 · pattern 54 · popup 64 · tiers 36 ·
+Tổng ~340 checks: engine 45 · MV 67 · loot 19 · pattern 54 · popup 64 · tiers 36 ·
 glow 35 · zoom 20 · composition OK. Commit gần nhất: 303792b; phầnNOPROGRESS/
 chest-smash/verify-folder đang uncommitted (coc_blocks.py + battle_screen.py +
 attack_screen.py + train_screen.py + assets_api.py + tests + assets/units/verify).
@@ -577,3 +577,102 @@ attack_screen.py + train_screen.py + assets_api.py + tests + assets/units/verify
   đo trên banner thật; [GLOW-DIAG] drift review; rate-limiter live check.
 - MEmu de-elevated (user option 3) — xác nhận lại switch round-trip dưới quyền thường.
 - GPU driver ổn định (2 TDR trước đó).
+
+## 11. Incident 2026-11-21 — MV rotation cascade "WRONG VILLAGE" (ĐÃ FIX, verify e2e live 3 rotation)
+
+Triệu chứng: rotation switch sang làng nào cũng bị "[MV] WRONG VILLAGE" → mọi
+village bị exclude → cả window fail. Chẩn đoán trên dữ liệu thật:
+
+- **Gốc rễ — identity reference bị hỏng vĩnh viễn**: 7/9 `home_v*.png` là frame bị
+  popup phủ ("Raid Weekend Results" / "Welcome Back Chief!"). Cơ chế: `_capture_home_snapshot`
+  chụp frame bất kỳ ngay sau sweep cũ (chỉ tap `okay.png` @0.7 — Welcome-Okay chỉ match
+  0.62; Raid-Weekend không có Okay) + first-switch auto-pass khi chưa có snapshot → frame
+  rác được bake thành reference vĩnh viễn. Mọi switch ĐÚNG (v3/v4 hôm đó thực sự thành
+  công — face v4 match 0.975 trên banner "current account" sau restart) đều fail identity.
+- **Bug OCR name-collision**: containment cho `'nghia'` vs `'Nghiays'` sim 1.00 → tap
+  nhầm hàng làng 2 khi switch sang làng 5 (landing sai THẬT).
+- **wait_home false-positive**: dưới overlay FLAG_SECURE adb thấy làng CŨ → "home
+  verified" tức thì trên frame stale khi switch fail âm thầm.
+
+Fix trong `multi_village.py` (mỗi cái có test trong tests/test_multi_village.py [14]-[19]):
+
+1. `_frame_popup_scores`/`_frame_clean` — gate popup phủ (okay band y>=500 @0.52 /
+   btn_close @0.65, hiệu chuẩn trên 9 reference thật: rác 0.60/0.81 vs sạch 0.42/0.54).
+2. Sweep mới `_dismiss_welcome_popups`: tap Okay @0.52 (band) HOẶC X @0.65, tối đa 10
+   vòng, dừng khi sạch; chạy sau mỗi switch (kể cả fail) + trong `open_switcher` retry.
+3. `_capture_home_snapshot` chỉ ghi frame SẠCH + home thật (3 lần thử).
+4. `verify_village_identity` TỰ CHỮA: reference của làng expected bị popup phủ → rename
+   `*.corrupt_*.bak` + pass-with-note → snapshot sạch được tái tạo ngay lần thăm đó
+   (không cần xoá tay); reference rác của làng khác bị loại khỏi scoring; thêm margin
+   3.0 + log TOÀN BỘ scores khi fail.
+5. `_locate_account_row`: exact-normalized match thắng ngay; fuzzy bị TỪ CHỐI khi hàng
+   (gần-)trùng tên làng khác (`other_names`).
+6. `_switch_left_home` gate: sau row tap phải thấy frame adb ĐỔI (loading) trong 25s
+   trước khi wait_home; không → switch fail sạch + `_close_scid_page` (tap scid_close_x).
+7. Face guard-reject giờ lưu frame `calib/mv_scid_reject_<idx>.png` hậu kỳ; bỏ 2 dòng
+   `[DEBUG scid]`.
+
+Lưu ý vận hành: KHÔNG cần xoá snapshot tay — lần rotate đầu tới mỗi làng sẽ tự heal
+(watch log "corrupted reference moved to ..."). Nếu sau heal vẫn WRONG VILLAGE với
+reference SẠCH → landing sai thật, xem all-scores trong log identity.
+
+### Verify e2e live (đêm 21-11, device thật) + 3 fix phát hiện thêm
+
+Chạy `dragon_balloon_loop` qua WS monitor (`calib/e2e_monitor.py`, scratch): v3→v4→v5
+switch sạch, refs v4/v5/v6 tự heal, avatar verify conf 1.00 mỗi làng, OCR refuse hàng
+'Nghiays' 2 lần khi target 'nghia' (ambiguity guard) rồi SCID face tìm đúng hàng.
+3 issue mới phát hiện + fix (tests [20]-[22], MV suite 77/77):
+
+1. **Chest overlay pop SAU khi return_home/treasure_event đã kiểm tra** (animation trao
+   rương trễ) → đè làng đúng lúc rotation → "panel NOT open" → cả 4 làng fail 1 window
+   (đây cũng là nguyên nhân THẬT của failure village 6 sáng 07:44). Fix: `_clear_chest_overlay_if_up`
+   (Skip-anchor gate → smash tại chỗ) chạy đầu `open_switcher` + trong sweep path.
+2. **`get_state()` không restore runtime state trước lần dùng đầu** → backend restart
+   luôn re-assume làng đầu enabled thay vì làng đã persist (tốn 1 corrective switch mỗi
+   restart). Fix: `get_state()` gọi `_load_runtime_state()` (idempotent).
+3. **Covered MEmu + ELEVATED = cả window chết âm thầm**: browser auto-open của start.ps1
+   phủ MEmu; TOPMOST bump bị UIPI refuse (SetWindowPos trả 0 — kể cả khi KHÔNG bị phủ);
+   self-capture thấy browser → mapping 0/5 → 4 làng fail. Fix: `_raise_window_visible`
+   VERIFY bằng WindowFromPoint (đã uncovered → True ngay, bất kể bump; chỉ fail khi
+   thật sự bị phủ mà bump không đủ) + `_window_is_top` helper; switch/do_rotation
+   fail-fast với hướng dẫn chính xác thay vì đốt restart. **UIPI + MEmu elevated:
+   de-elevate MEmu (option 3) giờ là BẮT BUỘC để bot chịu được desktop bận.**
+
+Kiến nghị vận hành: launch backend với `COC_OPEN_BROWSER=0` khi bot đang farm (browser
+auto-open phủ MEmu = chết rotation window).
+
+## 12. Directive 2026-11-21 — Return Home watch (user) — XONG, verify live
+
+User directive: NGAY SAU (1) `[MV] rotating to village ...` và (2) `Launching
+com.supercell.clashofclans...` (logger "device", core/device.py:launch_game —
+duy nhất) phải dò màn hình MEmu cho nút khớp
+`assets/buttons/home/btn_return_home.png` (USER capture 01:55) thì tap.
+
+- Helper `popup_guard.return_home_watch_tap(logger, timeout)` (layer 3c): poll
+  2s/lần, tap khi thấy (log `[return_home_watch]`), dừng sớm khi home village
+  detected / run stopped / chest overlay hoặc system popup hiện (path recovery
+  riêng của chúng sở hữu — 02:18 live: chest làm watch đốt 40s trước khi smash
+  chạy được) / timeout. Template chưa load → 0 ngay (bootstrap launch đầu).
+- Hook (2): `core/device.py:_post_launch_ok` — ADDITIVE trong frozen core theo
+  yêu cầu user, chốt duy nhất tại 4 nhánh return True của launch_game; không
+  thể làm launch fail.
+- Hook (1): `multi_village.do_rotation` ngay sau log rotating (timeout 15s).
+- Tests: popup_guard [11] (5 checks) · multi_village [23]. Suite: popup 70 ·
+  MV 78 · engine 45 · pattern 54 · tiers 36 · glow 35 · zoom 20 · loot 19 ·
+  composition OK ≈ 357 checks.
+- Verify live 02:21-02:23: rotation → v4, panel 0.274 (retry sweep phục hồi),
+  face match, switch started, `identity check ok: village 4 (diff 28.6 vs
+  other 36.4)`, avatar 1.00 → farm tiếp; army 352/352 composition verified →
+  keep (không retrain).
+
+### confirmed-flag fix (2026-11-21 02:50, user report)
+
+`confirmed` chỉ được set bởi Apply thủ công → các switch rotation ĐÃ verify
+(v3/v4/v6, identity ok + avatar 1.00) không bao giờ được ghi flag → warning
+"not confirmed yet" lặp vĩnh viễn cho làng đã verify. Fix: `switch_to_village`
+mark `confirmed=True` vào config khi identity check verify THẬT (`idx in
+scores` — pass-with-note lúc ref vừa heal KHÔNG mark, lần thăm kế mới mark).
+Test [24] (dương + âm). Verify live interval 4': v6 switch → `village 6
+marked confirmed (identity verified by the switch itself)` + avatar 1.00.
+Config cuối (user): interval 60', villages {1,2,3,4,6} enabled, all confirmed
+(v3/v4 reconcile theo verify thật tối nay).

@@ -1,12 +1,12 @@
 {
   "enabled": true,
   "interval_option": "30 minutes",
-  "interval_mins": 4,
+  "interval_mins": 60,
   "villages": [
     {
       "idx": 1,
       "name": "Antoine",
-      "enabled": false,
+      "enabled": true,
       "confirmed": true,
       "config": {
         "scenario": "dragon_balloon",
@@ -25,7 +25,7 @@
     {
       "idx": 2,
       "name": "Nghiays",
-      "enabled": false,
+      "enabled": true,
       "confirmed": true,
       "config": {
         "scenario": "dragon_balloon",
@@ -45,7 +45,7 @@
       "idx": 3,
       "name": "Namhp123",
       "enabled": true,
-      "confirmed": false,
+      "confirmed": true,
       "config": {
         "scenario": "dragon_balloon",
         "farm": {
@@ -64,7 +64,7 @@
       "idx": 4,
       "name": "you know",
       "enabled": true,
-      "confirmed": false,
+      "confirmed": true,
       "config": {
         "scenario": "dragon_balloon",
         "farm": {
@@ -82,7 +82,7 @@
     {
       "idx": 5,
       "name": "nghia",
-      "enabled": true,
+      "enabled": false,
       "confirmed": false,
       "config": {
         "scenario": "dragon_balloon",
@@ -102,7 +102,7 @@
       "idx": 6,
       "name": "De Quan 2.0",
       "enabled": true,
-      "confirmed": false,
+      "confirmed": true,
       "config": {
         "scenario": "dragon_balloon",
         "farm": {
@@ -210,7 +210,7 @@
     ]
   },
   "runtime": {
-    "current_village_idx": 3,
-    "last_switch_ts": 1795134968.6821806
+    "current_village_idx": 6,
+    "last_switch_ts": 1795226732.3697472
   }
 }

@@ -702,3 +702,106 @@ def dismiss_star_bonus(logger=None):
     tap(*loc)
     time.sleep(2.0)
     return True
+
+
+# --- Layer 3c: post-launch / post-rotation "Return Home" watch ---------------
+# User directive 2026-11-21: immediately AFTER the game launches ("Launching
+# com.supercell.clashofclans..." from core/device) and immediately AFTER an MV
+# rotation starts ("[MV] rotating to village ..."), the game may sit on (or
+# resume onto) a battle-end screen with a 'Return Home' button visible — a
+# state no other recovery path understands (the switcher's hut tap would land
+# on it, ensure_home would force-stop a game that just needs one tap). Detect
+# the button by the USER-CAPTURED template below and tap it. The watch ends
+# early when the home village is detected (button never appeared) or when the
+# run is stopped; it never raises and never restarts anything.
+
+RETURN_HOME_TPL_KEY = "buttons/home/btn_return_home"
+RETURN_HOME_TAP_THRESHOLD = 0.7
+RETURN_HOME_WATCH_POLL = 2.0
+
+
+def _find_return_home(frame):
+    """Centre of the battle-end 'Return Home' button on ``frame``, or None.
+    Module-level so tests can stub the match."""
+    from core.vision import vision
+    return vision.find_template(frame, RETURN_HOME_TPL_KEY,
+                                threshold=RETURN_HOME_TAP_THRESHOLD,
+                                use_orb_fallback=False)
+
+
+def _watch_home_detected():
+    """Strict two-anchor home-village check (ends the watch early when the
+    village is already up — no button was there to tap)."""
+    try:
+        from device_manager import manager
+        ui = manager.ui_manager
+        if ui is None:
+            return False
+        from screens.home_screen import HomeScreen
+        return HomeScreen(ui).is_current_screen()
+    except Exception:
+        return False
+
+
+def _watch_stopped():
+    """Cooperative stop — the watch must not delay a user Stop by its timeout."""
+    try:
+        from device_manager import manager
+        ui = manager.ui_manager
+        return ui is not None and ui._stopped()
+    except Exception:
+        return False
+
+
+def return_home_watch_tap(logger=None, timeout=40.0):
+    """Poll the screen for the battle-end 'Return Home' button and tap it when
+    it appears (user directive 2026-11-21 — see the layer-3c banner above).
+
+    Polls every RETURN_HOME_WATCH_POLL seconds until the button is found and
+    tapped (then re-checks: tap again if it somehow persists), the home village
+    is detected, the run is stopped, or ``timeout`` elapses. Returns the number
+    of taps delivered. Never raises; returns 0 immediately when the template is
+    not loaded yet (first bootstrap launch — assets load after connect, and a
+    watch without its template must not burn its timeout)."""
+    try:
+        from core.vision import vision
+        if RETURN_HOME_TPL_KEY not in vision.cache:
+            return 0
+        delivered = 0
+        deadline = time.time() + float(timeout)
+        while time.time() < deadline:
+            if _watch_stopped():
+                return delivered
+            if _watch_home_detected():
+                return delivered
+            shot = take_screenshot("return_home_watch")
+            img = imread_unicode(shot) if shot else None
+            if img is not None:
+                try:
+                    if treasure_chest_visible(img) or popup_on_frame(img):
+                        # a screen the watch cannot act on (the treasure-chest
+                        # event / a system popup) — its own recovery path owns
+                        # it (ensure_home / return_home smash chests, the
+                        # watchdog relaunches); end the watch now instead of
+                        # burning the timeout on top of it (2026-11-21 02:18
+                        # live: the chest overlay made the watch idle its full
+                        # 40s before the chest smash could run).
+                        return delivered
+                except Exception:
+                    pass  # a non-frame image must never kill the watch
+            loc = _find_return_home(img) if img is not None else None
+            if loc:
+                msg = (f"[return_home_watch] battle-end 'Return Home' visible "
+                       f"at {loc} — tapping.")
+                if logger is not None:
+                    logger.warning(msg)
+                else:
+                    print(msg)
+                tap(*loc)
+                delivered += 1
+                time.sleep(2.5)   # let the screen change before re-checking
+                continue
+            time.sleep(RETURN_HOME_WATCH_POLL)
+        return delivered
+    except Exception:
+        return 0
