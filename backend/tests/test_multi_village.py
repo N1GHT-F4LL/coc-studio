@@ -176,7 +176,7 @@ def main():
         # host-window seams — the real MEmu window state must not gate the
         # rotation logic under test
         real_raise, real_ready = mv._raise_window_visible, mv._capture_ready
-        mv._raise_window_visible = lambda: True
+        mv._raise_window_visible = lambda **kw: True
         mv._capture_ready = lambda: True
         try:
             mv._load_runtime_state()
@@ -250,7 +250,7 @@ def main():
         real_apply = mv.apply_village_config
         mv.apply_village_config = lambda idx, ctx=None: True
         real_raise8, real_ready8 = mv._raise_window_visible, mv._capture_ready
-        mv._raise_window_visible = lambda: True
+        mv._raise_window_visible = lambda **kw: True
         mv._capture_ready = lambda: True
         ctx = FakeCtx()
         res = block.run(ctx, {})
@@ -312,7 +312,7 @@ def main():
         try:
             mv.open_switcher = lambda: (True, (1.0, 0.0, 0.0))
             mv._tap = lambda x, y: taps.append((x, y)) or True
-            mv._raise_window_visible = lambda: True
+            mv._raise_window_visible = lambda **kw: True
             mv._capture_ready = lambda: True
             mv._selfcap = lambda: object()          # opaque frame stand-in
             mv._locate_scid_face = lambda cap, idx_, m, threshold=0.7: None
@@ -468,7 +468,7 @@ def main():
             mv._dismiss_welcome_popups = lambda rounds=4: None
             mv.verify_village_identity = lambda idx, frame=None: (True, None, {})
             mv._capture_home_snapshot = lambda idx: None
-            mv._raise_window_visible = lambda: True
+            mv._raise_window_visible = lambda **kw: True
             mv._capture_ready = lambda: True
             ok13 = mv.switch_to_village(2)
             check("face match -> switch taps the DEVICE face position",
@@ -667,7 +667,7 @@ def main():
                 "close", calls19["close"] + 1)
             mv.wait_home = lambda timeout=180: calls19.__setitem__(
                 "wait_home", calls19["wait_home"] + 1) or True
-            mv._raise_window_visible = lambda: True
+            mv._raise_window_visible = lambda **kw: True
             mv._capture_ready = lambda: True
             mv._sleep = lambda s: None
             mv._dismiss_welcome_popups = lambda rounds=10: None
@@ -692,34 +692,44 @@ def main():
         print("[20] chest-overlay pre-clear before the switcher")
         class _FakePG20:
             def __init__(self):
-                self.chest_visible = False
                 self.smashes = 0
+                self.seq = []
             def treasure_chest_visible(self, frame):
-                return self.chest_visible
+                return self.seq.pop(0) if self.seq else False
             def smash_treasure_chests(self, logger=None):
                 self.smashes += 1
                 return 8
         pg20 = _FakePG20()
         real_pg20 = mv.popup_guard
         saved20 = {n: getattr(mv, n) for n in ("_screencap", "_home_detected",
-                                               "_dismiss_welcome_popups")}
+                                               "_dismiss_welcome_popups", "_sleep")}
         try:
             mv.popup_guard = pg20
             mv._screencap = lambda: object()
-            pg20.chest_visible = True
-            check("chest overlay up -> smashed in place",
+            mv._sleep = lambda s: None
+            # one smash pass clears ONE chest; the next pending chest pops
+            # 1-3s later — the pre-clear must loop until the Skip anchor
+            # stays gone for two consecutive checks (2026-11-23 02:22:
+            # every switch attempt smashed one chest, hut-tapped the
+            # re-popped overlay and died, 0.331 signature)
+            pg20.seq = [True, False, False]
+            check("chest overlay up -> smashed until it stays gone",
                   mv._clear_chest_overlay_if_up() is True and pg20.smashes == 1)
-            pg20.chest_visible = False
+            pg20.smashes = 0
+            pg20.seq = [True, False, True, False, False]
+            check("re-popped chest smashed again until the event stays gone",
+                  mv._clear_chest_overlay_if_up() is True and pg20.smashes == 2)
+            pg20.smashes = 0
             check("no overlay -> pre-clear is a no-op",
-                  mv._clear_chest_overlay_if_up() is False and pg20.smashes == 1)
+                  mv._clear_chest_overlay_if_up() is False and pg20.smashes == 0)
             sweeps20 = []
             mv._home_detected = lambda: True
             mv._dismiss_welcome_popups = lambda rounds=10: sweeps20.append(1)
-            pg20.chest_visible = True
+            pg20.seq = [True, False, False]
             check("sweep path prefers the chest overlay first",
-                  mv._sweep_popups_if_home() is True and pg20.smashes == 2
+                  mv._sweep_popups_if_home() is True and pg20.smashes == 1
                   and sweeps20 == [])
-            pg20.chest_visible = False
+            pg20.seq = []
             check("clean home -> welcome sweep runs",
                   mv._sweep_popups_if_home() is True and sweeps20 == [1])
             mv._home_detected = lambda: False
@@ -807,6 +817,80 @@ def main():
         finally:
             mv.user32 = real_u32
 
+        # --- 25. transient cover retry + lower-the-cover recovery ----------
+        # 2026-11-23 02:18: a TRANSIENT cover (console flash) cost a whole
+        # 60-min window — one probe miss failed the window instantly. The
+        # raise now retries bounded AND lowers a persistent non-elevated
+        # cover to HWND_BOTTOM (no focus move — same allowed z-order class).
+        print("[25] transient-cover retry + lower-the-cover recovery")
+
+        class _CoverUser32:
+            def __init__(self, cover_resists=False):
+                self.memu = 0x1234
+                self.cover = 0x5678
+                self.cover_resists = cover_resists
+                self.cover_on_top = True
+                self.lowered = 0
+                self.bumps = 0
+            def IsWindowVisible(self, h):
+                return True
+            def GetWindowTextW(self, h, buf, n):
+                buf.value = 'MEmu' if h == self.memu else 'Some dashboard'
+                return 0
+            def EnumWindows(self, cb, _):
+                cb(self.cover, 0)
+                cb(self.memu, 0)
+                return True
+            def GetWindowRect(self, h, rect):
+                r = rect._obj if hasattr(rect, "_obj") else rect
+                r.left, r.top, r.right, r.bottom = 112, 22, 1424, 792
+                return True
+            def IsIconic(self, h):
+                return False
+            def ShowWindow(self, h, cmd):
+                return True
+            def SetWindowPos(self, h, after, x, y, cx, cy, flags):
+                if h == self.memu:
+                    self.bumps += 1
+                    return 0          # UIPI refuses on the elevated MEmu
+                if self.cover_resists:
+                    return 0
+                self.lowered += 1
+                self.cover_on_top = False
+                return 1
+            def WindowFromPoint(self, pt):
+                return self.cover if self.cover_on_top else self.memu
+            def IsChild(self, parent, child):
+                return False
+            def GetAncestor(self, h, flag):
+                return h
+
+        real_u32b = mv.user32
+        try:
+            u25 = _CoverUser32()
+            mv.user32 = u25
+            check("persistent cover that can be lowered -> lowered once, True",
+                  mv._raise_window_visible() is True and u25.lowered == 1,
+                  f"lowered={u25.lowered}")
+            u25b = _CoverUser32(cover_resists=True)
+            mv.user32 = u25b
+            check("cover cannot be lowered (elevated cover) -> False",
+                  mv._raise_window_visible() is False and u25b.lowered == 0)
+            # transient cover: first attempt fully covered (lowering refused),
+            # cleared by the second attempt -> retry loop salvages the window
+            u25c = _CoverUser32(cover_resists=True)
+            probes = {"n": 0}
+            def _wfp25(pt):
+                probes["n"] += 1
+                return u25c.cover if probes["n"] <= 3 else u25c.memu
+            u25c.WindowFromPoint = _wfp25
+            mv.user32 = u25c
+            check("transient cover clears between retries -> True",
+                  mv._raise_window_visible(tries=2, spacing=0.0) is True,
+                  f"probes={probes['n']}")
+        finally:
+            mv.user32 = real_u32b
+
         # --- 23. rotation-start Return Home watch (user 2026-11-21) ---------
         # Immediately after "[MV] rotating to village ..." the screen may show
         # the battle-end Return Home button — watch + tap BEFORE the switcher
@@ -830,7 +914,7 @@ def main():
             mv._state.update({"current_village_idx": 1, "active_village_idx": 1,
                               "last_switch_ts": 0.0})
             mv.switch_to_village = lambda idx: True
-            mv._raise_window_visible = lambda: True
+            mv._raise_window_visible = lambda **kw: True
             mv._capture_ready = lambda: True
             mv._sleep = lambda s: None
             mv.do_rotation(FakeCtx())
@@ -866,7 +950,7 @@ def main():
             mv.wait_home = lambda timeout=180: True
             mv._dismiss_welcome_popups = lambda rounds=10: None
             mv._capture_home_snapshot = lambda idx: None
-            mv._raise_window_visible = lambda: True
+            mv._raise_window_visible = lambda **kw: True
             mv._capture_ready = lambda: True
             mv._home_detected = lambda: True
             # identity VERIFIED (idx present in scores) -> confirmed set
@@ -893,6 +977,101 @@ def main():
         finally:
             for n, fn in saved24.items():
                 setattr(mv, n, fn)
+
+        # --- 26. stale-reference arbitration via the SCID avatar -------------
+        # 2026-11-23: the game's look changed after 2 days (season theme) ->
+        # ALL refs scored ~40-52 and tied -> every CORRECT switch failed
+        # WRONG VILLAGE. The SCID avatar face is graphics-independent:
+        # identity-fail + avatar MATCH = stale references -> regenerate +
+        # accept; avatar mismatch = a real wrong landing.
+        print("[26] stale-reference arbitration via the SCID avatar")
+        mv_dir26 = os.path.join(tmp, "mvdir26")
+        os.makedirs(mv_dir26, exist_ok=True)
+        real_mvdir26 = mv.MV_DIR
+        mv.MV_DIR = mv_dir26
+        saved26 = {n: getattr(mv, n) for n in
+                   ("open_switcher", "_tap", "_selfcap", "_locate_scid_face",
+                    "_locate_account_row", "_sleep", "wait_home",
+                    "_dismiss_welcome_popups", "verify_village_identity",
+                    "settings_verify_face", "_raise_window_visible",
+                    "_capture_ready", "_switch_left_home", "_close_scid_page",
+                    "_home_detected", "_screencap")}
+        try:
+            mv.CONFIG_PATH = os.path.join(tmp, "mv26.json")
+            cfg26 = base_config()
+            cfg26["coords"]["scid_switch_id"] = [1335, 375]
+            mv.save_config(cfg26)
+            mv.open_switcher = lambda: (True, (1.0, 0.0, 0.0))
+            mv._tap = lambda x, y: True
+            mv._selfcap = lambda: object()
+            mv._locate_scid_face = lambda cap, idx_, m, threshold=0.7: (1100, 700)
+            mv._sleep = lambda s: time.sleep(0.01)   # settle-retry spins ~30s otherwise
+            mv.wait_home = lambda timeout=180: True
+            mv._dismiss_welcome_popups = lambda rounds=10: None
+            mv._raise_window_visible = lambda **kw: True
+            mv._capture_ready = lambda: True
+            mv._switch_left_home = lambda timeout=25.0: True
+            mv._close_scid_page = lambda: None
+            mv._home_detected = lambda: True
+            mv._screencap = lambda: _np.random.default_rng(26).integers(
+                40, 220, (900, 1600, 3), dtype=_np.uint8)
+            stale = _np.full((900, 1600, 3), 77, dtype=_np.uint8)
+            _cv2.imwrite(os.path.join(mv_dir26, "home_v2.png"), stale)
+            mv.verify_village_identity = lambda idx, frame=None: (
+                False, (3, 45.6), {3: 45.6})
+            mv.settings_verify_face = lambda idx: "match"
+            check("avatar-match arbitration accepts the landing",
+                  mv.switch_to_village(2) is True)
+            regen = _cv2.imread(os.path.join(mv_dir26, "home_v2.png"))
+            check("stale reference regenerated from a fresh capture",
+                  regen is not None and float(regen.mean()) > 100.0,
+                  "mean={}".format(None if regen is None else round(float(regen.mean()), 1)))
+            cfg = mv.load_config()
+            check("arbitrated switch marks the village confirmed",
+                  mv.village(cfg, 2).get("confirmed") is True)
+            mv.settings_verify_face = lambda idx: "mismatch"
+            check("avatar mismatch -> switch still fails",
+                  mv.switch_to_village(2) is False)
+        finally:
+            mv.MV_DIR = real_mvdir26
+            for n, fn in saved26.items():
+                setattr(mv, n, fn)
+
+        # --- 27. identity margin vs slow village drift (2026-11-23 05:02) ---
+        # Village 1's look drifted until its OWN reference scored ~32.8 while
+        # the next village sat at ~35.6 — the 3.0 margin rejected the CORRECT
+        # landing by 0.2 (the settle-retry saved it by luck). The margin is
+        # relaxed to 1.5: a drifted-but-correct landing (argmin, close scores)
+        # passes; a real wrong landing still fails (its frame matches the
+        # WRONG village's ref closely -> expected >> best_other).
+        print("[27] identity margin: drifted-but-correct landing accepted")
+        mv_dir27 = os.path.join(tmp, "mvdir27")
+        os.makedirs(mv_dir27, exist_ok=True)
+        real_mvdir27 = mv.MV_DIR
+        mv.MV_DIR = mv_dir27
+        try:
+            # frame P; ref_v1 = P dimmed 32.6 (the drifted same village);
+            # ref_v4 = P dimmed 35.6 (the nearest other village) — distances
+            # reproduce tonight's exact scores
+            base = _np.random.default_rng(27).integers(40, 220, (900, 1600, 3),
+                                                       dtype=_np.uint8).astype(_np.int16)
+            frame27 = base.astype(_np.uint8)
+            _cv2.imwrite(os.path.join(mv_dir27, "home_v1.png"),
+                         _np.clip(base - 32.6, 0, 255).astype(_np.uint8))
+            _cv2.imwrite(os.path.join(mv_dir27, "home_v4.png"),
+                         _np.clip(base - 35.6, 0, 255).astype(_np.uint8))
+            ok27, bo27, sc27 = mv.verify_village_identity(1, frame=frame27)
+            check("drifted-but-correct landing (32.8 vs 35.6) accepted at margin 1.5",
+                  ok27 is True, f"ok={ok27} scores={sc27}")
+            # control: a REAL wrong landing (frame matches v4's ref closely)
+            wrong27 = _np.clip(base - 35.6 + _np.random.default_rng(28).integers(
+                -6, 6, (900, 1600, 3), dtype=_np.int16), 0, 255).astype(_np.uint8)
+            ok27b, bo27b, sc27b = mv.verify_village_identity(1, frame=wrong27)
+            check("real wrong landing still rejected",
+                  ok27b is False and bo27b is not None and bo27b[0] == 4,
+                  f"ok={ok27b} bo={bo27b} scores={sc27b}")
+        finally:
+            mv.MV_DIR = real_mvdir27
     finally:
         mv.CONFIG_PATH = real_path
         mv.STATS_DIR = real_stats

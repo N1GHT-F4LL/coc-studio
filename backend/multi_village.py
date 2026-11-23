@@ -68,8 +68,14 @@ POPUP_CLOSE_GATE = 0.65
 POPUP_BAND_Y = 500          # okay buttons live in the bottom band (y >= this)
 # Identity decision margin: the expected village's snapshot must beat the best
 # other by at least this much (same-village re-visit noise is ~2-5; different
-# villages sit 30+ apart on the 160x90 signature).
-IDENTITY_MARGIN = 3.0
+# villages sit 30+ apart on the 160x90 signature). 2026-11-23: relaxed 3.0 ->
+# 1.5 — village 1's look drifted until its OWN reference scored ~32.8 while
+# the next village sat at ~35.6, and the 3.0 margin rejected the CORRECT
+# landing by 0.2 (the settle-retry saved it by luck). The argmin rule still
+# rejects real wrong landings (their frame matches the WRONG village's ref
+# closely, so expected >> best_other), and the avatar arbitration remains the
+# second line for stale-reference ties.
+IDENTITY_MARGIN = 1.5
 # After the SCID row tap the switch must ACTUALLY start before wait_home may
 # trust adb: while the FLAG_SECURE overlay is open, screencap shows the OLD
 # village beneath it, so wait_home "verified home" instantly on every silently
@@ -350,7 +356,26 @@ def _window_is_top(hwnd):
         return True   # cannot probe — keep the old lenient behaviour
 
 
-def _raise_window_visible():
+def _covering_window(hwnd):
+    """Root window of whatever covers ``hwnd`` at its centre (the one hiding
+    the game view), or None when MEmu is already on top. Read-only probe
+    (WindowFromPoint + GetAncestor GA_ROOT)."""
+    import ctypes.wintypes as wt
+    try:
+        rect = wt.RECT()
+        if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            return None
+        cx = (rect.left + rect.right) // 2
+        cy = (rect.top + rect.bottom) // 2
+        top = user32.WindowFromPoint(wt.POINT(cx, cy))
+        if not top or top == hwnd or user32.IsChild(hwnd, top):
+            return None
+        return user32.GetAncestor(top, 2) or top   # 2 = GA_ROOT
+    except Exception:
+        return None
+
+
+def _raise_window_visible(tries=1, spacing=15.0):
     """Make sure the MEmu window is UNCOVERED for the desktop self-capture —
     WITHOUT touching keyboard focus. HARD RULE since 2026-11-17: this module
     must never inject keys or steal the host foreground — the old ALT-key
@@ -361,49 +386,71 @@ def _raise_window_visible():
     user is typing), and the immediate NOTOPMOST returns it to the normal
     z-band so other windows can still cover it afterwards.
 
-    Returns True when MEmu verifies UNCOVERED (probe first — a bumped-over
-    window is not needed when nothing covers the game), False only when the
-    game is genuinely covered AND the raise did not land: MEmu runs ELEVATED,
-    so UIPI silently refuses our SetWindowPos and whatever covers the game
-    stays on top (2026-11-21 01:18: the backend's auto-opened browser sat
-    over MEmu, every switch's mapping derivation then matched the BROWSER
-    (0/5 regions) and all four villages failed the window). NOTE: UIPI
-    refuses SetWindowPos on an elevated window even when it is NOT covered —
-    the bump's return value alone is never a failure signal; only the
-    on-top probe decides. Callers treat False like the minimized case: fail
-    the window fast with guidance instead of burning restarts."""
-    hwnd, _rect = _find_memu_window()
-    if hwnd is None:
-        return False
-    if user32.IsIconic(hwnd):
-        # A minimized window has NO render surface to capture — it MUST be
-        # restored, and Win32 has no reliable no-activation restore. This
-        # moves the foreground ONCE (a focus move cannot corrupt the input
-        # stack — the keyboard wedge came exclusively from keybd_event /
-        # AttachThreadInput, which are banned from this module and fenced
-        # by tests).
-        logger.info("[MV] MEmu is minimized — restoring (activates the window "
-                    "once; NO key injection involved).")
-        user32.ShowWindow(hwnd, 9)   # SW_RESTORE
-        deadline = time.time() + 5
-        while user32.IsIconic(hwnd) and time.time() < deadline:
-            time.sleep(0.3)
-        time.sleep(1.0)              # let the restore animation settle
-    if _window_is_top(hwnd):
-        return True                  # already uncovered — no bump needed
+    Returns True when MEmu verifies UNCOVERED, False only when the game stays
+    genuinely covered after ``tries`` attempts spaced ``spacing`` seconds
+    apart. MEmu runs ELEVATED, so UIPI silently refuses our SetWindowPos on
+    MEmu itself (the bump's return value alone is NEVER a failure signal —
+    only the on-top probe decides). Two recoveries beyond the bump:
+      - TRANSIENT covers (a console flash, a dragging window — 2026-11-23
+        02:18 cost a whole 60-min window because one probe miss failed the
+        window instantly) clear on their own: the caller may pass
+        ``tries>1`` for a bounded re-probe loop.
+      - PERSISTENT covers: the covering window (if non-elevated — a parked
+        dashboard/browser) is LOWERED to the bottom of the z-order with
+        SWP_NOACTIVATE (no focus move, same allowed z-order class as the
+        bump). An elevated cover cannot be lowered — fail-fast with guidance.
+
+    Callers treat False like the minimized case: fail the window fast with
+    guidance instead of burning restarts."""
     SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE = 0x0001, 0x0002, 0x0010
-    HWND_TOPMOST, HWND_NOTOPMOST = -1, -2
+    HWND_TOPMOST, HWND_NOTOPMOST, HWND_BOTTOM = -1, -2, 1
     flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
-    user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
-    user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags)
-    if _window_is_top(hwnd):
-        return True                  # the bump raised it (non-elevated MEmu)
+    lowered_cover = False
+    for attempt in range(1, int(tries) + 1):
+        hwnd, _rect = _find_memu_window()
+        if hwnd is None:
+            return False
+        if user32.IsIconic(hwnd):
+            # A minimized window has NO render surface to capture — it MUST be
+            # restored, and Win32 has no reliable no-activation restore. This
+            # moves the foreground ONCE (a focus move cannot corrupt the input
+            # stack — the keyboard wedge came exclusively from keybd_event /
+            # AttachThreadInput, which are banned from this module and fenced
+            # by tests).
+            logger.info("[MV] MEmu is minimized — restoring (activates the window "
+                        "once; NO key injection involved).")
+            user32.ShowWindow(hwnd, 9)   # SW_RESTORE
+            deadline = time.time() + 5
+            while user32.IsIconic(hwnd) and time.time() < deadline:
+                time.sleep(0.3)
+            time.sleep(1.0)              # let the restore animation settle
+        if _window_is_top(hwnd):
+            return True                  # already uncovered — no bump needed
+        user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
+        user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags)
+        if _window_is_top(hwnd):
+            return True                  # the bump raised it (non-elevated MEmu)
+        cover = _covering_window(hwnd)
+        if cover is not None:
+            ok = bool(user32.SetWindowPos(cover, HWND_BOTTOM, 0, 0, 0, 0, flags))
+            if ok and _window_is_top(hwnd):
+                logger.warning("[MV] MEmu was covered by another window — lowered "
+                               "it to the bottom of the z-order to uncover the "
+                               "game view (no focus change).")
+                return True
+            if ok:
+                lowered_cover = True   # lowered something but MEmu still covered
+        if attempt < int(tries):
+            _sleep(float(spacing))     # a transient cover may clear on its own
     logger.error(
-        "[MV] MEmu window CANNOT be raised above what covers it (something is "
+        "[MV] MEmu window CANNOT be uncovered after %d attempt(s) (something is "
         "on top of the game view and SetWindowPos is refused - MEmu runs "
-        "ELEVATED, UIPI silently blocks our raise). Move/un-cover the MEmu "
+        "ELEVATED, UIPI silently blocks our raise%s). Move/un-cover the MEmu "
         "window, or de-elevate MEmu (tray Exit + shortcut uncheck 'Run as "
-        "administrator'); the next rotation window retries.")
+        "administrator'); the next rotation window retries.",
+        int(tries),
+        "; the covering window was lowered but something else still covers the "
+        "game" if lowered_cover else "")
     return False
 
 
@@ -980,22 +1027,53 @@ def _home_detected():
         return False
 
 
+def _run_stopped():
+    """Cooperative-stop probe for the switch-flow waits (no ui_manager -> not
+    stopped; the caller proceeds and wait_home handles the rest)."""
+    try:
+        ui = manager.ui_manager
+        return ui is not None and ui._stopped()
+    except Exception:
+        return False
+
+
 def _clear_chest_overlay_if_up():
     """The full-screen treasure-chest event can pop AFTER return_home's own
     check (the chest-award animation finishes late) — landing right on top of
     the village just as the rotation starts. Every switcher tap then lands on
     the event screen and the whole rotation window dies on "panel NOT open"
     (2026-11-21 01:05: all four villages failed one window this way — the same
-    root cause as the morning's village-6 instant exclusion). Detect the
-    overlay by its Skip anchor and smash the chests in place first. No-op
-    when the overlay is not up."""
+    root cause as the morning's village-6 instant exclusion).
+
+    ONE smash pass clears exactly ONE chest: after its reward reveal the
+    NEXT pending chest's overlay pops 1-3s later — the smash loop's 1s
+    re-check catches the transition and reports "screen cleared" while more
+    chests remain (2026-11-23 02:22: every switch attempt smashed one chest,
+    hut-tapped the re-popped overlay and died; 0.331 settings-tab signature).
+    So: smash, then keep re-checking until the Skip anchor has stayed gone
+    for TWO consecutive checks (or the bounded budget runs out). No-op when
+    the overlay is not up at all."""
     try:
         frame = _screencap()
         if frame is None or not popup_guard.treasure_chest_visible(frame):
             return False
         logger.warning("[MV] treasure-chest event screen up — smashing chests in "
-                       "place before the switch.")
+                       "place before the switch (until the event stays gone).")
         popup_guard.smash_treasure_chests(logger)
+        gone_streak = 0
+        for _ in range(12):
+            _sleep(3.0)
+            frame = _screencap()
+            if frame is not None and popup_guard.treasure_chest_visible(frame):
+                gone_streak = 0
+                popup_guard.smash_treasure_chests(logger)
+            else:
+                gone_streak += 1
+                if gone_streak >= 2:
+                    return True
+        logger.warning("[MV] chest event did not stay gone after the budget — "
+                       "the switch attempt proceeds anyway (open_switcher's "
+                       "retry + tier-2 restart remain as backstops).")
         return True
     except Exception as e:
         logger.warning("[MV] chest-overlay pre-clear failed: %s", e)
@@ -1306,7 +1384,7 @@ def switch_to_village(idx):
         if c.get("scid_switch_id") is None:
             logger.error("[MV] scid_switch_id not calibrated — cannot switch.")
             return False
-        raised = _raise_window_visible()
+        raised = _raise_window_visible(tries=8)
         if not raised or not _capture_ready():
             # _raise_window_visible already logged its precise reason on False
             if raised:
@@ -1391,13 +1469,64 @@ def switch_to_village(idx):
         _dismiss_welcome_popups()
         ident_ok, best_other, ident_scores = verify_village_identity(idx)
         if not ident_ok:
-            logger.error("[MV] switch to village %s landed on the WRONG account "
-                         "(looks like %s) — treating as a failed switch.",
-                         idx, best_other[0] if best_other else "?")
-            # 2026-11-21 cascade lesson: leave the dialogs up and the NEXT
-            # village's switcher dies on them (its hut tap hits the popup).
-            _dismiss_welcome_popups()
-            return False
+            # (a) 2026-11-23: wait_home can pass on a TRANSIENT frame while the
+            # account is still loading (the rotation may fire right after a
+            # backend restart / game relaunch) — the identity frame then matches
+            # NO village (all scores inflate and tie, ~40-52) and every CORRECT
+            # landing fails. Re-verify on a STABLE home frame (two consecutive
+            # detections, bounded 30s) before declaring a wrong landing.
+            stable = 0
+            deadline = time.time() + 30.0
+            while time.time() < deadline:
+                if _run_stopped():
+                    return False
+                if _home_detected():
+                    stable += 1
+                else:
+                    stable = 0
+                if stable >= 2:
+                    ident_ok, best_other, ident_scores = verify_village_identity(idx)
+                    if ident_ok:
+                        logger.info("[MV] identity re-verified for village %s on the "
+                                    "settled home frame (the first check caught the "
+                                    "account load in progress).", idx)
+                        break
+                    stable = 0
+                _sleep(3.0)
+        if not ident_ok:
+            # (b) 2026-11-23: the references also go STALE when the game's look
+            # changes (season/theme update — all scores inflate and tie). The
+            # SCID avatar face is graphics-independent: verify it directly.
+            # match = the landing IS this village -> regenerate the stale
+            # reference and accept; mismatch/skip = a real wrong landing.
+            status = settings_verify_face(idx)
+            if status == "match":
+                logger.warning(
+                    "[MV] identity check failed for village %s but its SCID avatar "
+                    "MATCHED — the references are stale (game look changed, e.g. a "
+                    "season theme); regenerating them and accepting the switch.",
+                    idx)
+                try:
+                    os.remove(os.path.join(MV_DIR, f"home_v{idx}.png"))
+                except OSError:
+                    pass
+                _capture_home_snapshot(idx)
+                cfg = load_config()
+                v = village(cfg, idx)
+                if v is not None and not v.get("confirmed"):
+                    v["confirmed"] = True   # the avatar face verified the account
+                    save_config(cfg)
+                ident_ok = True
+            else:
+                logger.error("[MV] switch to village %s landed on the WRONG account "
+                             "(identity check failed, avatar %s; looks like %s) — "
+                             "treating as a failed switch.",
+                             idx, status,
+                             best_other[0] if best_other else "?")
+                # 2026-11-21 cascade lesson: leave the dialogs up and the NEXT
+                # village's switcher dies on them (its hut tap hits the popup).
+                _dismiss_welcome_popups()
+                return False
         _capture_home_snapshot(idx)
         if idx in ident_scores:
             # the identity check actually VERIFIED this landing (a healed
@@ -1526,7 +1655,7 @@ def do_rotation(ctx):
         return 0
     with _lock:
         _state["last_switch_ts"] = time.time()   # one attempt window per interval
-    raised = _raise_window_visible()
+    raised = _raise_window_visible(tries=8)
     if not raised or not _capture_ready():
         # host-side precondition — a game restart CANNOT fix a covered,
         # minimized, or UIPI-protected window. Fail the window fast, no
